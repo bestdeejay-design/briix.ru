@@ -3,8 +3,6 @@
 
 const LS = 'ai-demo-state-v1';
 const defaultState = {
-  user: null,                     // { email, verified }
-  verification: null,             // { email, code } — демо-«письмо»
   projects: [{ id: 'p1', name: 'default' }],
   keys: [],                       // { id, prefix, status, created, projectId }
   usage: [],                      // { date, project, model, status, ms, tin, tout, cost }
@@ -22,7 +20,6 @@ const MODELS = [
 
 const routes = {
   '/': landing,
-  '/login': auth,
   '/overview': overview,
   '/models': models,
   '/playground': playground,
@@ -34,12 +31,10 @@ function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 function fmt(n) { return n.toLocaleString('ru-RU'); }
 
 function nav() {
-  const links = state.user
-    ? [['/overview', 'Обзор'], ['/models', 'Модели'], ['/playground', 'Playground'], ['/keys', 'Ключи'], ['/usage', 'Использование']]
-    : [['/', 'Продукт'], ['/login', 'Войти']];
+  const links = [['/', 'Продукт'], ['/overview', 'Обзор'], ['/models', 'Модели'], ['/playground', 'Playground'], ['/keys', 'Ключи'], ['/usage', 'Использование']];
   const hash = location.hash || '#/';
   document.getElementById('nav').innerHTML = links
-    .map(([u, t]) => `<a href="#${u}" class="${hash === `#${u}` || (u === '/' && hash === '#/') ? 'active' : ''}">${t}</a>`).join('');
+    .map(([u, t]) => `<a href="#${u}" class="${hash === `#${u}` ? 'active' : ''}">${t}</a>`).join('');
 }
 
 function render() {
@@ -57,10 +52,10 @@ function landing() {
   <div class="hero">
     <span class="pill">Один OpenAI-совместимый API — несколько моделей</span>
     <h1>Единый ключ, каталог моделей и учёт расходов</h1>
-    <p class="lead">Демо кабинета AI-платформы: регистрация, workspace, API-ключи, playground и usage.
-    Сейчас работает на mock-данных в вашем браузере; API-шлюз подключается тем же контрактом позже.</p>
+    <p class="lead">Демо кабинета AI-платформы: API-ключи, playground, usage.
+    Работает на mock-данных в вашем браузере; API-шлюз подключается тем же контрактом позже.</p>
     <div class="row">
-      <button onclick="go('/login')">Создать аккаунт</button>
+      <button onclick="go('/overview')">Войти в демо</button>
       <button class="ghost" onclick="go('/models')">Каталог моделей</button>
     </div>
   </div>
@@ -81,88 +76,6 @@ curl https://api.example/v1/chat/completions \\
     <div class="card"><strong>Ключи по проектам</strong><br><span class="lead">Выпуск, показ один раз, отзыв.</span></div>
     <div class="card"><strong>Usage</strong><br><span class="lead">Запросы, токены и стоимость — по датам.</span></div>
   </div>`;
-}
-
-/* ---------- auth ---------- */
-function auth() {
-  const app = document.getElementById('app');
-  if (state.user) return go('/overview');
-  app.innerHTML = `
-  <div class="hero"><h1>Вход / регистрация</h1>
-  <p class="lead">Демо: письмо с кодом «приходит» сюда же на экран. Пароль хранится только в localStorage.</p></div>
-  <div class="card" style="max-width:460px">
-    <label>Email</label><input id="email" type="email" placeholder="you@company.ru">
-    <label>Пароль (мин. 10 символов)</label><input id="pass" type="password">
-    <div class="row" style="margin-top:14px">
-      <button onclick="doRegister()">Регистрация</button>
-      <button class="ghost" onclick="doLogin()">Войти</button>
-    </div>
-    <div id="verify-box"></div>
-    <p class="lead" style="margin-top:14px">В production: email-письмо с кодом, сессии в HttpOnly-cookie, Argon2id. См. AUTH_SECURITY канона.</p>
-  </div>`;
-}
-function showVerify(email) {
-  document.getElementById('verify-box').innerHTML = `
-  <div class="key-reveal" style="margin-top:14px">
-    <strong>«Письмо» отправлено</strong> на ${esc(email)}<br>Демо-код: <strong>${esc(state.verification.code)}</strong>
-    <div class="row" style="margin-top:10px">
-      <input id="code" placeholder="6-значный код" style="max-width:160px">
-      <button onclick="doVerify('${esc(email)}')">Подтвердить</button>
-    </div>
-  </div>`;
-}
-function doRegister() {
-  const email = document.getElementById('email').value.trim().toLowerCase();
-  const pass = document.getElementById('pass').value;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert('Некорректный email');
-  if (pass.length < 10) return alert('Пароль: минимум 10 символов');
-  state.user = { email, pass, verified: false };
-  state.verification = { email, code: String(100000 + Math.floor(Math.random() * 900000)) };
-  save(); showVerify(email);
-}
-function doLogin() {
-  const email = document.getElementById('email').value.trim().toLowerCase();
-  const pass = document.getElementById('pass').value;
-  if (state.user && state.user.email === email && state.user.pass === pass && state.user.verified) return go('/overview');
-  alert('Неверный email или пароль (или аккаунт не подтверждён). Зарегистрируйтесь заново.');
-}
-function doVerify(email) {
-  const code = document.getElementById('code').value.trim();
-  if (!state.verification || state.verification.email !== email || state.verification.code !== code) return alert('Неверный код');
-  state.user.verified = true; state.verification = null; save();
-  go('/overview');
-}
-function logout() { state.user = null; save(); go('/'); render(); }
-
-/* ---------- кабинет ---------- */
-function guard() {
-  if (!state.user || !state.user.verified) { go('/login'); render(); return false; }
-  return true;
-}
-function overview() {
-  if (!guard()) return;
-  const app = document.getElementById('app');
-  const total = state.usage.length;
-  const tokens = state.usage.reduce((s, u) => s + u.tin + u.tout, 0);
-  const cost = state.usage.reduce((s, u) => s + u.cost, 0);
-  const activeKeys = state.keys.filter((k) => k.status === 'active').length;
-  app.innerHTML = `
-  <h1>Обзор</h1>
-  <p class="lead">Workspace: <strong>${esc(state.user.email)}</strong> (личный) · проект: default · <a href="#" onclick="logout();return false">выйти</a></p>
-  <div class="grid">
-    <div class="card stat"><div class="n">${fmt(total)}</div><div class="l">запросов</div></div>
-    <div class="card stat"><div class="n">${fmt(tokens)}</div><div class="l">токенов всего</div></div>
-    <div class="card stat"><div class="n">$${cost.toFixed(4)}</div><div class="l">стоимость (оценка)</div></div>
-    <div class="card stat"><div class="n">${activeKeys}</div><div class="l">активных ключей</div></div>
-  </div>
-  <h2>Быстрые действия</h2>
-  <div class="row">
-    <button onclick="go('/keys')">Выпустить ключ</button>
-    <button class="ghost" onclick="go('/playground')">Открыть playground</button>
-  </div>
-  <h2>Статус</h2>
-  <div class="card"><span class="tag ok">mock-адаптер: active</span> &nbsp; <span class="tag warn">реальный inference: фаза 2</span>
-  <p class="lead" style="margin:10px 0 0">Прототип обслуживает только mock-модели; выбор backend (ЦОД / Yandex Cloud) — за владельцем, см. issue R1.</p></div>`;
 }
 
 function models() {

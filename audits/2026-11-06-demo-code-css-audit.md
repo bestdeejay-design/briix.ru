@@ -14,7 +14,7 @@
 | Черновики и вкладки | Потеря черновика при переходе; cross-tab clobber | Flush на hashchange/pagehide, guard against stale remote state, toast только если запись реально сохранена | `draft flush and cross-tab guard` |
 | Отправка/стрим | Двойной Enter создавал два сообщения; стрим терялся при навигации | Pending-send guard, stream holder, pause-on-render, корректная остановка/повтор | `pending-send guard`, `stream holder across navigation` |
 | Варианты ответа | `regenerate` мог превысить лимит variant, хотя import его ограничивал | Guard `variant >= 10000` до создания нового варианта | `regenerate variant cap` |
-| Фокус и навигация | Modal focus race, skip link менял route, theme toggle уводил с media/settings | Версионированный modal focus, skip link без route change, theme route guard, settings focus preservation | `modal version focus guard`, `skip link`, `theme route guard and settings focus` |
+| Фокус и навигация | Modal focus race, skip link менял route; в старом `main` смена темы из хедера рендерила экран настроек на любом маршруте | Версионированный modal focus, skip link без route change, theme route guard: header toggle меняет тему на месте, settings перерисовываются только если пользователь уже в настройках; ссылка-шестерёнка ведёт в настройки | `modal version focus guard`, `skip link`, `theme route guard and settings focus`, `header theme toggle stays on route` |
 | Markdown/код | Raw HTML и malformed copy-code могли бросать ошибку | Escape-first markdown, только известные теги, guard decodeURIComponent | `markdown escaping and copy-code guard` |
 | Контраст | `--faint`, warning banner, code head, media label не проходили axe | Токены и solid backgrounds; `--warning:#805b20` даёт 5.38 на `#f7f0df` | axe light/dark, `code header contrast`, `populated image label contrast` |
 | Motion/print/hover | Универсальный reduced-motion ломал переходы; print-токены и hover-only состояния | Scoped reduced-motion без глобального transition-duration, print tokens, hover/focus polish | `reduced motion and axe`, CSS parse |
@@ -26,7 +26,7 @@
 
 ### Browser regression
 
-- `tools/check-demo.cjs`: **19 PASS**. Маршруты home/assistants/prompts/favorites/settings/media/chat; light/dark; axe violations `[]` на 7 маршрутах × 2 темы; reduced-motion animation `none`; no page errors; no external requests.
+- `tools/check-demo.cjs`: **20 PASS**. Маршруты home/assistants/prompts/favorites/settings/media/chat; light/dark; header theme toggle проверен на месте для каждого маршрута; axe violations `[]` на 7 маршрутах × 2 темы; reduced-motion animation `none`; no page errors; no external requests.
 - `tools/check-media.cjs`: **25 PASS**. Валидация брифа/референсов, фото/видео, скачивание, WebM fallback, медиатека, экспорт/удаление, ошибка/retry/cancel, reload recovery, capacity/eviction, corrupt storage, keyboard tabs, modal focus/escape, axe на 390/1440 × create/library/queue/models; no page errors/external requests.
 - `tools/check-media-visual.cjs`: все **12 MP4/WebM** загрузили metadata, duration 5 s; desktop frame/video 629.20×365, mobile frame/video 354×300; horizontal overflow false; dark/mobile axe `[]`; modal video geometry не меняется после play; errors/external `[]`.
 

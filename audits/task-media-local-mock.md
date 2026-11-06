@@ -31,6 +31,7 @@
 
 - Импорт/экспорт, повреждённый storage, черновики, cross-tab guard, pending-send, stream holder, modal focus, skip link, theme route, settings focus.
 - Лимит вариантов ответа при `regenerate`.
+- Переключатель темы в хедере меняет тему на противоположную и не открывает настройки; в настройки ведёт отдельная кнопка/ссылка. Регрессия проверяет это на каждом маршруте.
 - Контраст faint/warning/code-head/media-label; scoped reduced-motion; print/hover/focus polish.
 - Видео больше не раздувает grid track: absolute positioning и object-fit contain; detail modal не меняет геометрию после play.
 
@@ -64,7 +65,7 @@ export BRIIX_URL=http://127.0.0.1:3000
 export NODE_PATH=/tmp/briix-tools/node_modules
 export BRIIX_CHROMIUM=/tmp/chromium
 
-node tools/check-demo.cjs          # 19 PASS
+node tools/check-demo.cjs          # 20 PASS
 node tools/check-media.cjs         # 25 PASS
 node tools/check-media-visual.cjs  # 12 assets + geometry + axe
 

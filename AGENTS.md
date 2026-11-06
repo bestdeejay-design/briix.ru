@@ -3,6 +3,16 @@
 Канон продукта — `docs/BRIIX.md`. Этот файл — про **процесс работы**, а не про продукт.
 Задание всегда приходит в GitHub issue. Этот файл действует для каждого задания без исключений.
 
+## Рабочий канон команды (вариант C + Workflow v2, ADR-0002)
+
+Общие регламенты команды — снимок хаба `bestdeejay-design/agents` в [`docs/agents/`](docs/agents/README.md):
+холодный старт — `PROTOCOL.md` → свой регламент (`AGENT_RULES.md` / `COORDINATOR_RULES.md`)
+→ `KNOWLEDGE_BASE.md` → проектная конкретизация [`docs/agents/BRIIX-PROJECT.md`](docs/agents/BRIIX-PROJECT.md).
+Версия, источник и статус внедрения — в шапке [`docs/agents/README.md`](docs/agents/README.md).
+Инфраструктурные задачи — только через проект INFRA (`bestdeejay-design/infra`).
+Правила ниже — проектный слой briix; при расхождении с каноном — вопрос координатору
+с правкой того и другого, молчаливый выбор стороны запрещён.
+
 ---
 
 ## Правило 1. Всегда работать со свежего `main` — обязательно
@@ -30,15 +40,15 @@ git merge-base --is-ancestor origin/main HEAD && echo "OK: main внутри" ||
 После слияния обязательно проверь, что критичные вещи на месте, а не только что merge прошёл:
 
 ```bash
-node --check assets/js/landing.js && node --check assets/js/theme.js
-grep -c '\[hidden\]' assets/css/main.css     # хотфикс модалки, должно быть не 0
-grep -c '^\[data-theme' assets/css/main.css  # тёмная тема из задачи A
+node --check site/assets/js/landing.js && node --check site/assets/js/theme.js
+grep -c '\[hidden\]' site/assets/css/main.css     # хотфикс модалки, должно быть не 0
+grep -c '^\[data-theme' site/assets/css/main.css  # тёмная тема из задачи A
 ```
 
 Если `main` содержит ещё и английскую версию — проверь и её:
 
 ```bash
-ls en/index.html en/presentation.html
+ls site/en/index.html site/en/presentation.html
 ```
 
 > Последние опорные коммиты: `7d8251b` — английская версия и i18n, `d38efa2` — фикс `[hidden]`.
@@ -74,7 +84,7 @@ ls en/index.html en/presentation.html
 
 ## Правило 5. Святое — не трогать без отдельной команды
 
-- **Токены цветов в `assets/css/main.css`.** Вне блоков `:root` / `[data-theme]` / `@media print`
+- **Токены цветов в `site/assets/css/main.css`.** Вне блоков `:root` / `[data-theme]` / `@media print`
   цветов быть не должно: 0 жёстко зашитых значений. Если в твоей правке появился цвет —
   это регресс, тёмная тема и печать ломаются.
 - **Правило `[hidden] { display: none !important; }`** в начале CSS. Убирать нельзя:
@@ -87,16 +97,17 @@ ls en/index.html en/presentation.html
 
 - Статик без сборки. **Никаких** npm, бандлеров, фреймворков, внешних CDN.
 - Шрифты self-hosted, кириллические подмножества не выбрасывать.
-- Восемь страниц: `index.html`, `presentation.html`, `investors/`, `fin-model/`
-  и их зеркала в `en/`. Правки визуала обычно надо дублировать в обе версии —
+- Восемь страниц в `site/`: `site/index.html`, `site/presentation.html`, `site/investors/`, `site/fin-model/`
+  и их зеркала в `site/en/`. Правки визуала обычно надо дублировать в обе версии —
   если задание не сказало иначе, спроси в issue.
 
 ## Проверка перед сдачей
 
 ```bash
-node --check assets/js/*.js                 # синтаксис
-grep -c '\[hidden\]' assets/css/main.css    # не 0
-python3 -c "s=open('assets/css/main.css').read(); print(s.count('{'), s.count('}'))"  # скобки сходятся
+node --check site/assets/js/landing.js && node --check site/assets/js/theme.js   # синтаксис сайта
+node --check demo.js && node --check demo-data.js && node --check media.js       # синтаксис демо в корне
+grep -c '\[hidden\]' site/assets/css/main.css    # не 0
+python3 -c "s=open('site/assets/css/main.css').read(); print(s.count('{'), s.count('}'))"  # скобки сходятся
 ```
 
 Если правил HTML или CSS — прогони проверку локальных ссылок по изменённым страницам,
@@ -112,7 +123,7 @@ python3 -c "s=open('assets/css/main.css').read(); print(s.count('{'), s.count('}
 Перед тем как отчитаться о слиянии:
 
 ```bash
-grep -nE '^(<{7}|={7}|>{7})' assets/css/main.css assets/js/*.js
+grep -nE '^(<{7}|={7}|>{7})' site/assets/css/main.css site/assets/js/*.js
 ```
 
 Пустой вывод — единственный допустимый ответ. Если вывод есть, правку не сдавать.
@@ -120,8 +131,8 @@ grep -nE '^(<{7}|={7}|>{7})' assets/css/main.css assets/js/*.js
 Раз сломанное правило не видно глазами, проверь и то, что оно вообще оживает:
 
 ```bash
-grep -c '\.btn {' assets/css/main.css        # базовые кнопки
-grep -c '@media print {' assets/css/main.css  # печать и PDF презентации
+grep -c '\.btn {' site/assets/css/main.css        # базовые кнопки
+grep -c '@media print {' site/assets/css/main.css  # печать и PDF презентации
 ```
 
 > Реальный случай 15.10.2026: в `main` уехало 8 таких строк, из-за чего на живом сайте

@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<link rel="alternate" hreflang="ru" href="https://rucorp.github.io/briix/">
+<link rel="alternate" hreflang="en" href="https://rucorp.github.io/briix/en/">
+<link rel="alternate" hreflang="x-default" href="https://rucorp.github.io/briix/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRIIX — AI-маркетолог по URL сайта</title>
+<meta name="description" content="BRIIX изучает сайт вашего бизнеса и создаёт месяц контента в фирменном стиле: тексты, визуалы, план публикаций и аналитика. Вставьте ссылку — получите первые посты за 90 секунд.">
+<meta property="og:title" content="BRIIX — ваш бренд на автопилоте">
+<meta property="og:description" content="Вставьте адрес сайта — через 90 секунд увидите свои первые посты в фирменном стиле.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://rucorp.github.io/briix/assets/img/og-briix.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c09" media="(prefers-color-scheme: dark)">
+<script>
+  /* Без мигания: тема ставится до загрузки CSS */
+  (function () {
+    try {
+      var t = localStorage.getItem('briix-theme');
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/inter-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="logo" href="#top" aria-label="BRIIX — на главную">
+      <img class="logo-mark" src="assets/img/logo.svg" alt="">
+      BRIIX
+    </a>
+    <nav class="nav" aria-label="Основная навигация">
+      <a href="#how">Как работает</a>
+      <a href="#product">Возможности</a>
+      <a href="#audience">Кому</a>
+      <a href="#pricing">Тарифы</a>
+      <a href="#faq">Вопросы</a>
+    </nav>
+    <div class="header-cta">
+      <a class="btn btn-ghost" href="#demo">Смотреть демо</a>
+      <a class="btn btn-primary" href="#demo">Показать мои посты</a>
+      <a class="lang-toggle" href="en/index.html" hreflang="en" lang="en" title="English" aria-label="Переключить язык" onclick="try{localStorage.setItem('briix-lang','en')}catch(e){}">EN</a>
+        <button class="theme-toggle" type="button" aria-label="Переключить тему" title="Переключить тему">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+    <button class="burger" aria-label="Меню"><span></span></button>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <div class="hero-badge">
+        <b>AI-маркетолог</b> · включается по ссылке на ваш сайт
+        <span class="dot"></span>
+      </div>
+      <h1>Вставьте адрес сайта —<br>получите <span class="line2">месяц контента</span> в фирменном стиле</h1>
+      <p class="hero-sub">
+        BRIIX изучает ваш бизнес, запоминает фирменные цвета, шрифты и тон общения —
+        и каждый день готовит посты, которые выглядят и звучат как вы.
+        Одобрить — 10 минут в неделю. Или включить автопилот.
+      </p>
+      <div class="hero-points">
+        <span class="hero-point"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Первые посты — за 90 секунд</span>
+        <span class="hero-point"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Превью до оплаты</span>
+        <span class="hero-point"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Отмена в любой момент</span>
+      </div>
+      <div class="hero-meta">
+        <div class="stat"><b>50+</b><span>идей в контент-плане</span></div>
+        <div class="divider"></div>
+        <div class="stat"><b>4</b><span>канала публикации</span></div>
+        <div class="divider"></div>
+        <div class="stat"><b>10 мин</b><span>вашего времени в неделю</span></div>
+      </div>
+    </div>
+
+    <!-- ===== Live demo card ===== -->
+    <div class="demo-card" id="demo">
+      <div class="demo-head">
+        <div class="demo-dots"><i></i><i></i><i></i></div>
+        <div class="url-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span id="demo-url-chip">app.briix.com/preview</span>
+        </div>
+      </div>
+
+      <!-- Idle: URL form -->
+      <div class="demo-body" id="demo-idle">
+        <div class="demo-step-label"><span>Шаг 1 из 1</span><b>Попробуйте на своём сайте</b></div>
+        <form class="url-form" id="demo-form" style="margin-top:16px" novalidate>
+          <div class="url-input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <input id="demo-url" type="text" inputmode="url" autocomplete="url" placeholder="example.com" aria-label="Адрес сайта">
+          </div>
+          <button class="btn btn-primary" type="submit">Показать мои посты</button>
+        </form>
+        <div class="demo-hint">
+          Готовые демо-бренды с полным контентом:
+          <button class="try" data-try-domain="nordhavn-studio.com">nordhavn-studio.com</button>
+          <button class="try" data-try-domain="vela-clinic.com">vela-clinic.com</button>
+          <button class="try" data-try-domain="lumina-skin.com">lumina-skin.com</button>
+        </div>
+      </div>
+
+      <!-- Generation progress -->
+      <div class="demo-body" id="demo-gen" hidden>
+        <div class="demo-step-label"><span>Готовим превью</span><b id="demo-domain">—</b></div>
+        <div class="gen-steps" style="margin-top:16px">
+          <div class="gen-step"><span class="mark"></span>Читаем сайт</div>
+          <div class="gen-step"><span class="mark"></span>Определяем отрасль и аудиторию</div>
+          <div class="gen-step"><span class="mark"></span>Извлекаем фирменные цвета и шрифты</div>
+          <div class="gen-step"><span class="mark"></span>Строим Brand DNA и проверяем факты</div>
+          <div class="gen-step"><span class="mark"></span>Пишем и рисуем первые посты</div>
+        </div>
+      </div>
+
+      <!-- Result preview -->
+      <div class="demo-body" id="demo-result" hidden>
+        <div class="demo-step-label"><span>Готово · 6 постов из 50+</span><b>Ваш Brand DNA</b></div>
+        <div class="preview-wrap" style="margin-top:14px">
+          <div class="brand-card" id="demo-brand"></div>
+          <div class="posts-grid" id="demo-posts"></div>
+          <div class="plan-teaser" id="demo-plan" hidden>
+            <div class="pt-head">
+              <b>Контент-план: 50+ идей на месяц</b>
+              <span>ещё 44 идеи в очереди</span>
+            </div>
+            <div class="pt-items">
+              <div class="pt-item"><i class="pt-num">07</i><div><b>Сезонный гид: что важно знать в этом месяце</b><span>Экспертный · карусель · вторник</span></div></div>
+              <div class="pt-item"><i class="pt-num">08</i><div><b>Отвечаем на частый вопрос о ценах</b><span>FAQ · пост · четверг</span></div></div>
+              <div class="pt-item locked"><i class="pt-num">09</i><div><b>Идея, которая станет вашей визитной карточкой</b><span>История · пост · суббота</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-footer">
+        <div class="note">Демо-превью. Реальный BRIIX создаёт посты по данным именно вашего сайта.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" id="demo-restart" style="padding:12px 18px;font-size:14.5px">Показать ещё раз</button>
+          <button class="btn btn-ghost" id="demo-change" style="padding:12px 18px;font-size:14.5px">Другой сайт</button>
+          <a class="btn btn-dark" href="#pricing" data-cta-toast>Открыть все 50 идей</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRUST STRIP ================= -->
+<div class="trust-strip">
+  <div class="container trust-row">
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Сделано в ЕС · данные в ЕС</div>
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Шифрование и GDPR</div>
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Первое превью — за 90 секунд</div>
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Подписка без привязки</div>
+  </div>
+</div>
+
+<!-- ================= PROBLEM ================= -->
+<section class="section" id="problem">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Знакомо?</div>
+      <h2 class="section-title">Пять причин, почему соцсети бизнеса «не идут»</h2>
+      <p class="section-sub">Малый бизнес знает, что вести их нужно — но каждый раз всё упирается в одно и то же. Результат один: присутствие случайное, а не системное.</p>
+    </div>
+    <div class="problem-wrap reveal">
+      <div class="trap-card"><div class="n">01</div><h3>Нет времени</h3><p>Владелец занят операционкой, а SMM всегда «последним делом». Месяц за месяцем.</p></div>
+      <div class="trap-card"><div class="n">02</div><h3>Нет навыка</h3><p>Непонятно, что писать, о чём и в каком тоне. Пустой редактор отпугивает лучше любой занятости.</p></div>
+      <div class="trap-card"><div class="n">03</div><h3>Нет бюджета на помощь</h3><p>Внешняя команда стоит $800–3 000 в месяц — при отдаче, которую невозможно контролировать.</p></div>
+      <div class="trap-card"><div class="n">04</div><h3>«Некрасиво» без дизайнера</h3><p>Шаблонные картинки чужих стоков, стыдно публиковать. Бренд неузнаваем в ленте.</p></div>
+      <div class="trap-card"><div class="n">05</div><h3>Нерегулярность</h3><p>Ведут две недели и бросают — главный убийца охватов. Постоянство важнее таланта.</p></div>
+      <div class="trap-card" style="background:var(--bg-deep)"><div class="n" style="background:var(--card)">→</div><h3>Что происходит дальше</h3><p>Пока вы паузуете, тот, кто публикует регулярно, спокойно забирает ваших клиентов — без лишних усилий.</p></div>
+    </div>
+    <div class="problem-solution reveal">
+      <div class="arrow-ico">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div>
+        <h3>BRIIX — AI-маркетолог, который включается одной ссылкой на ваш сайт</h3>
+        <p>Он изучает бизнес, находит темы, пишет тексты, рисует визуал в фирменном стиле и публикует по расписанию — без анкет, звонков и брифов на старте. Ваше участие — 10 минут в неделю: посмотреть готовое и одобрить. Или включить автопилот — и не тратить время вовсе.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section class="section" id="how" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Как это работает</div>
+      <h2 class="section-title">Четыре шага от сайта до ленты</h2>
+      <p class="section-sub">Путь, который начинается с одной ссылки и заканчивается регулярным присутствием бренда в соцсетях.</p>
+    </div>
+    <div class="steps reveal">
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <h3>Вставляете URL</h3>
+        <p>Без регистрации и анкет. BRIIX читает сайт: тексты, стиль, логотип, палитру, шрифты, услуги и контакты.</p>
+        <span class="time-badge">30 секунд вашего времени</span>
+      </div>
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg></div>
+        <h3>Получаете Brand DNA</h3>
+        <p>Фирменный стиль, тон общения, аудитория и ключевые темы — в одном профиле, с проверкой фактов по сайту.</p>
+        <span class="time-badge">≤ 90 секунд</span>
+      </div>
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>Смотрите месяц контента</h3>
+        <p>50+ идей и первые готовые посты: текст, визуал в ваших цветах, адаптация под каждую площадку. Превью — до оплаты.</p>
+        <span class="time-badge">6 постов сразу</span>
+      </div>
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></div>
+        <h3>Одобряете — и всё</h3>
+        <p>Публикация по расписанию, сбор статистики и обучение на ваших решениях. Или автопилот — и соцсети живут сами.</p>
+        <span class="time-badge">10 минут в неделю</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRODUCT / FEATURES ================= -->
+<section class="section" id="product">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Продукт</div>
+      <h2 class="section-title">Не генератор картинок.<br>Отдел маркетинга в одном окне</h2>
+      <p class="section-sub">Каждый модуль BRIIX делает работу, за которую в компании обычно отвечают четыре человека: маркетолог, копирайтер, дизайнер и SMM-менеджер.</p>
+    </div>
+
+    <!-- Feature 1: Brand DNA -->
+    <div class="feature-row reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg>Brand DNA</div>
+        <h3>Система понимает ваш бренд так, как понимаете его вы</h3>
+        <p>Визуальная идентичность и голос бренда извлекаются прямо с сайта: палитра, шрифты, архетип, тон общения, аудитория, УТП и запрещённые темы. Вторая модель перепроверяет факты — цены, адреса и услуги не выдумываются.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Палитра и шрифты — из кода и визуала вашего сайта</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Tone of voice по шкалам: как вы говорите и как — никогда</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Проверка фактов второй моделью против сайта</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Правка любого поля вручную или чатом — «сделай тон теплее»</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Brand DNA · Нордхавн Студио</div>
+            <div class="pill">Проверено</div>
+          </div>
+          <div class="mock-pad">
+            <div class="dna-grid">
+              <div class="dna-box">
+                <div class="k">О бренде</div>
+                <div class="v">Студия архитектурного дизайна: спокойные скандинавские интерьеры и честные материалы</div>
+              </div>
+              <div class="dna-box">
+                <div class="k">Палитра</div>
+                <div class="palette-row" style="margin-top:2px">
+                  <span class="sw" style="background:#2c3a35"></span>
+                  <span class="sw" style="background:#7d8f7c"></span>
+                  <span class="sw" style="background:#c9a46a"></span>
+                  <span class="sw" style="background:#f4f1ea"></span>
+                  <span class="sw" style="background:#1c2420"></span>
+                </div>
+                <div class="v small" style="margin-top:9px">Заголовки · TextBook<br>Основной текст · Sans</div>
+              </div>
+            </div>
+            <div class="dna-box">
+              <div class="k">Тон общения</div>
+              <div class="dna-scales">
+                <div class="scale-row"><span>Формальный</span><div class="track"><i style="left:32%"></i></div><span class="r">Дружелюбный</span></div>
+                <div class="scale-row"><span>Серьёзный</span><div class="track"><i style="left:58%"></i></div><span class="r">Тёплый</span></div>
+                <div class="scale-row"><span>Лаконичный</span><div class="track"><i style="left:40%"></i></div><span class="r">Развёрнутый</span></div>
+              </div>
+            </div>
+            <div class="dna-grid">
+              <div class="dna-box">
+                <div class="k">Кому говорим</div>
+                <div class="v small">Семьи 30–45, ремонт «на вырост»; дизайнеры; застройщики премиум-сегмента</div>
+              </div>
+              <div class="dna-box">
+                <div class="k">Запрещённые темы</div>
+                <div class="dna-chips"><span class="dna-chip">Скидки «горят»</span><span class="dna-chip">Гарантии сроков</span><span class="dna-chip">Чужие проекты</span></div>
+              </div>
+            </div>
+            <div class="selfcheck">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>
+              Self-check: факты сверены с сайтом — цены, услуги и адреса подтверждены
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Профиль бренда восстанавливается по сайту и остаётся редактируемым</div>
+      </div>
+    </div>
+
+    <!-- Feature 2: Content plan & Idea Queue -->
+    <div class="feature-row rev reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Контент-план и очередь идей</div>
+        <h3>Месяц контента рождается сразу — а дальше учится на вас</h3>
+        <p>50+ идей по 8 рубрикам с датами и целями: экспертный контент, кейсы, закулисье, FAQ, отзывы, анонсы. Свайпаете карточки — и каждое «да» или «нет, потому что…» меняет следующие предложения.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Рубрики, даты, цели и форматы — производственный план, а не список тем</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Сезонность, праздники и отраслевые даты вашей страны</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Свои идеи — текстом, голосом или фото</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Feedback loop: каждые 10 решений система проговаривает, что поняла</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Очередь идей · неделя 41</div>
+            <div class="pill">Учится</div>
+          </div>
+          <div class="mock-pad">
+            <div class="idea-list">
+              <div class="idea-item">
+                <div class="thumb" style="background:linear-gradient(135deg,#2c3a35,#7d8f7c)"></div>
+                <div class="info">
+                  <div class="t">Как выбрать архитектора: 5 вопросов на первой встрече</div>
+                  <div class="m"><span>Экспертный</span><span>Карусель</span><span>Вторник 10:00</span></div>
+                </div>
+                <div class="acts"><b class="yes">В план</b><b>Не моё</b></div>
+              </div>
+              <div class="idea-item">
+                <div class="thumb" style="background:linear-gradient(135deg,#c9a46a,#e8d5b0)"></div>
+                <div class="info">
+                  <div class="t">Закулисье: как мы подбираем материалы для проекта</div>
+                  <div class="m"><span>Закулисье</span><span>Пост</span><span>Четверг 12:00</span></div>
+                </div>
+                <div class="acts"><b class="yes">В план</b><b>Не моё</b></div>
+              </div>
+              <div class="idea-item" style="opacity:.55">
+                <div class="thumb" style="background:linear-gradient(135deg,#8a93b0,#c3c9dd)"></div>
+                <div class="info">
+                  <div class="t">Мем-подборка «ожидания и реальность ремонта»</div>
+                  <div class="m"><span>Развлекательный</span><span>Пост</span></div>
+                </div>
+                <div class="acts"><b>Не моё</b></div>
+              </div>
+            </div>
+            <div class="learning-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg>
+              Понял: вы любите кейсы и экспертные разборы, мемы не используем. Очередь обновлена.
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Каждое решение в очереди делает выдачу точнее — это видно и ощутимо</div>
+      </div>
+    </div>
+
+    <!-- Feature 3: Post generation -->
+    <div class="feature-row reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>Генерация постов</div>
+        <h3>Текст и визуал, которые не стыдно опубликовать</h3>
+        <p>Один пост — несколько обличий: экспертная версия для деловой сети, эмоциональная для ленты, краткая для мессенджера. Форматы 1:1, 4:5, 9:16 и 1.91:1, хэштеги, CTA, alt-тексты — всё готово к публикации.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>4 стратегии визуала: фото с сайта, шаблон, AI-генерация, ваше фото</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Адаптация под каждую площадку — с сохранением стиля бренда</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Карусели до 10 слайдов и сценарии для коротких видео</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Модерация и фактчек: токсичность, медицинские и финансовые обещания — под контролем</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Пост #24 · «5 вопросов архитектору»</div>
+            <div class="pill">Готов</div>
+          </div>
+          <div class="post-mock-wrap">
+            <div class="post-text-pane">
+              <div class="lbl">Текст поста</div>
+              <div class="body"><b>5 вопросов, которые стоит задать архитектору до старта проекта.</b><br>Разбираем каждый — коротко и по делу. Сохраняйте себе и делитесь с теми, кто планирует ремонт 🤍</div>
+              <div class="hashtags"><span>#архитектура</span><span>#интерьер</span><span>#советы</span><span>#дизайнпространства</span></div>
+              <div class="channel-tabs"><b class="on">Лента</b><b>Деловая сеть</b><b>Канал</b><b>Stories</b></div>
+            </div>
+            <div class="phone-stack">
+              <div class="phone">
+                <div class="ph-top">
+                  <div class="av" style="background:#2c3a35"></div>
+                  <div class="nm">nordhavn.studio</div>
+                  <div class="ch">Лента · 4:5</div>
+                </div>
+                <div class="ph-canvas">
+                  <div class="pm-art" style="background:linear-gradient(150deg,#2c3a35,#5c7066)">
+                    <div class="pa-blob" style="width:80px;height:80px;top:-18px;right:-14px;background:rgba(201,164,106,.5)"></div>
+                    <span class="pa-chip">Совет недели</span>
+                    <div class="pa-title">5 вопросов<br>вашему архитектору</div>
+                  </div>
+                </div>
+                <div class="ph-foot"><span>♡ 128</span><span>💬 12</span><span>↗ 34</span></div>
+              </div>
+              <div class="phone">
+                <div class="ph-top">
+                  <div class="av" style="background:#c9a46a"></div>
+                  <div class="nm">Нордхавн Студио</div>
+                  <div class="ch">Деловая сеть · 1.91:1</div>
+                </div>
+                <div class="ph-canvas" style="aspect-ratio:1.91/1">
+                  <div class="pm-art" style="background:#f4f1ea">
+                    <div class="pa-blob" style="width:70px;height:70px;top:-16px;left:-12px;background:rgba(125,143,124,.4)"></div>
+                    <span class="pa-chip dark">Экспертный</span>
+                    <div class="pa-title dark">Как выбрать<br>архитектора</div>
+                  </div>
+                </div>
+                <div class="ph-foot"><span>♡ 64</span><span>💬 8</span><span>↗ 21</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Один материал — разные тона и форматы под каждую площадку</div>
+      </div>
+    </div>
+
+    <!-- Feature 4: Designer -->
+    <div class="feature-row rev reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>Designer</div>
+        <h3>Точный контроль — когда «почти идеально» недостаточно</h3>
+        <p>Послоиный редактор с общей схемой документа: любое изменение сохраняется, перерендеривается и подтягивается во все каналы. Шрифты и цвета бренда уже внутри, удаление фона — в один клик.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Слои: фон, изображения, фигуры, текст, логотип</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Адаптация форматов с авто-перераскладкой 1:1 · 4:5 · 9:16 · 1.91:1</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Замена изображений: сток, загрузка, генерация в стиле бренда</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>История правок с откатом и свои сохранённые шаблоны</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Designer · пост «Запись открыта»</div>
+            <div class="pill">Автосейв</div>
+          </div>
+          <div class="designer-mock">
+            <div class="dm-side">
+              <div class="k">Слои</div>
+              <div class="layer-item sel"><span class="sw" style="background:#c9a46a"></span>Заголовок</div>
+              <div class="layer-item"><span class="sw" style="background:#7d8f7c"></span>Подзаголовок</div>
+              <div class="layer-item"><span class="sw" style="background:#2c3a35"></span>Фото · интерьер</div>
+              <div class="layer-item"><span class="sw" style="background:#f4f1ea"></span>Фон</div>
+              <div class="layer-item"><span class="sw" style="background:#1c2420"></span>Логотип</div>
+            </div>
+            <div class="dm-canvas-area">
+              <div class="dm-artboard">
+                <div class="pm-art" style="background:linear-gradient(160deg,#2c3a35,#4a5f55)">
+                  <div class="pa-blob" style="width:90px;height:90px;top:-20px;right:-18px;background:rgba(201,164,106,.45)"></div>
+                  <span class="pa-chip">Новая услуга</span>
+                  <div class="pa-title">Запись<br>на консультацию<br>открыта</div>
+                </div>
+                <div class="handles"><i></i><i></i><i></i><i></i></div>
+              </div>
+              <div class="dm-formats"><b class="on">1:1</b><b>4:5</b><b>9:16</b><b>1.91:1</b></div>
+            </div>
+            <div class="dm-side right">
+              <div class="k">Свойства</div>
+              <div class="prop-row"><div class="pk">Шрифт</div><div class="pv">Brand · TextBook</div></div>
+              <div class="prop-row"><div class="pk">Цвет</div><div class="pv">#C9A46A · из палитры</div></div>
+              <div class="prop-row"><div class="pk">Размер</div><div class="pv">64 px · tracking −2%</div></div>
+              <div class="prop-row"><div class="pk">Фон</div><div class="pv">Удаление фона · 1 клик</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Редактор и публикация работают с одним документом — правки не теряются</div>
+      </div>
+    </div>
+
+    <!-- Feature 5: Calendar & publish -->
+    <div class="feature-row reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>Календарь и публикация</div>
+        <h3>Контент выходит вовремя — даже когда вы заняты</h3>
+        <p>Календарь с drag-and-drop, массовое одобрение, режим «всегда спрашивать» для чувствительных тем. Публикация в Instagram, Facebook, LinkedIn и Telegram — по расписанию, с повторами при сбоях.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Одобряйте неделю одним действием — прямо из уведомления</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Автопилот с настройками: что публиковать самому, а что спрашивать</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Надёжная доставка: повторы, понятные статусы, ничего не теряется</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Безопасные подключения аккаунтов с минимальными правами</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Календарь · октябрь</div>
+            <div class="pill">12 в очереди</div>
+          </div>
+          <div class="cal-mock">
+            <div class="cal-head">
+              <div class="t">Неделя 42 · 12 постов запланировано</div>
+              <div class="legend">
+                <span><i style="background:rgba(83,56,242,.35)"></i>Ожидает</span>
+                <span><i style="background:rgba(28,122,77,.35)"></i>Опубликован</span>
+                <span><i style="background:rgba(180,83,9,.35)"></i>Конфликт</span>
+              </div>
+            </div>
+            <div class="cal-grid">
+              <div class="cal-col"><div class="d">Пн</div>
+                <div class="cal-item ok">Кейс: ремонт квартиры<span class="tm">10:00 · Лента</span></div>
+                <div class="cal-item pub">✓ Совет недели<span class="tm">12:00 · Канал</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Вт</div>
+                <div class="cal-item ok">Карусель: 5 вопросов<span class="tm">09:30 · Лента</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Ср</div>
+                <div class="cal-item ok">Закулисье: материалы<span class="tm">13:00 · Лента</span></div>
+                <div class="cal-item ok">Экспертный пост<span class="tm">15:00 · Деловая</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Чт</div>
+                <div class="cal-item sq-warn">Два поста в 12:00<span class="tm">Конфликт времени</span></div>
+                <div class="cal-item ok">FAQ: сроки проекта<span class="tm">12:00 · Канал</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Пт</div>
+                <div class="cal-item pub">✓ Отзыв клиента<span class="tm">11:00 · Лента</span></div>
+                <div class="cal-item ok">Анонс: день открытых дверей<span class="tm">17:00 · Лента</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Сб</div>
+                <div class="cal-item ok">Идея недели<span class="tm">12:00 · Лента</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Вс</div>
+                <div class="cal-item pub">✓ Итоги недели<span class="tm">18:00 · Канал</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Неделя контента — одним взглядом. Осталось одобрить</div>
+      </div>
+    </div>
+
+    <!-- Feature 6: Analytics -->
+    <div class="feature-row rev reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>Аналитика и самообучение</div>
+        <h3>Контент не просто публикуется — он становится лучше</h3>
+        <p>BRIIX собирает метрики каждой публикации и возвращает их в генерацию: рубрики и форматы, которые работают, получают больше веса. Понедельничные отчёты объясняют, что сработало и что будет дальше.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Охват, вовлечённость, рост подписчиков, топ-посты</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Инсайты человеческим языком: «карусели дают больше сохранений»</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Метрики автоматически меняют будущие планы</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Еженедельный отчёт на почту — 2 минуты чтения</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Аналитика · 30 дней</div>
+            <div class="pill">+18% за месяц</div>
+          </div>
+          <div class="ana-mock">
+            <div class="ana-kpis">
+              <div class="kpi"><div class="k">Охват</div><div class="v">48 210</div><div class="d">↑ 18%</div></div>
+              <div class="kpi"><div class="k">Вовлечённость</div><div class="v">6.4%</div><div class="d">↑ 1.2 п.п.</div></div>
+              <div class="kpi"><div class="k">Новые подписчики</div><div class="v">+327</div><div class="d">↑ 24%</div></div>
+            </div>
+            <div class="ana-chart">
+              <div class="t">Динамика охвата <span>октябрь</span></div>
+              <svg viewBox="0 0 420 110" width="100%" height="110" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="agrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="var(--accent)" stop-opacity=".28"/>
+                    <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0 92 C40 88, 60 78, 90 76 S150 70, 180 58 S250 46, 290 36 S370 22, 420 14 L420 110 L0 110 Z" fill="url(#agrad)"/>
+                <path d="M0 92 C40 88, 60 78, 90 76 S150 70, 180 58 S250 46, 290 36 S370 22, 420 14" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="290" cy="36" r="4.5" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <div class="insight">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg>
+              Карусели дают в 2.3 раза больше сохранений — в следующем плане их стало больше. Меньше мемов, больше кейсов: по вашим реакциям.
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Замкнутый контур: действия → данные → более точный контент</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= BEFORE / AFTER ================= -->
+<section class="section-tight">
+  <div class="container">
+    <div class="ba-wrap reveal">
+      <div class="ba-head">
+        <div>
+          <h2>До и после — за 90 секунд</h2>
+          <p>Одна ссылка на сайт превращается в контент, который выглядит как продолжение вашего бренда — а не как чужие картинки из ленты.</p>
+        </div>
+        <a class="btn btn-light" href="#demo">Попробовать на своём сайте</a>
+      </div>
+      <div class="ba-flow">
+        <div class="ba-site">
+          <div class="browser-bar"><i></i><i></i><i></i></div>
+          <div class="browser-url">nordhavn-studio.com</div>
+          <div class="site-hero-m" style="background:linear-gradient(150deg,#2c3a35,#5c7066)">
+            <div class="t">Архитектурные интерьеры с северным характером</div>
+            <div class="s">Проектируем пространства, в которых хочется жить. Берген, Осло и вся Норвегия.</div>
+          </div>
+          <div class="site-lines"><i></i><i></i><i></i></div>
+        </div>
+        <div class="ba-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div class="ba-posts">
+          <div class="ba-post" style="background:linear-gradient(160deg,#2c3a35,#5c7066)">
+            <span class="lbl">Совет недели</span>
+            <div class="ttl" style="color:#fff">5 вопросов архитектору</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#c9a46a,#e8d5b0)">
+            <span class="lbl">Кейс</span>
+            <div class="ttl" style="color:#2c3a35">Квартира у фьорда</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#7d8f7c,#b5c2b1)">
+            <span class="lbl">Изнутри</span>
+            <div class="ttl" style="color:#fff">Материалы для проекта</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#1c2420,#3f5248)">
+            <span class="lbl">FAQ</span>
+            <div class="ttl" style="color:#fff">Сколько длится проект</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#f4f1ea,#ddd4c2)">
+            <span class="lbl">Отзыв</span>
+            <div class="ttl" style="color:#2c3a35">«Мы получили дом мечты»</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#a4552f,#d78b5c)">
+            <span class="lbl">Анонс</span>
+            <div class="ttl" style="color:#fff">День открытых дверей</div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-note">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        Каждый пост уже адаптирован под <b>4 формата</b> и ваши <b>фирменные цвета и шрифты</b>. Осталось одобрить.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MODES ================= -->
+<section class="section" id="modes">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Два режима</div>
+      <h2 class="section-title">Контроль там, где вы его хотите</h2>
+      <p class="section-sub">Начните с одобрения каждого поста — и доверьте системе ровно столько, сколько будете готовы.</p>
+    </div>
+    <div class="modes-grid reveal">
+      <div class="mode-card">
+        <div class="mode-tag">Режим 1 · по умолчанию</div>
+        <h3>Одобрение</h3>
+        <p>Система держит очередь готовых идей и постов. Вы сохраняете лучшее, отклоняете лишнее — публикуется только то, что вы одобрили.</p>
+        <ul>
+          <li>Массовое одобрение недели за один клик</li>
+          <li>Правки в чате: «сделай короче», «добавь про выходные»</li>
+          <li>Отклонение с причиной — и система не предложит похожего</li>
+          <li>Уведомления с готовыми кадрами: открыл — одобрил</li>
+        </ul>
+      </div>
+      <div class="mode-card dark">
+        <div class="mode-tag">Режим 2 · по готовности</div>
+        <h3>Автопилот</h3>
+        <p>Контент выходит без ручного одобрения — в рамках правил, которые вы задаёте сами. С чувствительными темами система всегда спросит.</p>
+        <ul>
+          <li>Список «всегда спрашивать»: цены, акции, серьёзные обещания</li>
+          <li>Пауза на 7 или 30 дней в один клик</li>
+          <li>Еженедельный дайджест: что вышло и как работает</li>
+          <li>Модерация и фактчек до каждой публикации</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= AUDIENCE ================= -->
+<section class="section" id="audience" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Кому это нужно</div>
+      <h2 class="section-title">Для бизнеса, у которого есть дела важнее соцсетей</h2>
+      <p class="section-sub">BRIIX создан для компаний 1–50 человек без штатного маркетолога — и для тех, кто уже ведёт соцсети, но устал делать это руками.</p>
+    </div>
+    <div class="aud-grid reveal">
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20M4 20V8l8-5 8 5v12"/><path d="M9 20v-6h6v6"/></svg></div>
+        <h3>Подрядчики и застройщики</h3>
+        <p>Кейсы объектов, закулисье работ, экспертные разборы — без перерывов «на потом».</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><rect x="4" y="4" width="16" height="16" rx="4"/></svg></div>
+        <h3>Клиники и стоматологии</h3>
+        <p>Красивый визуал в фирменных цветах и никаких обещаний лечения — модерация следит.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M10 21v-6h4v6"/><path d="M9 10h.01M15 10h.01"/></svg></div>
+        <h3>Отели и турфирмы</h3>
+        <p>Один пост — адаптации под все площадки. Сезон и локальные события в календаре.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+        <h3>Профессиональные услуги</h3>
+        <p>Экспертный тон, доверие и регулярность — то, из чего растут заявки.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <h3>Технологические компании</h3>
+        <p>Экспертные длинные посты, карусели, деловая коммуникация — без «маркетинговой пустоты».</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+        <h3>Интернет-магазины</h3>
+        <p>Товары, акции и сезонные подборки превращаются в контент-план автоматически.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+        <h3>Маркетологи и агентства</h3>
+        <p>Больше брендов — без пропорционального роста рутины. Каждый клиент получает свой стиль.</p>
+      </div>
+      <div class="aud-card" style="background:var(--bg-deep)">
+        <div class="ico" style="background:var(--card)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></div>
+        <h3>Любой бизнес с сайтом</h3>
+        <p>Если у вас есть сайт — у вас уже достаточно данных для первого месяца контента.</p>
+      </div>
+    </div>
+
+    <div class="persona-strip reveal">
+      <div class="persona-quote">
+        <div class="pq-head">
+          <div class="pq-av" style="background:#2c3a35">О</div>
+          <div class="pq-who"><b>Олег</b><span>владелец строительной фирмы, 12 человек</span></div>
+        </div>
+        <div class="pq-text">«Нет времени и не знаю, что писать» — раньше соцсети откладывались каждый месяц.</div>
+        <div class="pq-result">Одобрил 30 постов за 10 минут — и забыл до следующей недели</div>
+      </div>
+      <div class="persona-quote">
+        <div class="pq-head">
+          <div class="pq-av" style="background:#c9a46a">А</div>
+          <div class="pq-who"><b>Анна</b><span>администратор стоматологической клиники</span></div>
+        </div>
+        <div class="pq-text">«Некрасиво без дизайнера и страшно: вдруг напишут что-нибудь про лечение».</div>
+        <div class="pq-result">Фирменный визуал + модерация обещаний — публикует спокойно</div>
+      </div>
+      <div class="persona-quote">
+        <div class="pq-head">
+          <div class="pq-av" style="background:#7d8f7c">М</div>
+          <div class="pq-who"><b>Мария</b><span>управляющая бутик-отелем, 3 канала</span></div>
+        </div>
+        <div class="pq-text">«Один и тот же пост приходилось переписывать для каждой площадки вручную».</div>
+        <div class="pq-result">Адаптации для всех каналов создаются автоматически</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRICING ================= -->
+<section class="section" id="pricing">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Тарифы</div>
+      <h2 class="section-title">Один сотрудник — одна подписка</h2>
+      <p class="section-sub">Дешевле одного обеда в неделю — вместо штата или внешней команды. Без привязки: отмена в любой момент.</p>
+    </div>
+    <div class="pricing-grid reveal">
+      <div class="price-card">
+        <div class="plan-name">Starter</div>
+        <div class="plan-desc">Регулярный контент для одного бренда — с первого дня</div>
+        <div class="price-row"><span class="amt">$79</span><span class="per">/ мес</span></div>
+        <div class="yearly">−20% при оплате за год</div>
+        <a class="btn btn-dark btn-block" href="#demo">Начать бесплатно</a>
+        <ul class="price-feats">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>1 бренд · 4 канала публикации</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>30 постов и 30 AI-изображений в месяц</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Brand DNA, контент-план, Designer</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Календарь, публикация, аналитика</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>7 дней trial без карты</li>
+        </ul>
+      </div>
+
+      <div class="price-card featured">
+        <div class="price-tag-popular">Популярный</div>
+        <div class="plan-name">Growth</div>
+        <div class="plan-desc">Автопилот и работа с обращениями — масштаб без ручного труда</div>
+        <div class="price-row"><span class="amt">$149</span><span class="per">/ мес</span></div>
+        <div class="yearly" style="color:#7fe6ac">−20% при оплате за год</div>
+        <a class="btn btn-primary btn-block" href="#demo">Начать бесплатно</a>
+        <ul class="price-feats">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Всё из Starter</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>8 каналов · 90 постов · 100 изображений</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Полный автопилот с порогом уверенности</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Работа с комментариями и обращениями</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Приоритетная генерация</li>
+        </ul>
+      </div>
+
+      <div class="price-card">
+        <div class="plan-name">Agency</div>
+        <div class="plan-desc">Несколько брендов в одном окне — для команд и агентств</div>
+        <div class="price-row"><span class="amt">$399</span><span class="per">/ мес</span></div>
+        <div class="yearly">−20% при оплате за год</div>
+        <a class="btn btn-dark btn-block" href="#demo">Обсудить внедрение</a>
+        <ul class="price-feats">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Всё из Growth</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>5 брендов и командный доступ</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>White-label отчёты и презентации</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Персональное сопровождение</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pricing-note reveal">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Превью до оплаты — без карты</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Отмена в любой момент, без штрафов</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Контент остаётся вашим</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SECURITY ================= -->
+<section class="section-tight" id="trust">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Надёжность</div>
+      <h2 class="section-title">Доверие — часть продукта</h2>
+    </div>
+    <div class="sec-grid reveal">
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <h3>Сделано в ЕС, данные в ЕС</h3>
+        <p>Инфраструктура и хранение — в Европейском Союзе. DPA доступен по запросу.</p>
+      </div>
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3>Защита доступов</h3>
+        <p>Подключения к соцсетям шифруются, права запрашиваются минимальные, а вы в любой момент можете отозвать доступ.</p>
+      </div>
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Ответственная генерация</h3>
+        <p>Фактчек по вашему сайту, отраслевая модерация и запрет нарискованных обещаний — в каждом посте.</p>
+      </div>
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></div>
+        <h3>Ваши данные — ваши</h3>
+        <p>Экспорт всего контента в один клик. Удаление аккаунта — с полным удалением данных.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section class="section" id="faq" style="background:var(--surface);border-top:1px solid var(--line)">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Вопросы</div>
+      <h2 class="section-title">Коротко и честно</h2>
+    </div>
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <button class="faq-q">Что именно делает BRIIX?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">BRIIX — AI-маркетолог, который включается по ссылке на ваш сайт. Он изучает бизнес, строит профиль бренда (Brand DNA), генерирует контент-план из 50+ идей, создаёт готовые посты — текст и визуал в фирменном стиле, адаптированные под каждую площадку, — публикует их по расписанию и собирает аналитику. Ваше участие — около 10 минут в неделю.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Нужно ли что-то заполнять на старте?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Нет. Единственный ввод — адрес сайта. BRIIX сам читает страницы, извлекает фирменные цвета, шрифты, логотип, услуги и контакты, определяет отрасль и аудиторию. Если сайта нет — есть короткая анкета из 8 вопросов.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Насколько контент «похож на нас»?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Визуалы создаются в вашей палитре и шрифтах, тексты — в вашем тоне общения, темы — про вашу отрасль и аудиторию. Вы можете править всё вручную или в чате («сделай теплее», «убери эмодзи»), и каждая правка сохраняется как версия с возможностью отката.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Что если система напишет что-то неверное?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Каждый пост проходит модерацию и фактчек: факты сверяются с вашим сайтом, рискованные обещания (в медицине, финансах, ценах и акциях) отсекаются, а чувствительные темы всегда попадают на ваше одобрение — даже на автопилоте.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Какие площадки поддерживаются?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Сейчас — Instagram, Facebook (страницы), LinkedIn (личный профиль и компании) и Telegram. Контент-план уже готовит материалы в форматах коротких видео и сторис, а дорожная карта расширяет список каналов до двенадцати.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Можно ли попробовать без оплаты?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Да — и это главный принцип BRIIX. Сначала вы видите свои первые 6 постов и Brand DNA прямо на сайте (без регистрации), затем — 7 дней полного доступа без карты. Подписка отменяется в любой момент без штрафов.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Кому принадлежит контент и данные?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Вам. Контент можно экспортировать в любой момент, аккаунт удаляется вместе со всеми данными. Данные хранятся в Европейском Союзе, обработка соответствует GDPR.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINAL CTA ================= -->
+<section class="section">
+  <div class="container">
+    <div class="final-cta reveal">
+      <h2>Ваш бренд заслуживает<br>регулярной ленты</h2>
+      <p>Вставьте ссылку на сайт — и через 90 секунд увидите, каким может быть ваш контент каждый день. Превью бесплатно, до оплаты.</p>
+      <div class="actions">
+        <a class="btn btn-light btn-lg" href="#demo">Показать мои посты</a>
+        <a class="btn btn-outline btn-lg" href="#how">Как это работает</a>
+      </div>
+      <div class="fine">Без карты · без звонков · отмена в любой момент</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= FOOTER ================= -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="logo" href="#top">
+          <img class="logo-mark" src="assets/img/logo.svg" alt="">
+          BRIIX
+        </a>
+        <p>AI-маркетолог по URL сайта. Регулярный контент в фирменном стиле — для малого бизнеса, которому важнее заниматься делом.</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Продукт</h4>
+          <a href="#how">Как работает</a>
+          <a href="#product">Возможности</a>
+          <a href="#modes">Режимы работы</a>
+          <a href="#pricing">Тарифы</a>
+        </div>
+        <div class="footer-col">
+          <h4>Компания</h4>
+          <a href="#audience">Кому подходит</a>
+          <a href="#trust">Надёжность</a>
+          <a href="#faq">Вопросы</a>
+          <a href="#demo">Демо</a>
+        </div>
+        <div class="footer-col">
+          <h4>Правовое</h4>
+          <a href="#trust">Конфиденциальность</a>
+          <a href="#trust">Условия использования</a>
+          <a href="#trust">Обработка данных (DPA)</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div>© 2026 BRIIX. Все права защищены.</div>
+      <div class="eu">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Сделано в ЕС · данные хранятся в ЕС
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- Post detail modal (demo) -->
+<div class="demo-modal" id="post-modal" hidden>
+  <div class="demo-modal-backdrop" data-close-modal></div>
+  <div class="demo-modal-panel" role="dialog" aria-modal="true" aria-labelledby="pm-title">
+    <button class="demo-modal-close" type="button" data-close-modal aria-label="Закрыть">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="demo-modal-grid">
+      <div class="pm-visual" id="pm-visual"></div>
+      <div class="pm-content">
+        <div class="pm-rubric" id="pm-rubric"></div>
+        <h3 id="pm-title">Пост</h3>
+        <div class="pm-tabs" role="tablist" aria-label="Адаптация под канал">
+          <button class="pm-tab on" type="button" data-channel="feed" role="tab">Лента</button>
+          <button class="pm-tab" type="button" data-channel="biz" role="tab">Деловая сеть</button>
+          <button class="pm-tab" type="button" data-channel="chat" role="tab">Канал</button>
+        </div>
+        <div class="pm-caption" id="pm-caption"></div>
+        <div class="pm-tags" id="pm-tags"></div>
+        <div class="pm-cta" id="pm-cta"></div>
+        <div class="pm-actions">
+          <button class="btn btn-primary pm-act" type="button" data-toast="Одобрение поста">Одобрить</button>
+          <button class="btn btn-ghost pm-act" type="button" data-toast="Правка в чате">Править в чате</button>
+          <button class="btn btn-ghost pm-act" type="button" data-toast="Designer">Открыть Designer</button>
+        </div>
+        <div class="pm-note">Это демо-превью. В BRIIX здесь — редактор, версии и публикация по расписанию.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" hidden style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100;background:var(--panel-bg);color:var(--panel-ink);padding:15px 26px;border-radius:999px;font-size:14.5px;font-weight:650;box-shadow:var(--shadow-l);opacity:0;transition:opacity .35s ease;max-width:92vw;text-align:center">
+  Это демонстрационный лендинг: форма регистрации подключается при запуске продукта.
+</div>
+
+<script src="assets/js/theme.js"></script>
+<script src="assets/i18n/ru.js"></script>
+<script src="assets/js/landing.js"></script>
+</body>
+</html>

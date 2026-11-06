@@ -10,6 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="site/assets/img/favicon.svg">
   <link rel="stylesheet" href="demo.css">
   <script>
+    document.documentElement.classList.add('js');
     try {
       const saved = JSON.parse(localStorage.getItem('briix-workspace-v2') || '{}');
       const theme = saved.settings?.theme || 'light';

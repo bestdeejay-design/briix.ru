@@ -511,8 +511,23 @@ dialog { color: var(--ink); }
   .toast-region { bottom: 17px; }
   .font-large .prose { font-size: 15px; }
 }
+/* Patterns reused from site/: sticky header shadow, reveal, FAQ accordion, settings spy */
+.topbar { transition: box-shadow .2s ease, border-color .2s ease; }
+.topbar.scrolled { border-bottom-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.reveal { transition: opacity .45s ease, transform .45s ease; }
+.js .reveal:not(.in) { opacity: 0; transform: translateY(14px); }
+.reveal.in { opacity: 1; }
+.settings-nav a.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.faq-list { display: grid; gap: 9px; margin-top: 12px; }
+.faq-item { background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.faq-q { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 15px; text-align: left; font-size: 12px; font-weight: 600; color: var(--ink); }
+.faq-q .pm { width: 24px; height: 24px; border-radius: 50%; flex: none; background: var(--surface-3); color: var(--muted); display: grid; place-items: center; font-size: 16px; font-weight: 500; transition: transform .2s ease, background .2s ease, color .2s ease; }
+.faq-item.open .faq-q .pm { transform: rotate(45deg); background: var(--accent); color: var(--on-accent); }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+.faq-a .inner { padding: 0 15px 14px; font-size: 11px; color: var(--muted); line-height: 1.8; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .reveal, .js .reveal:not(.in) { opacity: 1; transform: none; }
 }
 @media print {
   :root { --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f5f5; --surface-3: #eeeeee; --ink: #111111; --muted: #444444; --faint: #666666; --line: #dddddd; --line-strong: #bbbbbb; --accent: #445533; --accent-soft: #eef2e9; --accent-ink: #334422; }

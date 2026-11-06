@@ -1,0 +1,61 @@
+/* Optional visual/media regression: node tools/check-media-visual.cjs */
+const { launch, AxeBuilder, BASE_URL, OUT } = require('./browser-env.cjs');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+(async () => {
+  const b = await launch();
+  const c = await b.newContext({ viewport: { width: 1440, height: 1050 }, reducedMotion: 'reduce' });
+  await c.newPage(); const p = c.pages()[0]; const errors = [], external = [];
+  p.on('pageerror', e => errors.push(e.message));
+  p.on('request', r => { if (!r.url().startsWith(BASE_URL) && !r.url().startsWith('data:')) external.push(r.url()); });
+  await p.goto(`${BASE_URL}/#/media`);
+  await p.locator('[data-media-action="type"][data-id="video"]').click();
+  await p.locator('[data-media-action="recipe"][data-id="story-video"]').click();
+  await p.locator('#media-generate').click();
+  await p.waitForFunction(() => JSON.parse(localStorage.getItem('briix-media-v1')).jobs[0].status === 'ready');
+  await p.waitForFunction(() => document.querySelector('.media-preview-frame video')?.readyState >= 2);
+  await p.locator('.media-preview-frame video').evaluate(v => v.play());
+  await p.waitForFunction(() => document.querySelector('.media-preview-frame video').currentTime > .2);
+  const desktopFrame = await p.locator('.media-preview-frame').boundingBox();
+  const desktopVideo = await p.locator('.media-preview-frame video').boundingBox();
+  assert.ok(desktopVideo.width <= desktopFrame.width + .5 && desktopVideo.height <= desktopFrame.height + .5);
+  await p.screenshot({ path: path.join(OUT, 'briix-media-video-light.png'), fullPage: true });
+  await p.locator('[data-action="toggle-theme"]').click();
+  await p.screenshot({ path: path.join(OUT, 'briix-media-video-dark.png'), fullPage: true });
+  const darkAxe = (await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations.map(v => v.id);
+  assert.deepEqual(darkAxe, []);
+  await p.setViewportSize({ width: 390, height: 844 });
+  await p.locator('.media-preview-frame').scrollIntoViewIfNeeded();
+  await p.screenshot({ path: path.join(OUT, 'briix-media-video-mobile.png'), fullPage: true });
+  const frame = await p.locator('.media-preview-frame').boundingBox();
+  const video = await p.locator('.media-preview-frame video').boundingBox();
+  const overflow = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  assert.equal(overflow, false);
+  assert.ok(video.width <= frame.width + .5 && video.height <= frame.height + .5);
+  const mobileAxe = (await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations.map(v => v.id);
+  assert.deepEqual(mobileAxe, []);
+  await p.locator('.media-preview-actions [data-media-action="detail"]').click();
+  await p.waitForFunction(() => document.querySelector('#modal video')?.readyState >= 2);
+  const modalBefore = await p.locator('#modal video').boundingBox();
+  await p.locator('#modal video').evaluate(v => v.play());
+  await p.waitForFunction(() => document.querySelector('#modal video').currentTime > .2);
+  const modalAfter = await p.locator('#modal video').boundingBox();
+  assert.ok(Math.abs(modalBefore.width - modalAfter.width) < .5 && Math.abs(modalBefore.height - modalAfter.height) < .5);
+  await p.screenshot({ path: path.join(OUT, 'briix-media-video-modal.png') });
+  await p.locator('#modal [data-action="close-modal"]').click();
+  const assets = await p.evaluate(async () => {
+    const names = ['ceramic-still', 'coffee-story', 'skincare-light'], out = [];
+    for (const n of names) for (const orient of ['landscape', 'portrait']) for (const ext of ['mp4', 'webm']) {
+      const v = document.createElement('video'); v.muted = true; v.preload = 'auto';
+      v.src = `assets/media/${n}-${orient}.${ext}`; document.body.append(v);
+      await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error(v.src)); setTimeout(() => rej(new Error('timeout ' + v.src)), 6000); });
+      out.push({ file: `${n}-${orient}.${ext}`, duration: v.duration, width: v.videoWidth, height: v.videoHeight }); v.remove();
+    }
+    return out;
+  });
+  assert.equal(assets.length, 12); assert.ok(assets.every(a => a.duration === 5));
+  assert.deepEqual(errors, []); assert.deepEqual(external, []);
+  const result = { desktopFrame, desktopVideo, frame, video, overflow, darkAxe, mobileAxe, assets, errors, external };
+  require('node:fs').writeFileSync(path.join(OUT, 'briix-media-visual.json'), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result, null, 2)); await b.close();
+})().catch(e => { console.error(e); process.exit(1); });

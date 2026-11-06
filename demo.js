@@ -1,5 +1,5 @@
 /* BRIIX — интерактивное демо пользовательского интерфейса.
- * Только localStorage и сценарные ответы. Ни fetch, ни SDK, ни настоящего inference.
+ * Только localStorage и сценарные ответы. Ни сетевых запросов, ни SDK, ни настоящего inference.
  * Dynamic user content is escaped before rendering; markdown is a small allowlisted renderer.
  */
 (() => {
@@ -23,6 +23,7 @@
   const systemTheme = matchMedia('(prefers-color-scheme: dark)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let storageAvailable = true;
+  let storageProtected = false;
   let storageWarning = '';
   let skipInitialPersist = false;
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -31,6 +32,8 @@
   let sidebarReturnFocus = null;
   let activeStream = null;
   let draftTimer = null;
+  let pendingSend = false;
+  let modalVersion = 0;
   let catalogFilter = 'all';
   let catalogQuery = '';
   let promptFilter = 'Все';
@@ -95,6 +98,9 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     edit: '<path d="m16 3 5 5-12 12-6 1 1-6L16 3Zm-2 2 5 5"/>',
     bookmark: '<path d="M6 3h12v18l-6-4-6 4V3Z"/>',
+    media: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 16 5-5 4 4 3-3 6 6"/><path d="m14 3 1.2 3.8L19 8l-3.8 1.2L14 13l-1.2-3.8L9 8l3.8-1.2L14 3Z"/>',
+    play: '<path d="m9 5 10 7-10 7V5Z"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 16 5-5 4 4 3-3 6 6"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5M21 12H9"/>'
   };
   function icon(name, extra = '') { return `<svg class="icon ${extra}" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.sparkles}</svg>`; }
@@ -106,7 +112,7 @@
   function currentChat() { const id = route().id; return state.chats.find(c => c.id === id); }
   function route() {
     const parts = (location.hash || '#/home').replace(/^#\/?/, '').split('/');
-    return { page: ['home', 'assistants', 'prompts', 'favorites', 'settings', 'chat'].includes(parts[0]) ? parts[0] : 'home', id: parts[1] || '' };
+    return { page: ['home', 'assistants', 'prompts', 'favorites', 'media', 'settings', 'chat'].includes(parts[0]) ? parts[0] : 'home', id: parts[1] || '' };
   }
   function navigate(path) {
     closeSidebar(false);
@@ -114,42 +120,47 @@
   }
   function freshState() { return { version: 2, settings: { ...DEFAULT_SETTINGS }, chats: seedChats(), saved: [], favoritePrompts: [], drafts: {}, selectedAssistant: 'universal' }; }
   function validateState(raw) {
-    if (!raw || raw.version !== 2 || !Array.isArray(raw.chats) || !Array.isArray(raw.saved) || !Array.isArray(raw.favoritePrompts)) throw new Error('Это не резервная копия BRIIX v2.');
+    if (!raw || raw.version !== 2 || !Array.isArray(raw.chats) || !Array.isArray(raw.saved) || !Array.isArray(raw.favoritePrompts) || raw.favoritePrompts.length > 1000) throw new Error('Это не резервная копия BRIIX v2.');
     if (raw.chats.length > 500 || raw.saved.length > 1000) throw new Error('Слишком много записей для локального демо.');
     const ids = new Set();
     const chats = raw.chats.map(c => {
-      if (!c || typeof c.id !== 'string' || !/^[\w-]{1,100}$/.test(c.id) || ids.has(c.id) || typeof c.title !== 'string' || !Array.isArray(c.messages) || c.messages.length > 1000) throw new Error('Повреждена история диалогов.');
+      if (!c || typeof c.id !== 'string' || !/^[\w-]{1,100}$/.test(c.id) || ids.has(c.id) || typeof c.title !== 'string' || c.title.length > 1000 || !Array.isArray(c.messages) || c.messages.length > 1000) throw new Error('Повреждена история диалогов.');
       ids.add(c.id);
       const messageIds = new Set();
       const messages = c.messages.map(m => {
         if (!m || typeof m.id !== 'string' || !/^[\w-]{1,100}$/.test(m.id) || messageIds.has(m.id) || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || m.content.length > 100000) throw new Error('Повреждено сообщение.');
         messageIds.add(m.id);
-        return { id: m.id, role: m.role, content: m.content, createdAt: safeDate(m.createdAt), assistantId: assistant(m.assistantId).id, status: m.role === 'assistant' && m.status === 'error' ? 'error' : m.status === 'stopped' || m.status === 'streaming' || !m.content ? 'stopped' : 'complete', variant: Number(m.variant) || 0, feedback: ['up', 'down'].includes(m.feedback) ? m.feedback : null, attachments: Array.isArray(m.attachments) ? m.attachments.slice(0, MAX_FILES).filter(f => f && typeof f.name === 'string').map(f => ({ id: uid('file'), name: f.name.slice(0, 180), size: Math.max(0, Number(f.size) || 0), type: String(f.type || '').slice(0, 100) })) : [] };
+        return { id: m.id, role: m.role, content: m.content, createdAt: safeDate(m.createdAt), assistantId: assistant(m.assistantId).id, status: m.role === 'assistant' && m.status === 'error' ? 'error' : m.status === 'stopped' || m.status === 'streaming' || !m.content ? 'stopped' : 'complete', variant: Number.isSafeInteger(m.variant) && m.variant >= 0 && m.variant <= 10000 ? m.variant : 0, feedback: ['up', 'down'].includes(m.feedback) ? m.feedback : null, attachments: Array.isArray(m.attachments) ? m.attachments.slice(0, MAX_FILES).filter(f => f && typeof f.name === 'string').map(f => ({ id: uid('file'), name: f.name.slice(0, 180), size: Number.isFinite(Number(f.size)) ? Math.min(MAX_FILE_SIZE, Math.max(0, Number(f.size))) : 0, type: String(f.type || '').slice(0, 100) })) : [] };
       });
       return { id: c.id, title: c.title.slice(0, 100), assistantId: assistant(c.assistantId).id, messages, favorite: !!c.favorite, isExample: !!c.isExample, createdAt: safeDate(c.createdAt), updatedAt: safeDate(c.updatedAt) };
     });
     const settings = { ...DEFAULT_SETTINGS };
-    const incoming = raw.settings || {};
+    const incoming = raw.settings && typeof raw.settings === 'object' && !Array.isArray(raw.settings) ? raw.settings : {};
     for (const key of ['enterToSend', 'showSuggestions', 'simulateErrors', 'saveHistory', 'streaming']) if (typeof incoming[key] === 'boolean') settings[key] = incoming[key];
     for (const [key, values] of Object.entries({ theme: ['light', 'dark', 'system'], defaultAssistant: assistants.map(a => a.id), density: ['comfortable', 'compact'], fontSize: ['normal', 'large'] })) if (values.includes(incoming[key])) settings[key] = incoming[key];
     if (typeof incoming.name === 'string') settings.name = incoming.name.slice(0, 40);
-    const saved = raw.saved.filter(s => s && typeof s.id === 'string' && typeof s.content === 'string' && typeof s.title === 'string').slice(0, 1000).map(s => ({ id: s.id.slice(0, 100), chatId: String(s.chatId || '').slice(0, 100), messageId: String(s.messageId || '').slice(0, 100), title: s.title.slice(0, 100), content: s.content.slice(0, 100000), assistantId: assistant(s.assistantId).id, createdAt: safeDate(s.createdAt) }));
+    const saved = raw.saved.filter(s => s && typeof s.id === 'string' && /^[\w-]{1,100}$/.test(s.id) && typeof s.content === 'string' && typeof s.title === 'string').slice(0, 1000).map(s => ({ id: s.id.slice(0, 100), chatId: String(s.chatId || '').slice(0, 100), messageId: String(s.messageId || '').slice(0, 100), title: s.title.slice(0, 100), content: s.content.slice(0, 100000), assistantId: assistant(s.assistantId).id, createdAt: safeDate(s.createdAt) }));
+    const savedIds = new Set();
+    const uniqueSaved = saved.filter(s => { if (savedIds.has(s.id)) return false; savedIds.add(s.id); return true; });
     const drafts = {};
-    for (const [key, value] of Object.entries(raw.drafts || {}).slice(0, 510)) if (/^[\w-]{1,100}$/.test(key) && typeof value === 'string') drafts[key] = value.slice(0, MAX_CHARS);
-    return { version: 2, settings, chats, saved, drafts, favoritePrompts: raw.favoritePrompts.filter(id => promptLibrary.some(p => p.id === id)), selectedAssistant: assistant(raw.selectedAssistant).id };
+    const incomingDrafts = raw.drafts && typeof raw.drafts === 'object' && !Array.isArray(raw.drafts) ? raw.drafts : {};
+    for (const [key, value] of Object.entries(incomingDrafts).slice(0, 510)) if (/^[\w-]{1,100}$/.test(key) && typeof value === 'string') drafts[key] = value.slice(0, MAX_CHARS);
+    return { version: 2, settings, chats, saved: uniqueSaved, drafts, favoritePrompts: [...new Set(raw.favoritePrompts.filter(id => promptLibrary.some(p => p.id === id)))], selectedAssistant: assistant(raw.selectedAssistant).id };
   }
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return freshState();
-      try { return validateState(JSON.parse(raw)); }
-      catch { skipInitialPersist = true; storageWarning = 'Сохранённые данные повреждены. Загружено безопасное начальное демо; исходная копия не перезаписана до вашего действия.'; return freshState(); }
+      storageAvailable = true;
+      if (!raw) { storageProtected = false; storageWarning = ''; return freshState(); }
+      try { const validated = validateState(JSON.parse(raw)); storageProtected = false; storageWarning = ''; skipInitialPersist = false; return validated; }
+      catch { skipInitialPersist = true; storageProtected = true; storageWarning = 'Сохранённые данные повреждены. Загружено безопасное начальное демо; исходная копия защищена от перезаписи. Экспортируйте текущую работу или импортируйте исправленную копию.'; return freshState(); }
     } catch { storageAvailable = false; return freshState(); }
   }
   let state = loadState();
+  function flushDraft() { clearTimeout(draftTimer); draftTimer = null; return persist(); }
   function persist() {
-    if (!storageAvailable) return false;
-    const durable = { ...state, chats: state.chats.filter(c => !c.ephemeral), drafts: Object.fromEntries(Object.entries(state.drafts).filter(([key]) => !state.chats.some(c => c.ephemeral && c.id === key))) };
+    if (!storageAvailable || storageProtected) return false;
+    const durable = durableState();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(durable)); return true; }
     catch { storageAvailable = false; toast('Хранилище недоступно или заполнено. Изменения остаются только до закрытия страницы. Экспортируйте копию в настройках.', 'error'); updateStorageNotice(); return false; }
   }
@@ -166,13 +177,13 @@
     document.documentElement.dataset.theme = state.settings.theme === 'system' ? (systemTheme.matches ? 'dark' : 'light') : state.settings.theme;
     document.body.classList.toggle('density-compact', state.settings.density === 'compact');
     document.body.classList.toggle('font-large', state.settings.fontSize === 'large');
-    $('meta[name="theme-color"]').content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    $('meta[name="theme-color"]').content = getComputedStyle(document.body).backgroundColor;
   }
   function draftKey() { return route().page === 'chat' ? route().id : 'new'; }
   function getDraft() { return state.drafts[draftKey()] || ''; }
   function setDraft(text) {
     state.drafts[draftKey()] = text.slice(0, MAX_CHARS);
-    clearTimeout(draftTimer); draftTimer = setTimeout(persist, 350);
+    clearTimeout(draftTimer); draftTimer = setTimeout(() => { draftTimer = null; persist(); }, 350);
   }
   function safeDate(timestamp) { const n = Number(timestamp); return Number.isFinite(n) && n >= 0 && n <= 8640000000000000 ? n : Date.now(); }
   function dateLabel(timestamp) { return new Date(timestamp).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }); }
@@ -202,7 +213,7 @@
   function renderSidebar() {
     const r = route();
     const favoriteCount = state.chats.filter(c => c.favorite).length + state.saved.length + state.favoritePrompts.length;
-    const nav = [['assistants', 'grid', 'Помощники'], ['prompts', 'library', 'Библиотека промптов'], ['favorites', 'star', 'Избранное']];
+    const nav = [['assistants', 'grid', 'Помощники'], ['prompts', 'library', 'Библиотека промптов'], ['media', 'media', 'Медиа-студия'], ['favorites', 'star', 'Избранное']];
     const sorted = [...state.chats].sort((a, b) => b.updatedAt - a.updatedAt);
     const today = new Date().setHours(0, 0, 0, 0);
     const groups = [['Сегодня', sorted.filter(c => c.updatedAt >= today)], ['Ранее', sorted.filter(c => c.updatedAt < today)]];
@@ -220,7 +231,7 @@
   }
   function renderTopbar() {
     const r = route(); const chat = currentChat();
-    const labels = { home: 'Новый диалог', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', settings: 'Настройки', chat: chat?.title || 'Диалог не найден' };
+    const labels = { home: 'Новый диалог', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Медиа-студия', settings: 'Настройки', chat: chat?.title || 'Диалог не найден' };
     $('#topbar').innerHTML = `<button class="icon-btn mobile-menu" data-action="toggle-sidebar" aria-label="Открыть меню" aria-controls="sidebar" aria-expanded="false">${icon('menu')}</button><div class="breadcrumb">${icon('compass')}<span class="workspace-crumb">Личное пространство</span><span class="slash">/</span><span class="breadcrumb-current">${esc(labels[r.page])}</span></div><div class="topbar-actions"><button class="badge" data-action="about" title="Это демо со сценарными ответами"><span class="dot"></span>Демо без backend</button><span class="topbar-separator"></span><button class="icon-btn" data-action="toggle-theme" aria-pressed="${document.documentElement.dataset.theme === 'dark'}" aria-label="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}" title="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button><button class="icon-btn help-top" data-action="shortcuts" aria-label="Справка и горячие клавиши" title="Справка и горячие клавиши">${icon('help')}</button></div>`;
   }
   function updateSidebarAccess() {
@@ -329,7 +340,10 @@
   }
   function refreshMessages(scroll = false) {
     const chat = currentChat(); if (!chat || !$('#messages')) return;
+    const focused = document.activeElement;
+    const focusKey = focused?.closest('#messages [data-action]') ? { action: focused.dataset.action, id: focused.dataset.id, value: focused.dataset.value } : null;
     $('#messages').innerHTML = chat.messages.map(m => messageMarkup(m, chat)).join('');
+    if (focusKey) $$('#messages [data-action]').find(b => b.dataset.action === focusKey.action && b.dataset.id === focusKey.id && b.dataset.value === focusKey.value)?.focus({ preventScroll: true });
     const old = $('.followups'); if (old) old.remove();
     const wrap = $('.chat-composer-wrap'); if (wrap) wrap.insertAdjacentHTML('beforebegin', followupMarkup(chat));
     if (scroll) scrollToBottom();
@@ -347,7 +361,7 @@
     updateComposerState();
   }
   function sendMessage() {
-    if (activeStream) { toast('Дождитесь ответа или остановите его.', 'error'); return; }
+    if (activeStream || pendingSend) { toast('Дождитесь ответа или остановите его.', 'error'); return; }
     const input = $('#prompt-input'); if (!input) return;
     const text = input.value.trim(); if (!text && !pendingAttachments.length) return;
     if (text.length > MAX_CHARS) { toast('Сообщение слишком длинное. Сократите его до 12 000 символов.', 'error'); return; }
@@ -362,9 +376,9 @@
     chat.isExample = false;
     const user = { id: uid('msg'), role: 'user', content, createdAt: Date.now(), attachments: [...pendingAttachments] };
     chat.messages.push(user); chat.updatedAt = Date.now();
-    pendingAttachments = []; state.drafts[draftKey()] = ''; clearTimeout(draftTimer);
-    input.value = ''; persist(); navigate('chat/' + chat.id);
-    requestAnimationFrame(() => startResponse(chat, content, 0));
+    pendingAttachments = []; state.drafts[draftKey()] = ''; clearTimeout(draftTimer); draftTimer = null;
+    input.value = ''; pendingSend = true; persist(); navigate('chat/' + chat.id);
+    requestAnimationFrame(() => { pendingSend = false; if (state.chats.includes(chat) && !activeStream) startResponse(chat, content, 0); });
   }
   function startResponse(chat, prompt, variant = 0, existing = null) {
     if (activeStream) return;
@@ -398,10 +412,10 @@
         stream.index = Math.min(fullText.length, stream.index + 18 + Math.floor(Math.random() * 14));
         message.content = fullText.slice(0, stream.index);
         const nearBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 220;
+        const visibleContent = message.status === 'error' ? '' : message.content;
         if (route().page === 'chat' && route().id === chat.id) {
-          const prose = $(`[data-prose-id="${message.id}"]`);
           const holder = $(`[data-message-id="${message.id}"] .message-content`);
-          if (holder) holder.innerHTML = `<div class="prose" data-prose-id="${message.id}">${markdown(message.content)}<span class="streaming-caret" aria-hidden="true"></span></div>`;
+          if (holder) holder.innerHTML = `<div class="prose" data-prose-id="${message.id}">${markdown(visibleContent)}<span class="streaming-caret" aria-hidden="true"></span></div>`;
           if (nearBottom) scrollToBottom(true);
         }
         if (stream.index >= fullText.length) finish('complete'); else stream.timer = setTimeout(tick, 28);
@@ -421,8 +435,10 @@
     const index = chat.messages.findIndex(m => m.id === id); const message = chat.messages[index]; if (!message || message.role !== 'assistant') return;
     const previous = [...chat.messages.slice(0, index)].reverse().find(m => m.role === 'user'); if (!previous) return;
     if (!another && index !== chat.messages.length - 1) return;
+    const variant = Number.isSafeInteger(message.variant) ? message.variant : 0;
+    if (another && variant >= 10000) { toast('Достигнут лимит вариантов ответа.', 'error'); return; }
     if (another) { chat.messages = chat.messages.slice(0, index); }
-    startResponse(chat, previous.content, another ? (message.variant || 0) + 1 : message.variant || 0, another ? null : message);
+    startResponse(chat, previous.content, another ? variant + 1 : variant, another ? null : message);
   }
   function announce(text) { let el = $('#stream-announcement'); if (!el) { el = document.createElement('div'); el.id = 'stream-announcement'; el.className = 'sr-only'; el.setAttribute('role', 'status'); document.body.append(el); } el.textContent = ''; requestAnimationFrame(() => { el.textContent = text; }); }
   /* Markdown: escape first, then only emit known tags. No raw HTML or remote links. */
@@ -478,15 +494,17 @@
   function settingToggle(key, label, help) { return `<div class="setting-row"><div><div class="setting-label" id="label-${key}">${label}</div><div class="setting-help">${help}</div></div><label class="switch"><input type="checkbox" data-setting="${key}" aria-labelledby="label-${key}" ${state.settings[key] ? 'checked' : ''}><span class="switch-track"></span></label></div>`; }
   function settingSelect(key, label, help, options) { return `<div class="setting-row"><div><label class="setting-label" for="setting-${key}">${label}</label><div class="setting-help">${help}</div></div><select id="setting-${key}" data-setting="${key}">${options.map(([value, text]) => `<option value="${value}" ${state.settings[key] === value ? 'selected' : ''}>${text}</option>`).join('')}</select></div>`; }
   function renderSettings() {
+    const focusId = document.activeElement?.id;
     const bytes = new Blob([JSON.stringify(state)]).size;
     main.innerHTML = `<section class="page" aria-label="Настройки">${pageHeader('По вашим привычкам', 'Пусть пространство будет вашим.', 'Настройки применяются сразу и сохраняются в этом браузере. Здесь нет скрытых платных функций или обязательной регистрации.')}<div class="settings-layout"><nav class="settings-nav" aria-label="Разделы настроек"><a href="#settings-appearance" data-action="settings-anchor" data-id="settings-appearance">Внешний вид</a><a href="#settings-behavior" data-action="settings-anchor" data-id="settings-behavior">Поведение</a><a href="#settings-profile" data-action="settings-anchor" data-id="settings-profile">Профиль</a><a href="#settings-data" data-action="settings-anchor" data-id="settings-data">Данные и демо</a></nav><div>
       <section class="settings-section reveal" id="settings-appearance"><h2>Внешний вид</h2><p>Комфорт прежде всего — особенно в длинном диалоге.</p><div class="settings-card"><div class="setting-row"><div><div class="setting-label">Тема оформления</div><div class="setting-help">Светлая, тёмная или как в системе.</div></div><div class="theme-options" role="group" aria-label="Тема оформления">${[['light', 'sun', 'Светлая'], ['dark', 'moon', 'Тёмная'], ['system', 'monitor', 'Система']].map(([id, ic, label]) => `<button class="theme-option ${state.settings.theme === id ? 'active' : ''}" data-action="set-theme" data-id="${id}" aria-pressed="${state.settings.theme === id}">${icon(ic)}${label}</button>`).join('')}</div></div>${settingSelect('fontSize', 'Размер текста ответов', 'Чуть крупнее, если хочется читать спокойнее.', [['normal', 'Обычный'], ['large', 'Крупный']])}${settingSelect('density', 'Плотность диалога', 'Расстояние между сообщениями.', [['comfortable', 'Свободная'], ['compact', 'Компактная']])}</div></section>
       <section class="settings-section reveal" id="settings-behavior"><h2>Поведение</h2><p>Небольшие детали, которые убирают лишние движения.</p><div class="settings-card">${settingSelect('defaultAssistant', 'Помощник по умолчанию', 'С кого начинать новый диалог.', assistants.map(a => [a.id, esc(a.name)]))}${settingToggle('enterToSend', 'Отправлять по Enter', 'Shift Enter всегда переносит строку. Если выключено — отправлять по Ctrl / ⌘ Enter.')}${settingToggle('showSuggestions', 'Показывать идеи для старта', 'Примеры на главной и вопросы для продолжения диалога.')}${settingToggle('streaming', 'Постепенное появление ответа', 'Имитация потока. При системном уменьшении движения ответ появляется сразу.')}</div></section>
       <section class="settings-section reveal" id="settings-profile"><h2>Локальный профиль</h2><p>Это не аккаунт. Имя нужно только для приветствия.</p><div class="settings-card"><div class="setting-row"><div><label class="setting-label" for="setting-name">Как к вам обращаться</label><div class="setting-help">Останется на этом устройстве. Можно оставить пустым.</div></div><input type="text" id="setting-name" data-setting="name" maxlength="40" placeholder="Например, Саша" value="${esc(state.settings.name)}"></div></div></section>
-      <section class="settings-section reveal" id="settings-data"><h2>Данные и демо</h2><p>Всё под вашим контролем. Экспортируйте копию перед очисткой браузера.</p><div class="settings-card">${settingToggle('saveHistory', 'Сохранять историю диалогов', 'Если выключить, новые диалоги не сохраняются после перезагрузки. Уже сохранённые остаются, пока вы их не удалите.')}${settingToggle('simulateErrors', 'Ошибка в следующем ответе', 'Проверить состояние ошибки и повтор. Сработает один раз, затем выключится автоматически.')}<div class="setting-row"><div style="flex:1"><div class="setting-label">Локальное хранилище</div><div class="setting-help">${state.chats.length} диалогов · ${state.saved.length} сохранённых ответов · ${storageAvailable ? 'доступно' : 'недоступно, работа в памяти'}</div><div class="storage-meter"><span style="width:${Math.min(100, bytes / (5 * 1024 * 1024) * 100)}%"></span></div><div class="storage-caption"><span>${(bytes / 1024).toFixed(1)} КБ данных</span><span>Ориентир браузера: ~5 МБ</span></div><div class="data-actions"><button class="btn small" data-action="export-all">${icon('download')}Экспорт JSON</button><button class="btn small" data-action="import-all">${icon('upload')}Импорт JSON</button></div></div></div><div class="setting-row"><div><div class="setting-label">Начать с чистого листа</div><div class="setting-help">Удалить диалоги, избранное и черновики. Настройки останутся.</div></div><button class="btn small danger" data-action="clear-data">${icon('trash')}Очистить</button></div><div class="setting-row"><div><div class="setting-label">Вернуть начальное демо</div><div class="setting-help">Три примера диалогов и настройки по умолчанию.</div></div><button class="btn small" data-action="reset-demo">${icon('refresh')}Сбросить</button></div></div></section>
+      <section class="settings-section reveal" id="settings-data"><h2>Данные и демо</h2><p>Всё под вашим контролем. Экспортируйте копию перед очисткой браузера.</p><div class="settings-card">${settingToggle('saveHistory', 'Сохранять историю диалогов', 'Если выключить, новые диалоги не сохраняются после перезагрузки. Уже сохранённые остаются, пока вы их не удалите.')}${settingToggle('simulateErrors', 'Ошибка в следующем ответе', 'Проверить состояние ошибки и повтор. Сработает один раз, затем выключится автоматически.')}<div class="setting-row"><div style="flex:1"><div class="setting-label">Локальное хранилище</div><div class="setting-help">${state.chats.length} диалогов · ${state.saved.length} сохранённых ответов · ${storageProtected ? 'исходные данные защищены, работа в памяти' : storageAvailable ? 'доступно' : 'недоступно, работа в памяти'}</div><div class="storage-meter"><span style="width:${Math.min(100, bytes / (5 * 1024 * 1024) * 100)}%"></span></div><div class="storage-caption"><span>${(bytes / 1024).toFixed(1)} КБ данных</span><span>Ориентир браузера: ~5 МБ</span></div><div class="data-actions"><button class="btn small" data-action="export-all">${icon('download')}Экспорт JSON</button><button class="btn small" data-action="import-all">${icon('upload')}Импорт JSON</button></div></div></div><div class="setting-row"><div><div class="setting-label">Начать с чистого листа</div><div class="setting-help">Удалить диалоги, избранное и черновики. Настройки останутся.</div></div><button class="btn small danger" data-action="clear-data">${icon('trash')}Очистить</button></div><div class="setting-row"><div><div class="setting-label">Вернуть начальное демо</div><div class="setting-help">Три примера диалогов и настройки по умолчанию.</div></div><button class="btn small" data-action="reset-demo">${icon('refresh')}Сбросить</button></div></div></section>
       <footer class="settings-footer"><span>BRIIX · UI-демо 2.0 · без backend</span><button class="text-btn" data-action="about">Что работает, а что имитируется ${icon('arrowRight')}</button></footer>
     </div></div></section>`;
     setupReveals(); updateSettingsSpy();
+    if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
   }
   function changeSetting(key, value) {
     if (!(key in DEFAULT_SETTINGS)) return;
@@ -494,11 +512,12 @@
     if (key === 'defaultAssistant') state.selectedAssistant = value;
     persist(); applySettings(); renderSidebar();
     if (key === 'theme') renderTopbar();
-    if (['theme', 'fontSize', 'density', 'defaultAssistant'].includes(key)) renderSettings();
+    if (['theme', 'fontSize', 'density', 'defaultAssistant'].includes(key) && route().page === 'settings') renderSettings();
     if (key === 'saveHistory') toast(value ? 'Новые диалоги будут сохраняться.' : 'Новые диалоги будут жить только до перезагрузки.');
     if (key === 'simulateErrors') toast(value ? 'Следующий ответ покажет демонстрационную ошибку.' : 'Ошибки выключены.');
   }
-  function exportAll() { download('briix-demo-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(state, null, 2), 'application/json'); toast('Резервная копия подготовлена'); }
+  function durableState() { return { ...state, chats: state.chats.filter(c => !c.ephemeral), drafts: Object.fromEntries(Object.entries(state.drafts).filter(([key]) => !state.chats.some(c => c.ephemeral && c.id === key))) }; }
+  function exportAll() { download('briix-demo-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(durableState(), null, 2), 'application/json'); toast('Резервная копия подготовлена'); }
   function exportChat(id) {
     const c = state.chats.find(c => c.id === id); if (!c) return;
     const text = '# ' + c.title + '\n\nПомощник: ' + assistant(c.assistantId).name + '\nРежим: локальное демо, сценарные ответы\n\n' + c.messages.map(m => '## ' + (m.role === 'user' ? 'Вы' : assistant(m.assistantId).name) + '\n\n' + (m.status === 'error' ? '[Демонстрационная ошибка]' : m.content) + (m.attachments?.length ? '\n\nВложения-заглушки: ' + m.attachments.map(f => f.name).join(', ') : '')).join('\n\n---\n\n');
@@ -509,17 +528,18 @@
     if (file.size > 3 * 1024 * 1024) { toast('Копия больше 3 МБ. Для этого демо нужен файл поменьше.', 'error'); return; }
     try {
       const imported = validateState(JSON.parse(await file.text()));
-      openModal('Заменить данные из копии?', `<p>В копии: <strong>${imported.chats.length} диалогов</strong>, <strong>${imported.saved.length} сохранённых ответов</strong>. Текущие данные будут заменены. Перед импортом можно скачать текущую копию.</p>`, [{ label: 'Отмена', action: closeModal }, { label: 'Скачать текущую копию', action: exportAll }, { label: 'Импортировать', primary: true, action: () => { if (activeStream) stopResponse(); state = imported; pendingAttachments = []; storageAvailable = true; storageWarning = ''; persist(); applySettings(); closeModal(); navigate('home'); toast('Копия импортирована'); } }]);
+      openModal('Заменить данные из копии?', `<p>В копии: <strong>${imported.chats.length} диалогов</strong>, <strong>${imported.saved.length} сохранённых ответов</strong>. Текущие данные будут заменены. Перед импортом можно скачать текущую копию.</p>`, [{ label: 'Отмена', action: closeModal }, { label: 'Скачать текущую копию', action: exportAll }, { label: 'Импортировать', primary: true, action: () => { if (activeStream) stopResponse(); state = imported; pendingAttachments = []; pendingSend = false; storageAvailable = true; storageProtected = false; storageWarning = ''; persist(); applySettings(); closeModal(); navigate('home'); toast('Копия импортирована'); } }]);
     } catch (error) { toast('Не удалось импортировать: ' + (error instanceof SyntaxError ? 'файл не является корректным JSON.' : error.message), 'error'); }
   }
   /* Modals */
   function openModal(title, body, actions = [], wide = false) {
+    const version = ++modalVersion;
     if (!modal.open) modalReturnFocus = document.activeElement;
     modal.classList.toggle('wide', wide);
     modal.innerHTML = `<div class="modal-head"><h2 id="modal-title">${esc(title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="Закрыть окно">${icon('close')}</button></div><div class="modal-body">${body}</div>${actions.length ? `<div class="modal-actions">${actions.map((a, i) => `<button class="btn ${a.primary ? 'primary' : ''} ${a.danger ? 'danger' : ''}" data-modal-action="${i}">${esc(a.label)}</button>`).join('')}</div>` : ''}`;
     $$('[data-modal-action]', modal).forEach(button => button.addEventListener('click', () => actions[Number(button.dataset.modalAction)].action()));
     if (!modal.open) modal.showModal();
-    requestAnimationFrame(() => { const input = $('input:not([type=checkbox]), textarea:not([readonly])', modal); if (input) { input.focus(); if (input.select) input.select(); } else $('.modal-head button', modal)?.focus(); });
+    requestAnimationFrame(() => { if (!modal.open || version !== modalVersion) return; const input = $('input:not([type=checkbox]), textarea:not([readonly])', modal); if (input) { input.focus(); if (input.select) input.select(); } else $('.modal-head button', modal)?.focus(); });
   }
   function closeModal() { if (modal.open) modal.close(); }
   function chooseAssistant() {
@@ -536,7 +556,7 @@
     openModal('Знакомьтесь, ' + a.name.toLowerCase(), `<div class="modal-detail-top tone-${a.tone}">${avatar(a, 'large')}<div><h3>${esc(a.name)}</h3><p>${esc(a.short)}</p></div></div><p>${esc(a.description)}</p><div class="skill-list tone-${a.tone}">${a.skills.map(s => `<span class="skill">${esc(s)}</span>`).join('')}</div><div class="eyebrow" style="margin-top:22px">Попробуйте на примере</div><div class="detail-prompts">${a.prompts.map((p, i) => `<button class="detail-prompt" data-action="use-assistant-prompt" data-id="${a.id}" data-index="${i}"><span>${esc(p.title)}</span>${icon('arrowRight')}</button>`).join('')}</div><div class="catalog-note">${icon('flask')}<span>Ответы сценарные. Помощник не подключён к модели и не выполняет действия во внешних сервисах.</span></div>`, [{ label: 'Закрыть', action: closeModal }, { label: 'Начать диалог', primary: true, action: () => { state.selectedAssistant = a.id; closeModal(); navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); } }]);
   }
   function about() {
-    openModal('Место для идей. Пока — демо.', `<p>Это интерактивный прототип пользовательского опыта BRIIX. Можно исследовать весь интерфейс без регистрации и backend.</p><div class="about-grid"><div class="about-item">${icon('check')}<div><strong>Работает по-настоящему</strong><p>Выбор помощника, диалоги, поиск, история, избранное, экспорт, настройки, тёмная тема и мобильная версия. Данные сохраняются в вашем браузере.</p></div></div><div class="about-item">${icon('flask')}<div><strong>Имитируется честно</strong><p>Ответы — заранее подготовленные сценарии, а не работа нейросети. Знакомые примеры раскрываются подробно; на другой текст помощник даёт демонстрационный ответ своего профиля.</p></div></div><div class="about-item">${icon('paperclip')}<div><strong>Файлы — визуальные заглушки</strong><p>Сохраняются только имя, тип и размер. Содержимое не читается, никуда не загружается и не анализируется.</p></div></div><div class="about-item">${icon('shield')}<div><strong>Локально не значит навсегда</strong><p>Очистка данных браузера удалит историю. Для переноса или резервной копии используйте экспорт JSON в настройках. Не вводите чувствительные данные на общем устройстве.</p></div></div></div><div class="eyebrow" style="margin-top:20px">Вопросы о демо</div><div class="faq-list">${faqItem('model', 'Это настоящая нейросеть?', 'Нет. Ответы заранее подготовлены под примеры и профили помощников. Так можно проверять интерфейс, не подключая модель и не отправляя данные наружу.')}${faqItem('storage', 'Куда сохраняются диалоги?', 'Только в localStorage этого браузера. На другом устройстве или после очистки данных браузера история не появится. Для переноса есть экспорт и импорт JSON в настройках.')}${faqItem('files', 'Что происходит с файлами?', 'Это визуальные заглушки. Сохраняются имя, тип и размер, чтобы проверить интерфейс вложений. Содержимое не читается, не анализируется и не загружается на сервер.')}${faqItem('backend', 'Можно ли потом подключить backend?', 'Да. Экраны, состояние и сценарные ответы отделены друг от друга. Позже сценарный генератор можно заменить реальным API, сохранив пользовательский интерфейс.')}</div>`, [{ label: 'Понятно, попробуем', primary: true, action: closeModal }], true);
+    openModal('Место для идей. Пока — демо.', `<p>Это интерактивный прототип пользовательского опыта BRIIX. Можно исследовать весь интерфейс без регистрации и backend.</p><div class="about-grid"><div class="about-item">${icon('check')}<div><strong>Работает по-настоящему</strong><p>Выбор помощника, диалоги, поиск, история, избранное, экспорт, настройки, тёмная тема и мобильная версия. Данные сохраняются в вашем браузере.</p></div></div><div class="about-item">${icon('flask')}<div><strong>Имитируется честно</strong><p>Ответы — заранее подготовленные сценарии, а не работа нейросети. Медиа-студия использует локальные изображения и анимации, не inference. Знакомые примеры раскрываются подробно; на другой текст помощник даёт демонстрационный ответ своего профиля.</p></div></div><div class="about-item">${icon('paperclip')}<div><strong>Файлы — визуальные заглушки</strong><p>Сохраняются только имя, тип и размер. Содержимое не читается, никуда не загружается и не анализируется.</p></div></div><div class="about-item">${icon('shield')}<div><strong>Локально не значит навсегда</strong><p>Очистка данных браузера удалит историю. Для переноса или резервной копии используйте экспорт JSON в настройках. Не вводите чувствительные данные на общем устройстве.</p></div></div></div><div class="eyebrow" style="margin-top:20px">Вопросы о демо</div><div class="faq-list">${faqItem('model', 'Это настоящая нейросеть?', 'Нет. Ответы заранее подготовлены под примеры и профили помощников. Так можно проверять интерфейс, не подключая модель и не отправляя данные наружу.')}${faqItem('storage', 'Куда сохраняются диалоги?', 'Только в localStorage этого браузера. На другом устройстве или после очистки данных браузера история не появится. Для переноса есть экспорт и импорт JSON в настройках.')}${faqItem('files', 'Что происходит с файлами?', 'Это визуальные заглушки. Сохраняются имя, тип и размер, чтобы проверить интерфейс вложений. Содержимое не читается, не анализируется и не загружается на сервер.')}${faqItem('backend', 'Можно ли потом подключить backend?', 'Да. Экраны, состояние и сценарные ответы отделены друг от друга. Позже сценарный генератор можно заменить реальным API, сохранив пользовательский интерфейс.')}</div>`, [{ label: 'Понятно, попробуем', primary: true, action: closeModal }], true);
   }
   function shortcuts() {
     openModal('Меньше кликов, больше мысли', `<p>Работает на macOS, Windows и Linux. Вместо ⌘ можно использовать Ctrl.</p>${[['Поиск по пространству', isMac ? '⌘ K' : 'Ctrl K'], ['Новый диалог', isMac ? '⌘ ⇧ O' : 'Ctrl ⇧ O'], ['Отправить сообщение', state.settings.enterToSend ? 'Enter' : (isMac ? '⌘ Enter' : 'Ctrl Enter')], ['Перенести строку', 'Shift Enter'], ['Закрыть окно или меню', 'Esc'], ['Перейти по результатам поиска', '↑ / ↓ / Enter']].map(([label, keys]) => `<div class="shortcut-row"><span>${label}</span><kbd>${keys}</kbd></div>`).join('')}<div class="catalog-note">${icon('info')}<span>Настройки отправки можно поменять в разделе «Поведение». На телефоне используйте кнопку со стрелкой.</span></div>`, [{ label: 'Открыть настройки', action: () => { closeModal(); navigate('settings'); } }, { label: 'Закрыть', primary: true, action: closeModal }]);
@@ -554,7 +574,7 @@
   /* Search */
   function openSearch() {
     if (modal.open) closeModal(); closeSidebar(false); searchReturnFocus = document.activeElement; searchQuery = '';
-    searchModal.innerHTML = `<div class="search-input-row">${icon('search')}<input id="global-search" type="search" autocomplete="off" placeholder="Диалоги, помощники, промпты…" aria-label="Поиск по диалогам, помощникам и промптам" aria-controls="search-results"><button class="icon-btn small" data-action="close-search" aria-label="Закрыть поиск">${icon('close')}</button></div><div class="search-results" id="search-results"></div><div class="search-footer"><span>↑ ↓ — выбрать · Enter — открыть</span><span>Esc — закрыть</span></div>`;
+    searchModal.innerHTML = `<div class="search-input-row">${icon('search')}<input id="global-search" type="search" autocomplete="off" placeholder="Диалоги, помощники, промпты, медиа…" aria-label="Поиск по диалогам, помощникам, промптам и медиа" aria-controls="search-results"><button class="icon-btn small" data-action="close-search" aria-label="Закрыть поиск">${icon('close')}</button></div><div class="search-results" id="search-results"></div><div class="search-footer"><span>↑ ↓ — выбрать · Enter — открыть</span><span>Esc — закрыть</span></div>`;
     updateSearchResults(); if (!searchModal.open) searchModal.showModal(); $('#global-search').focus();
   }
   function closeSearch() { if (searchModal.open) searchModal.close(); }
@@ -565,7 +585,8 @@
     const prompts = q ? promptLibrary.filter(p => (p.title + ' ' + p.description + ' ' + p.text).toLowerCase().includes(q)).slice(0, 5) : [];
     const group = (label, rows) => rows.length ? `<div class="search-group-label">${label}</div>${rows.join('')}` : '';
     const result = (action, id, ic, title, subtitle) => `<button class="search-result" data-action="${action}" data-id="${esc(id)}">${icon(ic)}<span class="search-result-text"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></span>${icon('arrowRight')}</button>`;
-    $('#search-results').innerHTML = chats.length || people.length || prompts.length ? group('Диалоги', chats.map(c => result('search-chat', c.id, 'chat', c.title, assistant(c.assistantId).name + ' · ' + dateLabel(c.updatedAt)))) + group('Помощники', people.map(a => result('search-assistant', a.id, a.icon, a.name, a.short))) + group('Промпты', prompts.map(p => result('use-prompt', p.id, 'library', p.title, p.category + ' · ' + assistant(p.assistant).name))) : `<div class="search-empty">По запросу «${esc(searchQuery)}» ничего нет.<br><span class="faint">Попробуйте «план», «письмо» или «код».</span></div>`;
+    const media = !q || 'медиа-студия фото видео генерация контент'.includes(q) ? [result('search-media', '', 'media', 'Медиа-студия', 'Фото, видео и рецепты · локальный мок')] : [];
+    $('#search-results').innerHTML = chats.length || people.length || prompts.length || media.length ? group('Разделы', media) + group('Диалоги', chats.map(c => result('search-chat', c.id, 'chat', c.title, assistant(c.assistantId).name + ' · ' + dateLabel(c.updatedAt)))) + group('Помощники', people.map(a => result('search-assistant', a.id, a.icon, a.name, a.short))) + group('Промпты', prompts.map(p => result('use-prompt', p.id, 'library', p.title, p.category + ' · ' + assistant(p.assistant).name))) : `<div class="search-empty">По запросу «${esc(searchQuery)}» ничего нет.<br><span class="faint">Попробуйте «план», «письмо» или «код».</span></div>`;
   }
   /* Patterns reused from site/: reveal on scroll, sticky header shadow, settings scroll-spy */
   function setupReveals() {
@@ -600,11 +621,12 @@
     else if (r.page === 'prompts') renderPrompts();
     else if (r.page === 'favorites') renderFavorites();
     else if (r.page === 'settings') renderSettings();
+    else if (r.page === 'media') { if (window.BRIIX_MEDIA) window.BRIIX_MEDIA.render(main, { icon, esc, toast, openModal, closeModal, download, copyText, navigate, reducedMotion }); else main.innerHTML = '<section class="page"><h1>Медиа-студия</h1><p>Модуль не загрузился. Обновите страницу или проверьте локальные файлы.</p></section>'; }
     else renderChat();
     updateStorageNotice();
     if (r.page === 'chat') scrollToBottom(true); else main.scrollTop = 0;
     setupReveals(); updateTopbarShadow(); if (r.page === 'settings') updateSettingsSpy();
-    document.title = (r.page === 'chat' && currentChat() ? currentChat().title + ' — BRIIX' : ({ home: 'Ваше пространство для идей', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', settings: 'Настройки' }[r.page] || 'Диалог')) + ' — BRIIX';
+    document.title = (r.page === 'chat' && currentChat() ? currentChat().title + ' — BRIIX' : ({ home: 'Ваше пространство для идей', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Медиа-студия', settings: 'Настройки' }[r.page] || 'Диалог')) + ' — BRIIX';
   }
   const actions = {
     'new-chat': () => { pendingAttachments = []; state.selectedAssistant = state.settings.defaultAssistant; navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); },
@@ -632,7 +654,7 @@
     'open-example': () => { const c = state.chats.find(c => c.isExample); if (c) navigate('chat/' + c.id); else { resetDemo(false); navigate('home'); } },
     'open-prompts': () => navigate('prompts'),
     'copy-message': el => { const m = currentChat()?.messages.find(m => m.id === el.dataset.id); if (m) copyText(m.content); },
-    'copy-code': el => copyText(decodeURIComponent(el.dataset.code), 'Код скопирован'),
+    'copy-code': el => { try { copyText(decodeURIComponent(el.dataset.code), 'Код скопирован'); } catch { toast('Не удалось прочитать блок кода.', 'error'); } },
     'feedback': el => { const m = currentChat()?.messages.find(m => m.id === el.dataset.id); if (!m) return; m.feedback = m.feedback === el.dataset.value ? null : el.dataset.value; persist(); refreshMessages(); toast(m.feedback ? 'Спасибо, отметка сохранена в этом браузере' : 'Отметка убрана'); },
     'regenerate': el => retryMessage(el.dataset.id, true), 'retry': el => retryMessage(el.dataset.id),
     'followup': el => { const input = $('#prompt-input'); if (input) { input.value = el.dataset.text; setDraft(input.value); updateComposerState(); input.focus(); } },
@@ -641,10 +663,11 @@
     'toggle-theme': () => changeSetting('theme', document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'),
     'settings-anchor': el => { const target = document.getElementById(el.dataset.id); if (target) target.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'start' }); },
     'export-all': exportAll, 'import-all': () => $('#import-input').click(),
-    'clear-data': () => openModal('Начать с чистого листа?', '<p>Все диалоги, сохранённые ответы, избранные промпты и черновики будут удалены из этого браузера. Настройки оформления останутся. Сначала можно экспортировать копию.</p>', [{ label: 'Отмена', action: closeModal }, { label: 'Скачать копию', action: exportAll }, { label: 'Очистить данные', danger: true, action: () => { if (activeStream) stopResponse(); state.chats = []; state.saved = []; state.favoritePrompts = []; state.drafts = {}; pendingAttachments = []; storageWarning = ''; storageAvailable = true; persist(); closeModal(); navigate('settings'); toast('Данные очищены. Можно начать заново.'); } }]),
+    'clear-data': () => openModal('Начать с чистого листа?', '<p>Все диалоги, сохранённые ответы, избранные промпты и черновики будут удалены из этого браузера. Настройки оформления останутся. Сначала можно экспортировать копию.</p>', [{ label: 'Отмена', action: closeModal }, { label: 'Скачать копию', action: exportAll }, { label: 'Очистить данные', danger: true, action: () => { if (activeStream) stopResponse(); state.chats = []; state.saved = []; state.favoritePrompts = []; state.drafts = {}; pendingAttachments = []; storageWarning = ''; storageProtected = false; storageAvailable = true; persist(); closeModal(); navigate('settings'); toast('Данные очищены. Можно начать заново.'); } }]),
     'reset-demo': () => openModal('Вернуть начальное демо?', '<p>Текущие диалоги, избранное и настройки будут заменены начальным набором. Это действие нельзя отменить; сохраните копию, если она нужна.</p>', [{ label: 'Отмена', action: closeModal }, { label: 'Скачать копию', action: exportAll }, { label: 'Вернуть демо', primary: true, action: () => resetDemo(true) }]),
     'about': about, 'shortcuts': shortcuts, 'close-modal': closeModal,
     'search': openSearch, 'close-search': closeSearch,
+    'search-media': () => { closeSearch(); navigate('media'); },
     'search-chat': el => { closeSearch(); navigate('chat/' + el.dataset.id); },
     'search-assistant': el => { closeSearch(); assistantDetails(el.dataset.id); },
     'toggle-sidebar': () => $('#sidebar').classList.contains('open') ? closeSidebar() : openSidebar(),
@@ -654,8 +677,9 @@
       item.classList.toggle('open', !isOpen); el.setAttribute('aria-expanded', String(!isOpen)); answer.setAttribute('aria-hidden', String(isOpen)); answer.style.maxHeight = isOpen ? '0px' : answer.scrollHeight + 'px';
     }
   };
-  function resetDemo(notify) { if (activeStream) stopResponse(); state = freshState(); pendingAttachments = []; storageAvailable = true; storageWarning = ''; persist(); applySettings(); closeModal(); navigate('home'); if (notify) toast('Начальное демо восстановлено'); }
+  function resetDemo(notify) { if (activeStream) stopResponse(); state = freshState(); pendingAttachments = []; pendingSend = false; storageAvailable = true; storageProtected = false; storageWarning = ''; persist(); applySettings(); closeModal(); navigate('home'); if (notify) toast('Начальное демо восстановлено'); }
   document.addEventListener('click', event => {
+    if (event.target.closest('.media-page, .media-modal')) return;
     const el = event.target.closest('[data-action]'); if (!el || el.disabled) return;
     const action = actions[el.dataset.action]; if (action) { event.preventDefault(); action(el); }
   });
@@ -665,7 +689,7 @@
     if (el.id === 'assistant-search') { catalogQuery = el.value; updateAssistantGrid(); }
     if (el.id === 'prompt-search') { promptQuery = el.value; updatePromptGrid(); }
     if (el.id === 'global-search') { searchQuery = el.value; updateSearchResults(); }
-    if (el.id === 'setting-name') { state.settings.name = el.value.slice(0, 40); clearTimeout(draftTimer); draftTimer = setTimeout(() => { persist(); renderSidebar(); }, 300); }
+    if (el.id === 'setting-name') { state.settings.name = el.value.slice(0, 40); clearTimeout(draftTimer); draftTimer = setTimeout(() => { draftTimer = null; persist(); renderSidebar(); }, 300); }
   });
   document.addEventListener('change', event => {
     const el = event.target;
@@ -680,7 +704,7 @@
     if (event.key === 'Escape' && $('#sidebar').classList.contains('open')) { event.preventDefault(); closeSidebar(); return; }
     if (event.target.id === 'prompt-input' && event.key === 'Enter' && !event.isComposing) {
       const send = state.settings.enterToSend ? !event.shiftKey : command;
-      if (send) { event.preventDefault(); if (!activeStream) sendMessage(); }
+      if (send) { event.preventDefault(); if (!activeStream && !pendingSend) sendMessage(); }
     }
     if (searchModal.open && ['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) {
       const results = $$('.search-result', searchModal); const index = results.indexOf(document.activeElement);
@@ -704,12 +728,17 @@
   modal.addEventListener('close', () => { if (modalReturnFocus?.isConnected) modalReturnFocus.focus(); });
   searchModal.addEventListener('click', event => { if (event.target === searchModal) { const rect = searchModal.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeSearch(); } });
   searchModal.addEventListener('close', () => { if (searchReturnFocus?.isConnected && !searchReturnFocus.closest('[inert]')) searchReturnFocus.focus(); });
-  window.addEventListener('hashchange', () => { closeSidebar(false); pendingAttachments = []; render(); });
+  window.addEventListener('hashchange', () => { closeSidebar(false); pendingAttachments = []; if (draftTimer) flushDraft(); render(); });
   window.addEventListener('resize', () => { updateComposerState(); $$('.faq-item.open .faq-a').forEach(a => { a.style.maxHeight = a.scrollHeight + 'px'; }); });
   main.addEventListener('scroll', onMainScroll, { passive: true });
-  window.addEventListener('pagehide', () => { clearTimeout(draftTimer); persist(); });
+  window.addEventListener('pagehide', () => { flushDraft(); window.BRIIX_MEDIA?.suspend(); });
   mobileQuery.addEventListener('change', () => { closeSidebar(false); updateSidebarAccess(); });
   systemTheme.addEventListener('change', () => { if (state.settings.theme === 'system') { applySettings(); renderTopbar(); } });
-  window.addEventListener('storage', event => { if (event.key === STORAGE_KEY && !activeStream) { state = loadState(); applySettings(); render(); toast('Данные обновлены из другой вкладки'); } });
+  window.addEventListener('storage', event => {
+    if (event.key !== STORAGE_KEY || activeStream || pendingSend) return;
+    if (draftTimer) { const saved = flushDraft(); toast(saved ? 'Текущие изменения сохранены. Обновления другой вкладки не применены поверх вашей работы.' : 'Обновления другой вкладки не применены поверх вашей работы. Сохраните текущую копию через экспорт.', saved ? 'success' : 'error'); return; }
+    state = loadState(); applySettings(); render(); toast('Данные обновлены из другой вкладки');
+  });
+  $('.skip-link').addEventListener('click', event => { event.preventDefault(); main.focus(); main.scrollTop = 0; });
   applySettings(); if (!skipInitialPersist) persist(); render();
 })();

@@ -1,0 +1,408 @@
+{
+  "report_date": "2026-11-07",
+  "generated_at_utc": "2026-11-06T22:51:50.814993+00:00",
+  "scope": "Documentation-only delivery; no access to fonotext stands and no inference benchmark",
+  "branch": "arena/c5a39df5-briix-ru",
+  "head_before_delivery_commit": "de42909e066b418bbdb24e9ca13e5d2183a6ab72",
+  "main_baseline": "de42909e066b418bbdb24e9ca13e5d2183a6ab72",
+  "source_brief_git_blob": "ccaa10ab5cca10a848af5e4a16ab22d1a2006e34",
+  "counts": {
+    "markdown_files_checked": 3,
+    "json_code_blocks": 2,
+    "bash_code_blocks": 10,
+    "local_links": 33,
+    "anchor_links": 18,
+    "external_links_seen_not_http_checked": 27
+  },
+  "checks": [
+    {
+      "name": "fixed_session_branch",
+      "status": "PASS",
+      "details": "arena/c5a39df5-briix-ru"
+    },
+    {
+      "name": "fresh_main_is_ancestor",
+      "status": "PASS",
+      "details": "de42909e066b418bbdb24e9ca13e5d2183a6ab72"
+    },
+    {
+      "name": "user_brief_unchanged",
+      "status": "PASS",
+      "details": "ccaa10ab5cca10a848af5e4a16ab22d1a2006e34"
+    },
+    {
+      "name": "changes_confined_to_audits",
+      "status": "PASS",
+      "details": [
+        "audits/2026-11-07-cpu-self-hosting-stands.md",
+        "audits/README.md",
+        "audits/evidence/2026-11-07-stands-reference-check.json",
+        "audits/task-stand-models-reference.md"
+      ]
+    },
+    {
+      "name": "protected_site_and_docs_unchanged",
+      "status": "PASS",
+      "details": "no changes"
+    },
+    {
+      "name": "node_syntax demo.js",
+      "status": "PASS",
+      "details": "syntax only; not browser execution"
+    },
+    {
+      "name": "node_syntax demo-data.js",
+      "status": "PASS",
+      "details": "syntax only; not browser execution"
+    },
+    {
+      "name": "node_syntax media.js",
+      "status": "PASS",
+      "details": "syntax only; not browser execution"
+    },
+    {
+      "name": "balanced_fences audits/2026-11-07-cpu-self-hosting-stands.md",
+      "status": "PASS",
+      "details": 44
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #1",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #2",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #3",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #4",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #5",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #6",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "json_block 2026-11-07-cpu-self-hosting-stands.md #1",
+      "status": "PASS",
+      "details": "parsed; template is not execution evidence"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #7",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #8",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #9",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "json_block 2026-11-07-cpu-self-hosting-stands.md #2",
+      "status": "PASS",
+      "details": "parsed; template is not execution evidence"
+    },
+    {
+      "name": "bash_syntax 2026-11-07-cpu-self-hosting-stands.md #10",
+      "status": "PASS",
+      "details": "syntax only; no command executed"
+    },
+    {
+      "name": "no_cjk_or_replacement_chars audits/2026-11-07-cpu-self-hosting-stands.md",
+      "status": "PASS"
+    },
+    {
+      "name": "no_conflict_markers audits/2026-11-07-cpu-self-hosting-stands.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ../docs/fonotext-stands-brief.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #1-что-известно-о-стендах",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #1-что-известно-о-стендах",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #2-обязательные-ограничения",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #2-обязательные-ограничения",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #3-рекомендуемое-распределение-ролей",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #3-рекомендуемое-распределение-ролей",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #4-какие-модели-выбирать",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #4-какие-модели-выбирать",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #5-память-квантование-и-производительность-cpu",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #5-память-квантование-и-производительность-cpu",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #6-первый-пилот-на-существующей-ollama",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #6-первый-пилот-на-существующей-ollama",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #7-llamacpp-как-следующий-вариант",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #7-llamacpp-как-следующий-вариант",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #8-офлайн-доставка-моделей-на-стенд-b",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #8-офлайн-доставка-моделей-на-стенд-b",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #9-голос-распознавание-и-поиск-по-знаниям",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #9-голос-распознавание-и-поиск-по-знаниям",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #10-изображения-и-видео-что-реалистично",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #10-изображения-и-видео-что-реалистично",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #11-как-наполнить-демо-реальными-примерами",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #11-как-наполнить-демо-реальными-примерами",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #12-backend-безопасность-и-данные",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #12-backend-безопасность-и-данные",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #13-замеры-и-критерии-приёмки",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #13-замеры-и-критерии-приёмки",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #14-эксплуатация-и-стоимость",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #14-эксплуатация-и-стоимость",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #15-готовый-запрос-координатору-инфраструктуры",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #15-готовый-запрос-координатору-инфраструктуры",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #16-что-ещё-нужно-уточнить",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #16-что-ещё-нужно-уточнить",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #17-границы-этой-поставки-и-непроверенное",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #17-границы-этой-поставки-и-непроверенное",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: #18-источники",
+      "status": "PASS"
+    },
+    {
+      "name": "anchor 2026-11-07-cpu-self-hosting-stands.md: #18-источники",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ../ai-platform-docs/API.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ./task-stand-models-reference.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ./evidence/2026-11-07-stands-reference-check.json",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ../docs/fonotext-stands-brief.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ./2026-11-07-arena-handoff-media-hub.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ./2026-11-06-media-hub-research.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ../ai-platform-docs/LOCAL_MODELS.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ../ai-platform-docs/ARCHITECTURE.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ../ai-platform-docs/API.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link 2026-11-07-cpu-self-hosting-stands.md: ../ai-platform/DECISIONS.md",
+      "status": "PASS"
+    },
+    {
+      "name": "balanced_fences audits/task-stand-models-reference.md",
+      "status": "PASS",
+      "details": 0
+    },
+    {
+      "name": "no_cjk_or_replacement_chars audits/task-stand-models-reference.md",
+      "status": "PASS"
+    },
+    {
+      "name": "no_conflict_markers audits/task-stand-models-reference.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link task-stand-models-reference.md: ./2026-11-07-cpu-self-hosting-stands.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link task-stand-models-reference.md: ./task-stand-models-reference.md",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link task-stand-models-reference.md: ./evidence/2026-11-07-stands-reference-check.json",
+      "status": "PASS"
+    },
+    {
+      "name": "local_link task-stand-models-reference.md: ./README.md",
+      "status": "PASS"
+    },
+    {
+      "name": "balanced_fences audits/README.md",
+      "status": "PASS",
+      "details": 0
+    },
+    {
+      "name": "no_cjk_or_replacement_chars audits/README.md",
+      "status": "PASS"
+    },
+    {
+      "name": "no_conflict_markers audits/README.md",
+      "status": "PASS"
+    },
+    {
+      "name": "staged_whitespace_check",
+      "status": "PASS",
+      "details": "clean"
+    },
+    {
+      "name": "no_obvious_credential_patterns",
+      "status": "PASS",
+      "details": "heuristic scan, not a comprehensive secret audit"
+    },
+    {
+      "name": "no_non_placeholder_ipv4_literals",
+      "status": "PASS",
+      "details": [
+        "0.0.0.0",
+        "127.0.0.1"
+      ]
+    },
+    {
+      "name": "main_reference_has_18_sections",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery_files_small",
+      "status": "PASS",
+      "details": {
+        "audits/2026-11-07-cpu-self-hosting-stands.md": 84639,
+        "audits/README.md": 3161,
+        "audits/evidence/2026-11-07-stands-reference-check.json": 15243,
+        "audits/task-stand-models-reference.md": 6303
+      }
+    }
+  ],
+  "limitations": [
+    "Bash blocks checked with bash -n only; commands were not executed.",
+    "JSON templates parsed only; null provenance fields are intentional and not generated results.",
+    "JavaScript syntax checked only; browser regression suite was not rerun.",
+    "External URLs were not exhaustively HTTP-checked; selected primary sources were read during research.",
+    "No CPU/GPU throughput, latency, quality, memory usage or production impact was measured.",
+    "Credential scan is heuristic; no private infrastructure configuration was inspected."
+  ],
+  "status": "PASS"
+}

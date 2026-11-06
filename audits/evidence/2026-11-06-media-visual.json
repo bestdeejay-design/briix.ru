@@ -1,0 +1,105 @@
+{
+  "desktopFrame": {
+    "x": 761.796875,
+    "y": 376.25,
+    "width": 629.203125,
+    "height": 365
+  },
+  "desktopVideo": {
+    "x": 761.796875,
+    "y": 376.25,
+    "width": 629.203125,
+    "height": 365
+  },
+  "frame": {
+    "x": 18,
+    "y": 301.8125,
+    "width": 354,
+    "height": 300
+  },
+  "video": {
+    "x": 18,
+    "y": 301.8125,
+    "width": 354,
+    "height": 300
+  },
+  "overflow": false,
+  "darkAxe": [],
+  "mobileAxe": [],
+  "assets": [
+    {
+      "file": "ceramic-still-landscape.mp4",
+      "duration": 5,
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "file": "ceramic-still-landscape.webm",
+      "duration": 5,
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "file": "ceramic-still-portrait.mp4",
+      "duration": 5,
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "file": "ceramic-still-portrait.webm",
+      "duration": 5,
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "file": "coffee-story-landscape.mp4",
+      "duration": 5,
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "file": "coffee-story-landscape.webm",
+      "duration": 5,
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "file": "coffee-story-portrait.mp4",
+      "duration": 5,
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "file": "coffee-story-portrait.webm",
+      "duration": 5,
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "file": "skincare-light-landscape.mp4",
+      "duration": 5,
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "file": "skincare-light-landscape.webm",
+      "duration": 5,
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "file": "skincare-light-portrait.mp4",
+      "duration": 5,
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "file": "skincare-light-portrait.webm",
+      "duration": 5,
+      "width": 720,
+      "height": 1280
+    }
+  ],
+  "errors": [],
+  "external": []
+}

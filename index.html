@@ -3,17 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f8f7f4">
+  <meta name="theme-color" content="#fbfaf7">
   <meta name="description" content="BRIIX — пространство для идей. Выберите помощника, попробуйте диалог и сохраните удачный результат. Интерактивное демо без backend.">
   <meta name="robots" content="noindex, nofollow">
   <title>BRIIX — ваше пространство для идей</title>
   <link rel="icon" type="image/svg+xml" href="site/assets/img/favicon.svg">
   <link rel="stylesheet" href="demo.css">
+  <link rel="stylesheet" href="media.css">
   <script>
     document.documentElement.classList.add('js');
     try {
       const saved = JSON.parse(localStorage.getItem('briix-workspace-v2') || '{}');
-      const theme = saved.settings?.theme || 'light';
+      const requested = saved.settings?.theme;
+      const theme = ['light', 'dark', 'system'].includes(requested) ? requested : 'light';
       document.documentElement.dataset.theme = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
     } catch (_) { document.documentElement.dataset.theme = 'light'; }
   </script>
@@ -35,6 +37,7 @@
   <input type="file" id="import-input" accept=".json,application/json" hidden>
   <noscript><div class="noscript">Для интерактивного демо нужен JavaScript. Всё работает локально, без регистрации и отправки данных на сервер.</div></noscript>
   <script src="demo-data.js"></script>
+  <script src="media.js"></script>
   <script src="demo.js"></script>
 </body>
 </html>

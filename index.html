@@ -1,23 +1,40 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BRIIX — демо помощников</title>
-<link rel="stylesheet" href="demo.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f8f7f4">
+  <meta name="description" content="BRIIX — пространство для идей. Выберите помощника, попробуйте диалог и сохраните удачный результат. Интерактивное демо без backend.">
+  <meta name="robots" content="noindex, nofollow">
+  <title>BRIIX — ваше пространство для идей</title>
+  <link rel="icon" type="image/svg+xml" href="site/assets/img/favicon.svg">
+  <link rel="stylesheet" href="demo.css">
+  <script>
+    document.documentElement.classList.add('js');
+    try {
+      const saved = JSON.parse(localStorage.getItem('briix-workspace-v2') || '{}');
+      const theme = saved.settings?.theme || 'light';
+      document.documentElement.dataset.theme = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
+    } catch (_) { document.documentElement.dataset.theme = 'light'; }
+  </script>
 </head>
 <body>
-<header class="top">
-  <div class="top-inner">
-    <a class="brand" href="#/"><span class="logo">AI</span> Демо помощников <span class="beta">UI-демо</span></a>
-    <nav id="nav"></nav>
+  <a class="skip-link" href="#main-content">Перейти к содержимому</a>
+  <div class="workspace" id="workspace">
+    <aside class="sidebar" id="sidebar" aria-label="Навигация и история диалогов"></aside>
+    <div class="main-shell">
+      <header class="topbar" id="topbar"></header>
+      <main id="main-content" class="main-content" tabindex="-1"></main>
+    </div>
   </div>
-</header>
-
-<main id="app" class="app"></main>
-
-<footer class="foot">Демо-режим: данные хранятся только в вашем браузере (localStorage), бэкенд будет подключён позже — сейчас всё работает на mock-данных. Дизайн-система: <a href="/site/">сайт BRIIX (архив)</a></footer>
-
-<script src="demo.js"></script>
+  <button class="sidebar-scrim" id="sidebar-scrim" aria-label="Закрыть меню" hidden></button>
+  <dialog class="modal" id="modal" aria-labelledby="modal-title"></dialog>
+  <dialog class="search-modal" id="search-modal" aria-label="Поиск по пространству"></dialog>
+  <div class="toast-region" id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+  <input type="file" id="file-input" multiple accept=".txt,.md,.csv,.json,.pdf,.png,.jpg,.jpeg,.webp" hidden>
+  <input type="file" id="import-input" accept=".json,application/json" hidden>
+  <noscript><div class="noscript">Для интерактивного демо нужен JavaScript. Всё работает локально, без регистрации и отправки данных на сервер.</div></noscript>
+  <script src="demo-data.js"></script>
+  <script src="demo.js"></script>
 </body>
 </html>

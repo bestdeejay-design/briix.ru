@@ -23,15 +23,17 @@
 }
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg: #20231f; --sidebar: #191c18; --surface: #292d27; --surface-2: #252923; --surface-3: #343a30;
-  --ink: #eeefe8; --muted: #b1b6a9; --faint: #9aa391; --line: #373d32; --line-strong: #4b5444;
-  --accent: #b6c7a1; --accent-hover: #c9d8b7; --accent-soft: #35412d; --accent-ink: #c5d6b1; --on-accent: #20271b;
-  --violet: #baa5e0; --violet-soft: #3a3248; --rose: #dda4af; --rose-soft: #48343a;
-  --blue: #a0bfdf; --blue-soft: #2e3d4b; --green: #a5c39e; --green-soft: #334330;
-  --amber: #d8ba7b; --amber-soft: #443d2b; --teal: #9ac9c2; --teal-soft: #2c423d;
-  --danger: #eaa499; --danger-soft: #49332e; --warning: #ddc18b; --warning-soft: #423b28;
-  --code-bg: #151a15; --code-ink: #e5eade; --overlay: rgba(0, 0, 0, .58);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, .08); --shadow-md: 0 8px 30px rgba(0, 0, 0, .16); --shadow-lg: 0 24px 90px rgba(0, 0, 0, .35);
+  /* Премиальный матовый чёрный: 3 нейтральные ступени (near-black, Geist/Linear-паттерн),
+     без hue в фоне/карточках/линиях. Глубину дают rgba-бордеры, не светлые заливки. */
+  --bg: #0d0e10; --sidebar: #0a0b0c; --surface: #141619; --surface-2: #1a1d21; --surface-3: #23262b;
+  --ink: #eceef2; --muted: #a6aab3; --faint: #767b84; --line: rgba(255, 255, 255, .08); --line-strong: rgba(255, 255, 255, .14);
+  --accent: #b3c49c; --accent-hover: #c2d2ac; --accent-soft: rgba(182, 199, 161, .10); --accent-ink: #cfddbb; --on-accent: #161a11;
+  --violet: #c3b2e8; --violet-soft: rgba(195, 178, 232, .10); --rose: #e8b0bc; --rose-soft: rgba(232, 176, 188, .10);
+  --blue: #a9c6e6; --blue-soft: rgba(169, 198, 230, .10); --green: #b3cdab; --green-soft: rgba(179, 205, 171, .10);
+  --amber: #e3c68b; --amber-soft: rgba(227, 198, 139, .10); --teal: #a4d0c9; --teal-soft: rgba(164, 208, 201, .10);
+  --danger: #efaaa0; --danger-soft: rgba(239, 170, 160, .10); --warning: #e4c98f; --warning-soft: rgba(228, 201, 143, .10);
+  --code-bg: #08090b; --code-ink: #e3e6ea; --overlay: rgba(0, 0, 0, .66);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, .32); --shadow-md: 0 8px 30px rgba(0, 0, 0, .48); --shadow-lg: 0 24px 90px rgba(0, 0, 0, .62);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -289,8 +291,8 @@ kbd { font-family: var(--font); font-size: 10px; font-weight: 450; color: var(--
 .prose td, .prose th { padding: 9px 12px; border-bottom: 1px solid var(--line); min-width: 85px; }
 .prose tr:last-child td { border-bottom: 0; }
 .code-block { margin: 15px 0; border-radius: 10px; overflow: hidden; background: var(--code-bg); color: var(--code-ink); }
-.code-head { display: flex; align-items: center; justify-content: space-between; padding: 7px 13px; border-bottom: 1px solid rgba(255,255,255,.1); font-family: var(--mono); font-size: 10px; color: #adb8a7; }
-.code-head button { color: #cbd4c5; display: flex; align-items: center; gap: 5px; font-family: var(--font); font-size: 9px; padding: 3px 5px; border-radius: 4px; }
+.code-head { display: flex; align-items: center; justify-content: space-between; padding: 7px 13px; border-bottom: 1px solid rgba(255,255,255,.1); font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.code-head button { color: var(--muted); display: flex; align-items: center; gap: 5px; font-family: var(--font); font-size: 9px; padding: 3px 5px; border-radius: 4px; }
 .code-head button:hover { background: rgba(255,255,255,.1); }
 .code-head .icon { width: 12px; height: 12px; }
 .prose pre { margin: 0; padding: 15px; overflow-x: auto; font-size: 11px; line-height: 1.8; scrollbar-width: thin; }

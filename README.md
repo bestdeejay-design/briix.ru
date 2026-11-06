@@ -45,3 +45,5 @@ audits/            — аудиты, ревью и контрольные про
 - **Идея / продукт:** best (bestdeejay-design)
 - **Координатор:** Mavis (AI-агент)
 - **Сборка и ревью:** команда агентов, в т.ч. arena
+
+> **Проект переехал (2026-11-06).** Канонический репозиторий BRIIX — **[bestdeejay-design/briix.ru](https://github.com/bestdeejay-design/briix.ru)** (сайт briix.ru, доки, аудиты, ai-platform-docs). Этот репозиторий заархивирован, история сохранена.

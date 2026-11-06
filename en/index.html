@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="alternate" hreflang="ru" href="https://rucorp.github.io/briix/">
+<link rel="alternate" hreflang="en" href="https://rucorp.github.io/briix/en/">
+<link rel="alternate" hreflang="x-default" href="https://rucorp.github.io/briix/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRIIX — Your AI marketer, from your website URL</title>
+<meta name="description" content="BRIIX studies your business website and creates a month of on-brand content: copy, visuals, a publishing plan and analytics. Enter a URL — get your first posts in 90 seconds.">
+<meta property="og:title" content="BRIIX — Your brand, on autopilot.">
+<meta property="og:description" content="Enter your website URL — in 90 seconds you will see your first posts in your brand style.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://rucorp.github.io/briix/assets/img/og-briix.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c09" media="(prefers-color-scheme: dark)">
+<script>
+  /* No flash: the theme is set before CSS loads */
+  (function () {
+    try {
+      var t = localStorage.getItem('briix-theme');
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+<link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="logo" href="#top" aria-label="BRIIX — home">
+      <img class="logo-mark" src="../assets/img/logo.svg" alt="">
+      BRIIX
+    </a>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#how">How it works</a>
+      <a href="#product">Features</a>
+      <a href="#audience">Who</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="header-cta">
+      <a class="btn btn-ghost" href="#demo">See the demo</a>
+      <a class="btn btn-primary" href="#demo">Show my posts</a>
+      <a class="lang-toggle" href="../index.html" hreflang="ru" lang="ru" title="Russian" aria-label="Switch language" onclick="try{localStorage.setItem('briix-lang','ru')}catch(e){}">RU</a>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+    <button class="burger" aria-label="Menu"><span></span></button>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <div class="hero-badge">
+        <b>AI marketer</b> · switches on from a link to your website
+        <span class="dot"></span>
+      </div>
+      <h1>Enter your website URL —<br>get <span class="line2">a month of content</span> in your brand style</h1>
+      <p class="hero-sub">
+        BRIIX studies your business, remembers your brand colors, fonts and tone of voice —
+        and prepares posts every day that look and sound like you.
+        Approve — 10 minutes a week. Or turn on autopilot.
+      </p>
+      <div class="hero-points">
+        <span class="hero-point"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Your first posts — in 90 seconds</span>
+        <span class="hero-point"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Preview before payment</span>
+        <span class="hero-point"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Cancel at any time</span>
+      </div>
+      <div class="hero-meta">
+        <div class="stat"><b>50+</b><span>ideas in the content plan</span></div>
+        <div class="divider"></div>
+        <div class="stat"><b>4</b><span>publishing channels</span></div>
+        <div class="divider"></div>
+        <div class="stat"><b>10 min</b><span>of your time per week</span></div>
+      </div>
+    </div>
+
+    <!-- ===== Live demo card ===== -->
+    <div class="demo-card" id="demo">
+      <div class="demo-head">
+        <div class="demo-dots"><i></i><i></i><i></i></div>
+        <div class="url-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span id="demo-url-chip">app.briix.com/preview</span>
+        </div>
+      </div>
+
+      <!-- Idle: URL form -->
+      <div class="demo-body" id="demo-idle">
+        <div class="demo-step-label"><span>Step 1 of 1</span><b>Try it on your site</b></div>
+        <form class="url-form" id="demo-form" style="margin-top:16px" novalidate>
+          <div class="url-input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <input id="demo-url" type="text" inputmode="url" autocomplete="url" placeholder="example.com" aria-label="Website address">
+          </div>
+          <button class="btn btn-primary" type="submit">Show my posts</button>
+        </form>
+        <div class="demo-hint">
+          Ready demo brands with full content:
+          <button class="try" data-try-domain="nordhavn-studio.com">nordhavn-studio.com</button>
+          <button class="try" data-try-domain="vela-clinic.com">vela-clinic.com</button>
+          <button class="try" data-try-domain="lumina-skin.com">lumina-skin.com</button>
+        </div>
+      </div>
+
+      <!-- Generation progress -->
+      <div class="demo-body" id="demo-gen" hidden>
+        <div class="demo-step-label"><span>Preparing the preview</span><b id="demo-domain">—</b></div>
+        <div class="gen-steps" style="margin-top:16px">
+          <div class="gen-step"><span class="mark"></span>Read the site</div>
+          <div class="gen-step"><span class="mark"></span>Identify the industry and audience</div>
+          <div class="gen-step"><span class="mark"></span>Extract brand colors and fonts</div>
+          <div class="gen-step"><span class="mark"></span>Build Brand DNA and verify the facts</div>
+          <div class="gen-step"><span class="mark"></span>Write and design the first posts</div>
+        </div>
+      </div>
+
+      <!-- Result preview -->
+      <div class="demo-body" id="demo-result" hidden>
+        <div class="demo-step-label"><span>Done · 6 posts out of 50+</span><b>Your Brand DNA</b></div>
+        <div class="preview-wrap" style="margin-top:14px">
+          <div class="brand-card" id="demo-brand"></div>
+          <div class="posts-grid" id="demo-posts"></div>
+          <div class="plan-teaser" id="demo-plan" hidden>
+            <div class="pt-head">
+              <b>Content plan: 50+ ideas for a month</b>
+              <span>44 more ideas in the queue</span>
+            </div>
+            <div class="pt-items">
+              <div class="pt-item"><i class="pt-num">07</i><div><b>Seasonal guide: what to know this month</b><span>Expert · carousel · Tuesday</span></div></div>
+              <div class="pt-item"><i class="pt-num">08</i><div><b>Answering a common question about pricing</b><span>FAQ · post · Thursday</span></div></div>
+              <div class="pt-item locked"><i class="pt-num">09</i><div><b>An idea that will become your signature</b><span>Story · post · Saturday</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-footer">
+        <div class="note">Demo preview. The real BRIIX creates posts from your own site’s data.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" id="demo-restart" style="padding:12px 18px;font-size:14.5px">Play again</button>
+          <button class="btn btn-ghost" id="demo-change" style="padding:12px 18px;font-size:14.5px">Another site</button>
+          <a class="btn btn-dark" href="#pricing" data-cta-toast>Open all 50 ideas</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRUST STRIP ================= -->
+<div class="trust-strip">
+  <div class="container trust-row">
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Made in the EU · data in the EU</div>
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Encryption and GDPR</div>
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>The first preview — in 90 seconds</div>
+    <div class="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>A subscription with no lock-in</div>
+  </div>
+</div>
+
+<!-- ================= PROBLEM ================= -->
+<section class="section" id="problem">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Sound familiar?</div>
+      <h2 class="section-title">Five reasons business social media “doesn’t work”</h2>
+      <p class="section-sub">Small businesses know they need to run them — but every time it comes down to the same things. The result is the same: a random presence, not a systematic one.</p>
+    </div>
+    <div class="problem-wrap reveal">
+      <div class="trap-card"><div class="n">01</div><h3>No time</h3><p>The owner is busy with operations, and social media is always the “last thing to do”. Month after month.</p></div>
+      <div class="trap-card"><div class="n">02</div><h3>No skill</h3><p>It is unclear what to write, about what, and in what tone. An empty editor is more intimidating than any amount of work.</p></div>
+      <div class="trap-card"><div class="n">03</div><h3>No budget for help</h3><p>An external team costs $800–3,000 a month — with returns you cannot control.</p></div>
+      <div class="trap-card"><div class="n">04</div><h3>“Uninspiring” without a designer</h3><p>Stock template images you would be embarrassed to publish. The brand is unrecognizable in the feed.</p></div>
+      <div class="trap-card"><div class="n">05</div><h3>Inconsistency</h3><p>They run it for two weeks and stop — the biggest killer of reach. Consistency matters more than talent.</p></div>
+      <div class="trap-card" style="background:var(--bg-deep)"><div class="n" style="background:var(--card)">→</div><h3>What happens next</h3><p>While you pause, whoever publishes regularly calmly takes your clients — without extra effort.</p></div>
+    </div>
+    <div class="problem-solution reveal">
+      <div class="arrow-ico">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div>
+        <h3>BRIIX — an AI marketer that switches on with a single link to your website</h3>
+        <p>It studies your business, finds topics, writes copy, creates visuals in your brand style and publishes on schedule — with no questionnaires, calls or briefs to start. Your involvement — 10 minutes a week: look at what is ready and approve it. Or turn on autopilot — and spend no time at all.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section class="section" id="how" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">How it works</div>
+      <h2 class="section-title">Four steps from website to feed</h2>
+      <p class="section-sub">A path that starts with one URL and ends with a regular brand presence on social media.</p>
+    </div>
+    <div class="steps reveal">
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <h3>Enter your URL</h3>
+        <p>No sign-up or questionnaires. BRIIX reads the site: copy, style, logo, palette, fonts, services and contacts.</p>
+        <span class="time-badge">30 seconds of your time</span>
+      </div>
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg></div>
+        <h3>Get Brand DNA</h3>
+        <p>Brand style, tone of voice, audience and key topics — in one profile, with facts verified against the site.</p>
+        <span class="time-badge">≤ 90 seconds</span>
+      </div>
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>See a month of content</h3>
+        <p>50+ ideas and the first ready posts: copy, visuals in your colors, adapted for every platform. The preview is before payment.</p>
+        <span class="time-badge">6 posts at once</span>
+      </div>
+      <div class="step-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></div>
+        <h3>You approve — and that’s it</h3>
+        <p>Publishing on schedule, collecting statistics and learning from your decisions. Or autopilot — and the social accounts run themselves.</p>
+        <span class="time-badge">10 minutes a week</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRODUCT / FEATURES ================= -->
+<section class="section" id="product">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Product</div>
+      <h2 class="section-title">Not an image generator.<br>A marketing department in one window</h2>
+      <p class="section-sub">Every BRIIX module does the work usually handled by four people in a company: a marketer, a copywriter, a designer and a social media manager.</p>
+    </div>
+
+    <!-- Feature 1: Brand DNA -->
+    <div class="feature-row reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg>Brand DNA</div>
+        <h3>The system understands your brand the way you do</h3>
+        <p>Visual identity and brand voice are extracted straight from the site: palette, fonts, archetype, tone of voice, audience, USP and off-limits topics. A second model double-checks the facts — prices, addresses and services are not invented.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Palette and fonts — from your site’s code and visuals</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Tone of voice on scales: how you speak and how you never do</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Fact verification by a second model against the site</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Edit any field manually or by chat — “make the tone warmer”</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Brand DNA · Nordhavn Studio</div>
+            <div class="pill">Verified</div>
+          </div>
+          <div class="mock-pad">
+            <div class="dna-grid">
+              <div class="dna-box">
+                <div class="k">About the brand</div>
+                <div class="v">Architecture design studio: calm Scandinavian interiors and honest materials</div>
+              </div>
+              <div class="dna-box">
+                <div class="k">Palette</div>
+                <div class="palette-row" style="margin-top:2px">
+                  <span class="sw" style="background:#2c3a35"></span>
+                  <span class="sw" style="background:#7d8f7c"></span>
+                  <span class="sw" style="background:#c9a46a"></span>
+                  <span class="sw" style="background:#f4f1ea"></span>
+                  <span class="sw" style="background:#1c2420"></span>
+                </div>
+                <div class="v small" style="margin-top:9px">Headings · TextBook<br>Body text · Sans</div>
+              </div>
+            </div>
+            <div class="dna-box">
+              <div class="k">Tone of voice</div>
+              <div class="dna-scales">
+                <div class="scale-row"><span>Formal</span><div class="track"><i style="left:32%"></i></div><span class="r">Friendly</span></div>
+                <div class="scale-row"><span>Serious</span><div class="track"><i style="left:58%"></i></div><span class="r">Warm</span></div>
+                <div class="scale-row"><span>Concise</span><div class="track"><i style="left:40%"></i></div><span class="r">Detailed</span></div>
+              </div>
+            </div>
+            <div class="dna-grid">
+              <div class="dna-box">
+                <div class="k">Who we speak to</div>
+                <div class="v small">Families 30–45, renovating for the long term; designers; premium builders</div>
+              </div>
+              <div class="dna-box">
+                <div class="k">Off-limits topics</div>
+                <div class="dna-chips"><span class="dna-chip">Discounts are live</span><span class="dna-chip">Timeline guarantees</span><span class="dna-chip">Someone else’s projects</span></div>
+              </div>
+            </div>
+            <div class="selfcheck">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>
+              Self-check: facts verified against the site — prices, services and addresses confirmed
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">The brand profile is rebuilt from the site and stays editable</div>
+      </div>
+    </div>
+
+    <!-- Feature 2: Content plan & Idea Queue -->
+    <div class="feature-row rev reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Content plan and idea queue</div>
+        <h3>A month of content is born at once — and then learns from you</h3>
+        <p>50+ ideas across 8 rubrics with dates and goals: expert content, case studies, behind-the-scenes, FAQ, reviews, announcements. Swipe the cards — and every “yes” or “no, because…” changes the next suggestions.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Rubrics, dates, goals and formats — a production plan, not a list of topics</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Seasonality, holidays and industry dates for your country</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Your own ideas — by text, voice or photo</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Feedback loop: every 10 decisions, the system says out loud what it has learned</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Idea queue · week 41</div>
+            <div class="pill">Learning</div>
+          </div>
+          <div class="mock-pad">
+            <div class="idea-list">
+              <div class="idea-item">
+                <div class="thumb" style="background:linear-gradient(135deg,#2c3a35,#7d8f7c)"></div>
+                <div class="info">
+                  <div class="t">How to choose an architect: 5 questions for the first meeting</div>
+                  <div class="m"><span>Expert</span><span>Carousel</span><span>Tuesday 10:00</span></div>
+                </div>
+                <div class="acts"><b class="yes">Add to plan</b><b>Not for me</b></div>
+              </div>
+              <div class="idea-item">
+                <div class="thumb" style="background:linear-gradient(135deg,#c9a46a,#e8d5b0)"></div>
+                <div class="info">
+                  <div class="t">Behind the scenes: how we select materials for a project</div>
+                  <div class="m"><span>Behind the scenes</span><span>Post</span><span>Thursday 12:00</span></div>
+                </div>
+                <div class="acts"><b class="yes">Add to plan</b><b>Not for me</b></div>
+              </div>
+              <div class="idea-item" style="opacity:.55">
+                <div class="thumb" style="background:linear-gradient(135deg,#8a93b0,#c3c9dd)"></div>
+                <div class="info">
+                  <div class="t">Meme roundup “renovation expectations vs reality”</div>
+                  <div class="m"><span>Playful</span><span>Post</span></div>
+                </div>
+                <div class="acts"><b>Not for me</b></div>
+              </div>
+            </div>
+            <div class="learning-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg>
+              Got it: you like case studies and expert breakdowns, we’ll skip memes. Queue updated.
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Every decision in the queue makes the output more accurate — it is visible and tangible</div>
+      </div>
+    </div>
+
+    <!-- Feature 3: Post generation -->
+    <div class="feature-row reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>Post generation</div>
+        <h3>Copy and visuals you would not be embarrassed to publish</h3>
+        <p>One post, several faces: an expert version for the professional network, an emotional one for the feed, a brief one for the messenger. Formats 1:1, 4:5, 9:16 and 1.91:1, hashtags, CTA, alt texts — all ready to publish.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>4 visual strategies: photos from your site, templates, AI generation, your own photos</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Adaptation for every platform — while keeping the brand style</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Carousels up to 10 slides and scripts for short videos</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Moderation and fact-checking: toxicity, medical and financial promises — under control</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Post #24 · “5 questions for your architect”</div>
+            <div class="pill">Ready</div>
+          </div>
+          <div class="post-mock-wrap">
+            <div class="post-text-pane">
+              <div class="lbl">Post text</div>
+              <div class="body"><b>5 questions worth asking your architect before the project starts.</b><br>We break each one down — briefly and to the point. Save it and share with anyone planning a renovation 🤍</div>
+              <div class="hashtags"><span>#architecture</span><span>#interior</span><span>#tips</span><span>#spaces</span></div>
+              <div class="channel-tabs"><b class="on">Feed</b><b>Professional network</b><b>Channel</b><b>Stories</b></div>
+            </div>
+            <div class="phone-stack">
+              <div class="phone">
+                <div class="ph-top">
+                  <div class="av" style="background:#2c3a35"></div>
+                  <div class="nm">nordhavn.studio</div>
+                  <div class="ch">Feed · 4:5</div>
+                </div>
+                <div class="ph-canvas">
+                  <div class="pm-art" style="background:linear-gradient(150deg,#2c3a35,#5c7066)">
+                    <div class="pa-blob" style="width:80px;height:80px;top:-18px;right:-14px;background:rgba(201,164,106,.5)"></div>
+                    <span class="pa-chip">Tip of the week</span>
+                    <div class="pa-title">5 questions<br>for your architect</div>
+                  </div>
+                </div>
+                <div class="ph-foot"><span>♡ 128</span><span>💬 12</span><span>↗ 34</span></div>
+              </div>
+              <div class="phone">
+                <div class="ph-top">
+                  <div class="av" style="background:#c9a46a"></div>
+                  <div class="nm">Nordhavn Studio</div>
+                  <div class="ch">Professional network · 1.91:1</div>
+                </div>
+                <div class="ph-canvas" style="aspect-ratio:1.91/1">
+                  <div class="pm-art" style="background:#f4f1ea">
+                    <div class="pa-blob" style="width:70px;height:70px;top:-16px;left:-12px;background:rgba(125,143,124,.4)"></div>
+                    <span class="pa-chip dark">Expert</span>
+                    <div class="pa-title dark">How to choose<br>an architect</div>
+                  </div>
+                </div>
+                <div class="ph-foot"><span>♡ 64</span><span>💬 8</span><span>↗ 21</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">One piece of content — different tones and formats for each platform</div>
+      </div>
+    </div>
+
+    <!-- Feature 4: Designer -->
+    <div class="feature-row rev reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>Designer</div>
+        <h3>Precise control — when “almost perfect” is not enough</h3>
+        <p>A layered editor with a shared document schema: any change is saved, re-rendered and pushed to all channels. Brand fonts and colors are built in, background removal is one click.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Layers: background, images, shapes, text, logo</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Format adaptation with auto re-layout 1:1 · 4:5 · 9:16 · 1.91:1</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Image replacement: stock, upload, brand-style generation</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Edit history with rollback and your own saved templates</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Designer · post “Registration open”</div>
+            <div class="pill">Autosave</div>
+          </div>
+          <div class="designer-mock">
+            <div class="dm-side">
+              <div class="k">Layers</div>
+              <div class="layer-item sel"><span class="sw" style="background:#c9a46a"></span>Heading</div>
+              <div class="layer-item"><span class="sw" style="background:#7d8f7c"></span>Subheading</div>
+              <div class="layer-item"><span class="sw" style="background:#2c3a35"></span>Photo · interior</div>
+              <div class="layer-item"><span class="sw" style="background:#f4f1ea"></span>Background</div>
+              <div class="layer-item"><span class="sw" style="background:#1c2420"></span>Logo</div>
+            </div>
+            <div class="dm-canvas-area">
+              <div class="dm-artboard">
+                <div class="pm-art" style="background:linear-gradient(160deg,#2c3a35,#4a5f55)">
+                  <div class="pa-blob" style="width:90px;height:90px;top:-20px;right:-18px;background:rgba(201,164,106,.45)"></div>
+                  <span class="pa-chip">New service</span>
+                  <div class="pa-title">Registration<br>for a consultation<br>open</div>
+                </div>
+                <div class="handles"><i></i><i></i><i></i><i></i></div>
+              </div>
+              <div class="dm-formats"><b class="on">1:1</b><b>4:5</b><b>9:16</b><b>1.91:1</b></div>
+            </div>
+            <div class="dm-side right">
+              <div class="k">Properties</div>
+              <div class="prop-row"><div class="pk">Font</div><div class="pv">Brand · TextBook</div></div>
+              <div class="prop-row"><div class="pk">Color</div><div class="pv">#C9A46A · from the palette</div></div>
+              <div class="prop-row"><div class="pk">Size</div><div class="pv">64 px · tracking −2%</div></div>
+              <div class="prop-row"><div class="pk">Background</div><div class="pv">Background removal · 1 click</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">Editor and publishing work on a single document — edits are never lost</div>
+      </div>
+    </div>
+
+    <!-- Feature 5: Calendar & publish -->
+    <div class="feature-row reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>Calendar and publishing</div>
+        <h3>Content goes out on time — even when you are busy</h3>
+        <p>A calendar with drag-and-drop, bulk approval, an “always ask” mode for sensitive topics. Publishing to Instagram, Facebook, LinkedIn and Telegram — on schedule, with retries on failure.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Approve a week in one action — right from the notification</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Autopilot with settings: what to publish on its own and what to ask about</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Reliable delivery: retries, clear statuses, nothing gets lost</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Secure account connections with minimal permissions</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Calendar · October</div>
+            <div class="pill">12 in the queue</div>
+          </div>
+          <div class="cal-mock">
+            <div class="cal-head">
+              <div class="t">Week 42 · 12 posts scheduled</div>
+              <div class="legend">
+                <span><i style="background:rgba(83,56,242,.35)"></i>Pending</span>
+                <span><i style="background:rgba(28,122,77,.35)"></i>Published</span>
+                <span><i style="background:rgba(180,83,9,.35)"></i>Conflict</span>
+              </div>
+            </div>
+            <div class="cal-grid">
+              <div class="cal-col"><div class="d">Mon</div>
+                <div class="cal-item ok">Case study: apartment renovation<span class="tm">10:00 · Feed</span></div>
+                <div class="cal-item pub">✓ Tip of the week<span class="tm">12:00 · Channel</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Tue</div>
+                <div class="cal-item ok">Carousel: 5 questions<span class="tm">09:30 · Feed</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Wed</div>
+                <div class="cal-item ok">Behind the scenes: materials<span class="tm">13:00 · Feed</span></div>
+                <div class="cal-item ok">Expert post<span class="tm">15:00 · Business</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Thu</div>
+                <div class="cal-item sq-warn">Two posts at 12:00<span class="tm">Time conflict</span></div>
+                <div class="cal-item ok">FAQ: project timelines<span class="tm">12:00 · Channel</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Fri</div>
+                <div class="cal-item pub">✓ Client review<span class="tm">11:00 · Feed</span></div>
+                <div class="cal-item ok">Announcement: open house day<span class="tm">17:00 · Feed</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Sat</div>
+                <div class="cal-item ok">Idea of the week<span class="tm">12:00 · Feed</span></div>
+              </div>
+              <div class="cal-col"><div class="d">Sun</div>
+                <div class="cal-item pub">✓ Weekly recap<span class="tm">18:00 · Channel</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">A week of content at a glance. All that’s left is to approve</div>
+      </div>
+    </div>
+
+    <!-- Feature 6: Analytics -->
+    <div class="feature-row rev reveal">
+      <div class="feature-copy">
+        <div class="mini-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>Analytics and self-learning</div>
+        <h3>Content is not just published — it gets better</h3>
+        <p>BRIIX collects metrics from every publication and feeds them back into generation: rubrics and formats that work gain weight. Monday reports explain what worked and what comes next.</p>
+        <ul class="feature-list">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Reach, engagement, follower growth, top posts</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Insights in plain language: “carousels get more saves”</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Metrics automatically change future plans</li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>A weekly report by email — a 2-minute read</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="visual-glow"></div>
+        <div class="visual-frame">
+          <div class="mock-appbar">
+            <div class="demo-dots"><i></i><i></i><i></i></div>
+            <div class="t" style="margin-left:8px">Analytics · 30 days</div>
+            <div class="pill">+18% in a month</div>
+          </div>
+          <div class="ana-mock">
+            <div class="ana-kpis">
+              <div class="kpi"><div class="k">Reach</div><div class="v">48 210</div><div class="d">↑ 18%</div></div>
+              <div class="kpi"><div class="k">Engagement</div><div class="v">6.4%</div><div class="d">↑ 1.2 pp</div></div>
+              <div class="kpi"><div class="k">New followers</div><div class="v">+327</div><div class="d">↑ 24%</div></div>
+            </div>
+            <div class="ana-chart">
+              <div class="t">Reach trend <span>October</span></div>
+              <svg viewBox="0 0 420 110" width="100%" height="110" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="agrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="var(--accent)" stop-opacity=".28"/>
+                    <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0 92 C40 88, 60 78, 90 76 S150 70, 180 58 S250 46, 290 36 S370 22, 420 14 L420 110 L0 110 Z" fill="url(#agrad)"/>
+                <path d="M0 92 C40 88, 60 78, 90 76 S150 70, 180 58 S250 46, 290 36 S370 22, 420 14" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="290" cy="36" r="4.5" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <div class="insight">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg>
+              Carousels get 2.3× more saves — the next plan has more of them. Fewer memes, more case studies: based on your reactions.
+            </div>
+          </div>
+        </div>
+        <div class="visual-caption">A closed loop: actions → data → more accurate content</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= BEFORE / AFTER ================= -->
+<section class="section-tight">
+  <div class="container">
+    <div class="ba-wrap reveal">
+      <div class="ba-head">
+        <div>
+          <h2>Before and after — in 90 seconds</h2>
+          <p>A single URL turns into content that looks like an extension of your brand — not like someone else’s images from a feed.</p>
+        </div>
+        <a class="btn btn-light" href="#demo">Try it on your site</a>
+      </div>
+      <div class="ba-flow">
+        <div class="ba-site">
+          <div class="browser-bar"><i></i><i></i><i></i></div>
+          <div class="browser-url">nordhavn-studio.com</div>
+          <div class="site-hero-m" style="background:linear-gradient(150deg,#2c3a35,#5c7066)">
+            <div class="t">Architectural interiors with a northern character</div>
+            <div class="s">We design spaces you want to live in. Bergen, Oslo and all of Norway.</div>
+          </div>
+          <div class="site-lines"><i></i><i></i><i></i></div>
+        </div>
+        <div class="ba-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div class="ba-posts">
+          <div class="ba-post" style="background:linear-gradient(160deg,#2c3a35,#5c7066)">
+            <span class="lbl">Tip of the week</span>
+            <div class="ttl" style="color:#fff">5 questions for your architect</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#c9a46a,#e8d5b0)">
+            <span class="lbl">Case study</span>
+            <div class="ttl" style="color:#2c3a35">Apartment by the fjord</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#7d8f7c,#b5c2b1)">
+            <span class="lbl">Behind the scenes</span>
+            <div class="ttl" style="color:#fff">Materials for the project</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#1c2420,#3f5248)">
+            <span class="lbl">FAQ</span>
+            <div class="ttl" style="color:#fff">How long a project takes</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#f4f1ea,#ddd4c2)">
+            <span class="lbl">Review</span>
+            <div class="ttl" style="color:#2c3a35">“We got the home of our dreams”</div>
+          </div>
+          <div class="ba-post" style="background:linear-gradient(160deg,#a4552f,#d78b5c)">
+            <span class="lbl">Announcement</span>
+            <div class="ttl" style="color:#fff">Open house day</div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-note">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        Every post is already adapted for <b>4 formats</b> and your <b>brand colors and fonts</b>. All that’s left is to approve.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MODES ================= -->
+<section class="section" id="modes">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Two modes</div>
+      <h2 class="section-title">Control exactly where you want it</h2>
+      <p class="section-sub">Start by approving every post — and trust the system with exactly as much as you are ready to.</p>
+    </div>
+    <div class="modes-grid reveal">
+      <div class="mode-card">
+        <div class="mode-tag">Mode 1 · by default</div>
+        <h3>Approval</h3>
+        <p>The system keeps a queue of ready ideas and posts. You save the best, reject the rest — only what you approve is published.</p>
+        <ul>
+          <li>Bulk-approve the week in one click</li>
+          <li>Chat edits: “make it shorter”, “add something about the weekend”</li>
+          <li>Reject with a reason — and the system will not suggest anything similar</li>
+          <li>Notifications with ready-to-go visuals: open — approve</li>
+        </ul>
+      </div>
+      <div class="mode-card dark">
+        <div class="mode-tag">Mode 2 · when ready</div>
+        <h3>Autopilot</h3>
+        <p>Content goes out without manual approval — within the rules you set yourself. On sensitive topics the system will always ask.</p>
+        <ul>
+          <li>An “always ask” list: prices, promotions, serious promises</li>
+          <li>Pause for 7 or 30 days in one click</li>
+          <li>A weekly digest: what went out and how it performs</li>
+          <li>Moderation and fact-checking before every publication</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= AUDIENCE ================= -->
+<section class="section" id="audience" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Who needs this</div>
+      <h2 class="section-title">For businesses that have better things to do than social media</h2>
+      <p class="section-sub">BRIIX is built for companies of 1–50 people with no in-house marketer — and for those who already run social media but are tired of doing it by hand.</p>
+    </div>
+    <div class="aud-grid reveal">
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20M4 20V8l8-5 8 5v12"/><path d="M9 20v-6h6v6"/></svg></div>
+        <h3>Contractors and builders</h3>
+        <p>Project case studies, behind-the-scenes of the work, expert breakdowns — with no “later” breaks.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><rect x="4" y="4" width="16" height="16" rx="4"/></svg></div>
+        <h3>Clinics and dental practices</h3>
+        <p>A polished visual in brand colors and no treatment promises — moderation keeps watch.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M10 21v-6h4v6"/><path d="M9 10h.01M15 10h.01"/></svg></div>
+        <h3>Hotels and travel</h3>
+        <p>One post — adapted for every platform. Seasonality and local events in the calendar.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+        <h3>Professional services</h3>
+        <p>An expert tone, trust and consistency — what leads grow from.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <h3>Technology companies</h3>
+        <p>Long expert posts, carousels, professional communication — with no “marketing emptiness”.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+        <h3>Online stores</h3>
+        <p>Products, promotions and seasonal selections turn into a content plan automatically.</p>
+      </div>
+      <div class="aud-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+        <h3>Marketers and agencies</h3>
+        <p>More brands — without a proportional growth in routine. Every client gets their own style.</p>
+      </div>
+      <div class="aud-card" style="background:var(--bg-deep)">
+        <div class="ico" style="background:var(--card)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></div>
+        <h3>Any business with a website</h3>
+        <p>If you have a website — you already have enough data for the first month of content.</p>
+      </div>
+    </div>
+
+    <div class="persona-strip reveal">
+      <div class="persona-quote">
+        <div class="pq-head">
+          <div class="pq-av" style="background:#2c3a35">O</div>
+          <div class="pq-who"><b>Oleg</b><span>owner of a construction firm, 12 people</span></div>
+        </div>
+        <div class="pq-text">“No time and no idea what to write” — social media used to be postponed every month.</div>
+        <div class="pq-result">Approved 30 posts in 10 minutes — and did not think about it again until next week</div>
+      </div>
+      <div class="persona-quote">
+        <div class="pq-head">
+          <div class="pq-av" style="background:#c9a46a">A</div>
+          <div class="pq-who"><b>Anna</b><span>dental clinic administrator</span></div>
+        </div>
+        <div class="pq-text">“Uninspiring without a designer — and scary: what if they write something about treatment”.</div>
+        <div class="pq-result">On-brand visuals + promise moderation — publish with peace of mind</div>
+      </div>
+      <div class="persona-quote">
+        <div class="pq-head">
+          <div class="pq-av" style="background:#7d8f7c">M</div>
+          <div class="pq-who"><b>Maria</b><span>boutique hotel manager, 3 channels</span></div>
+        </div>
+        <div class="pq-text">“I had to rewrite the same post manually for every platform.”</div>
+        <div class="pq-result">Adaptations for all channels are created automatically</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRICING ================= -->
+<section class="section" id="pricing">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Pricing</div>
+      <h2 class="section-title">One employee — one subscription</h2>
+      <p class="section-sub">Cheaper than one lunch a week — instead of a hire or an external team. No lock-in: cancel at any time.</p>
+    </div>
+    <div class="pricing-grid reveal">
+      <div class="price-card">
+        <div class="plan-name">Starter</div>
+        <div class="plan-desc">Regular content for one brand — from day one</div>
+        <div class="price-row"><span class="amt">$79</span><span class="per">/ mo</span></div>
+        <div class="yearly">−20% when paid annually</div>
+        <a class="btn btn-dark btn-block" href="#demo">Start for free</a>
+        <ul class="price-feats">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>1 brand · 4 publishing channels</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>30 posts and 30 AI images a month</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Brand DNA, content plan, Designer</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Calendar, publishing, analytics</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>7-day trial without a card</li>
+        </ul>
+      </div>
+
+      <div class="price-card featured">
+        <div class="price-tag-popular">Popular</div>
+        <div class="plan-name">Growth</div>
+        <div class="plan-desc">Autopilot and inbound handling — scale without manual work</div>
+        <div class="price-row"><span class="amt">$149</span><span class="per">/ mo</span></div>
+        <div class="yearly" style="color:#7fe6ac">−20% when paid annually</div>
+        <a class="btn btn-primary btn-block" href="#demo">Start for free</a>
+        <ul class="price-feats">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Everything in Starter</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>8 channels · 90 posts · 100 images</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Full autopilot with a confidence threshold</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Handling comments and inbound</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Priority generation</li>
+        </ul>
+      </div>
+
+      <div class="price-card">
+        <div class="plan-name">Agency</div>
+        <div class="plan-desc">Several brands in one window — for teams and agencies</div>
+        <div class="price-row"><span class="amt">$399</span><span class="per">/ mo</span></div>
+        <div class="yearly">−20% when paid annually</div>
+        <a class="btn btn-dark btn-block" href="#demo">Discuss implementation</a>
+        <ul class="price-feats">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Everything in Growth</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>5 brands and team access</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>White-label reports and presentations</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Personal support</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pricing-note reveal">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Preview before payment — no card needed</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Cancel at any time, no penalties</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>The content stays yours</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SECURITY ================= -->
+<section class="section-tight" id="trust">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Reliability</div>
+      <h2 class="section-title">Trust is part of the product</h2>
+    </div>
+    <div class="sec-grid reveal">
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <h3>Made in the EU, data in the EU</h3>
+        <p>Infrastructure and storage in the European Union. A DPA is available on request.</p>
+      </div>
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3>Credential protection</h3>
+        <p>Social connections are encrypted, permissions are minimal, and you can revoke access at any time.</p>
+      </div>
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Responsible generation</h3>
+        <p>Fact-checking against your site, industry moderation and a ban on made-up promises — in every post.</p>
+      </div>
+      <div class="sec-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></div>
+        <h3>Your data is yours</h3>
+        <p>Export all content in one click. Account deletion removes all data.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section class="section" id="faq" style="background:var(--surface);border-top:1px solid var(--line)">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">FAQ</div>
+      <h2 class="section-title">Short and honest</h2>
+    </div>
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <button class="faq-q">What exactly does BRIIX do?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">BRIIX is an AI marketer that switches on with a link to your website. It studies your business, builds a brand profile (Brand DNA), generates a content plan of 50+ ideas, creates ready posts — copy and visuals in your brand style, adapted for each platform — publishes them on schedule and collects analytics. Your involvement is about 10 minutes a week.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Do I need to fill anything in to start?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">No. The only input is your website URL. BRIIX reads the pages itself, extracts brand colors, fonts, logo, services and contacts, and identifies the industry and audience. If you have no website — there is a short questionnaire of 8 questions.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">How “like us” is the content?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Visuals are created in your palette and fonts, the copy is in your tone of voice, the topics are about your industry and audience. You can edit everything manually or in chat (“make it warmer”, “remove the emojis”), and every edit is saved as a version with rollback.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">What if the system writes something wrong?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Every post goes through moderation and fact-checking: facts are verified against your site, risky promises (in medicine, finance, pricing and promotions) are filtered out, and sensitive topics always require your approval — even on autopilot.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Which platforms are supported?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Right now — Instagram, Facebook (pages), LinkedIn (personal profile and company) and Telegram. The content plan already prepares short video and story formats, and the roadmap expands the channel list to twelve.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Can I try it without paying?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">Yes — and that is the core principle of BRIIX. First you see your first 6 posts and Brand DNA right on the site (without sign-up), then — 7 days of full access without a card. The subscription can be cancelled at any time with no penalties.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Who owns the content and data?<span class="pm">+</span></button>
+        <div class="faq-a"><div class="inner">You do. Content can be exported at any time; the account can be deleted along with all data. Data is stored in the European Union; processing complies with GDPR.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINAL CTA ================= -->
+<section class="section">
+  <div class="container">
+    <div class="final-cta reveal">
+      <h2>Your brand deserves<br>a regular feed</h2>
+      <p>Enter a link to your site — and in 90 seconds you will see what your content could look like every day. The preview is free, before payment.</p>
+      <div class="actions">
+        <a class="btn btn-light btn-lg" href="#demo">Show my posts</a>
+        <a class="btn btn-outline btn-lg" href="#how">How it works</a>
+      </div>
+      <div class="fine">No card · no calls · cancel at any time</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= FOOTER ================= -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="logo" href="#top">
+          <img class="logo-mark" src="../assets/img/logo.svg" alt="">
+          BRIIX
+        </a>
+        <p>Your AI marketer, from your website URL. Regular on-brand content — for small businesses that have better things to do.</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="#how">How it works</a>
+          <a href="#product">Features</a>
+          <a href="#modes">Operating modes</a>
+          <a href="#pricing">Pricing</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="#audience">Who it’s for</a>
+          <a href="#trust">Reliability</a>
+          <a href="#faq">FAQ</a>
+          <a href="#demo">Demo</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="#trust">Confidentiality</a>
+          <a href="#trust">Terms of use</a>
+          <a href="#trust">Data processing (DPA)</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div>© 2026 BRIIX. All rights reserved.</div>
+      <div class="eu">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Made in the EU · data stored in the EU
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- Post detail modal (demo) -->
+<div class="demo-modal" id="post-modal" hidden>
+  <div class="demo-modal-backdrop" data-close-modal></div>
+  <div class="demo-modal-panel" role="dialog" aria-modal="true" aria-labelledby="pm-title">
+    <button class="demo-modal-close" type="button" data-close-modal aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="demo-modal-grid">
+      <div class="pm-visual" id="pm-visual"></div>
+      <div class="pm-content">
+        <div class="pm-rubric" id="pm-rubric"></div>
+        <h3 id="pm-title">Post</h3>
+        <div class="pm-tabs" role="tablist" aria-label="Channel adaptation">
+          <button class="pm-tab on" type="button" data-channel="feed" role="tab">Feed</button>
+          <button class="pm-tab" type="button" data-channel="biz" role="tab">Professional network</button>
+          <button class="pm-tab" type="button" data-channel="chat" role="tab">Channel</button>
+        </div>
+        <div class="pm-caption" id="pm-caption"></div>
+        <div class="pm-tags" id="pm-tags"></div>
+        <div class="pm-cta" id="pm-cta"></div>
+        <div class="pm-actions">
+          <button class="btn btn-primary pm-act" type="button" data-toast="Post approval">Approve</button>
+          <button class="btn btn-ghost pm-act" type="button" data-toast="Chat edit">Edit in chat</button>
+          <button class="btn btn-ghost pm-act" type="button" data-toast="Designer">Open Designer</button>
+        </div>
+        <div class="pm-note">This is a demo preview. In BRIIX, this is the editor, versions and scheduled publishing.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" hidden style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100;background:var(--panel-bg);color:var(--panel-ink);padding:15px 26px;border-radius:999px;font-size:14.5px;font-weight:650;box-shadow:var(--shadow-l);opacity:0;transition:opacity .35s ease;max-width:92vw;text-align:center">
+  This is a demonstration landing page: the sign-up form goes live when the product launches.
+</div>
+
+<script src="../assets/js/theme.js"></script>
+<script src="../assets/i18n/en.js"></script>
+<script src="../assets/js/landing.js"></script>
+</body>
+</html>

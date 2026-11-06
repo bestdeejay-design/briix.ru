@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<link rel="alternate" hreflang="ru" href="https://rucorp.github.io/briix/fin-model/">
+<link rel="alternate" hreflang="en" href="https://rucorp.github.io/briix/en/fin-model/">
+<link rel="alternate" hreflang="x-default" href="https://rucorp.github.io/briix/fin-model/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRIIX — финансовая модель</title>
+<meta name="description" content="Финансовая модель BRIIX: допущения, юнит-экономика, сценарии роста, P&L, чувствительность и интерактивный калькулятор.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c09" media="(prefers-color-scheme: dark)">
+<script>
+  /* Без мигания: тема ставится до загрузки CSS */
+  (function () {
+    try {
+      var t = localStorage.getItem('briix-theme');
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+<link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/inter-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body class="doc-body">
+
+<header class="doc-header">
+  <div class="container">
+    <div class="conf-badge">Конфиденциально · только по прямой ссылке</div>
+    <h1>Финансовая модель BRIIX</h1>
+    <p class="sub">Допущения, юнит-экономика, три сценария роста, P&L и чувствительность. Параметры калькулятора ниже — интерактивные: подставьте свои и посмотрите на результат.</p>
+    <div class="row">
+      <a class="lang-toggle on-dark" href="../en/fin-model/index.html" hreflang="en" lang="en" title="English" aria-label="Переключить язык" onclick="try{localStorage.setItem('briix-lang','en')}catch(e){}">EN</a>
+        <button class="theme-toggle on-dark" type="button" aria-label="Переключить тему" title="Переключить тему">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <a class="link-chip" href="../investors/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        Раздел для инвесторов
+      </a>
+      <a class="link-chip" href="../presentation.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Презентация проекта
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="doc-main">
+  <div class="container">
+
+    <!-- Calculator -->
+    <section class="doc-section" id="calculator">
+      <h2>Калькулятор юнит-экономики</h2>
+      <p class="lead">Базовые значения — допущения модели. Двигайте ползунки, чтобы проверить чувствительность: LTV, CAC, окупаемость, MRR и безубыточность пересчитываются мгновенно.</p>
+      <div class="calc-shell">
+        <div class="calc-grid">
+          <div class="calc-controls">
+            <div class="ctrl">
+              <label>Платящих клиентов, месяц 12 <span class="val" id="v-clients">800</span></label>
+              <input type="range" id="s-clients" min="50" max="2500" step="10" value="800">
+            </div>
+            <div class="ctrl">
+              <label>Blended ARPA, $/мес <span class="val" id="v-arpa">$110</span></label>
+              <input type="range" id="s-arpa" min="60" max="200" step="5" value="110">
+            </div>
+            <div class="ctrl">
+              <label>Месячный churn <span class="val" id="v-churn">7%</span></label>
+              <input type="range" id="s-churn" min="3" max="15" step="0.5" value="7">
+            </div>
+            <div class="ctrl">
+              <label>CAC blended, $ <span class="val" id="v-cac">$120</span></label>
+              <input type="range" id="s-cac" min="40" max="400" step="10" value="120">
+            </div>
+            <div class="ctrl">
+              <label>Себестоимость на клиента, $/мес <span class="val" id="v-cogs">$7.1</span></label>
+              <input type="range" id="s-cogs" min="3" max="20" step="0.1" value="7.1">
+            </div>
+            <div class="ctrl">
+              <label>Постоянные расходы, $/мес <span class="val" id="v-fixed">$19 000</span></label>
+              <input type="range" id="s-fixed" min="8000" max="45000" step="1000" value="19000">
+            </div>
+            <div class="ctrl">
+              <label>Маркетинг, $/мес <span class="val" id="v-mkt">$5 000</span></label>
+              <input type="range" id="s-mkt" min="0" max="30000" step="500" value="5000">
+            </div>
+          </div>
+
+          <div>
+            <div class="calc-results">
+              <div class="calc-cell"><div class="k">Валовая маржа</div><div class="v" id="r-margin">93.5%</div><div class="h">после COGS</div></div>
+              <div class="calc-cell"><div class="k">Валовая прибыль / клиента</div><div class="v" id="r-gpc">$103</div><div class="h">в месяц</div></div>
+              <div class="calc-cell"><div class="k">LTV</div><div class="v" id="r-ltv">$1 441</div><div class="h" id="r-lifespan">жизнь 14 мес</div></div>
+              <div class="calc-cell"><div class="k">LTV / CAC</div><div class="v" id="r-ltvcac">12.0</div><div class="h">норма ≥ 3</div></div>
+              <div class="calc-cell"><div class="k">Окупаемость CAC</div><div class="v" id="r-payback">1.2 мес</div><div class="h">от подписки до прибыли</div></div>
+              <div class="calc-cell"><div class="k">Безубыточность</div><div class="v" id="r-breakeven">233</div><div class="h">платящих клиентов</div></div>
+              <div class="calc-cell good wide"><div class="k">MRR в месяц 12 · операционный результат</div><div class="v" id="r-mrr">$88 000 · +$58 000</div><div class="h" id="r-note">операционная безубыточность достигнута</div></div>
+            </div>
+            <div class="calc-foot">
+              Формулы: LTV = валовая прибыль на клиента × срок жизни (1/churn, округлено) · окупаемость = CAC ÷ валовой прибыли · безубыточность = (постоянные + маркетинг) ÷ валовая прибыль на клиента.
+              Калькулятор — прозрачная проекция по заданным параметрам: в P&L ниже маркетинг месяца 12 — $12k, здесь действует значение ползунка. Полная модель учитывает микс тарифов, годовые скидки и кривую роста (см. таблицы ниже).
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Assumptions -->
+    <section class="doc-section" id="assumptions">
+      <h2>Допущения модели</h2>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Параметр</th><th>Значение</th><th>Основание</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Микс планов</td><td class="num">65% / 28% / 7%</td><td>Starter / Growth / Agency — типично для SMB SaaS с тремя тарифами</td></tr>
+            <tr><td class="hl">Blended ARPA</td><td class="num">$110/мес</td><td>0.65×79 + 0.28×149 + 0.07×399 ≈ $121 минус годовые скидки −20%</td></tr>
+            <tr><td class="hl">Конверсия воронки</td><td class="num">25% → 35% → 25%</td><td>Посетитель → превью → email (≈ 8–9% в trial) → платящий. Хук — превью до оплаты</td></tr>
+            <tr><td class="hl">Месячный churn</td><td class="num">7% (цель) / 10% (пессимизм)</td><td>Средняя жизнь клиента 14 / 10 месяцев</td></tr>
+            <tr><td class="hl">Себестоимость AI</td><td class="num">$2.0 → $1.4</td><td>Тиры моделей, кэширование, batch; жёсткий потолок $6 на клиента</td></tr>
+            <tr><td class="hl">Прочий COGS</td><td class="num">≈ $5.5/клиент</td><td>Хостинг, CDN, стоковые материалы, комиссии платёжного провайдера</td></tr>
+            <tr><td class="hl">Постоянные расходы</td><td class="num">≈ $19k/мес</td><td>Команда $14k + работа AI-агентов $2.5k + инфраструктура $1.5k + сервисы $1k</td></tr>
+            <tr><td class="hl">Маркетинг</td><td class="num">$5k (мес 3–6) → $12k (мес 7–12)</td><td>Органика, контент, платный трафик, запуск на профильных площадках</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Unit economics -->
+    <section class="doc-section" id="unit">
+      <h2>Юнит-экономика</h2>
+      <div class="stat-band">
+        <div class="stat-cell"><div class="v">$110</div><div class="l">ARPA blended</div></div>
+        <div class="stat-cell"><div class="v">≈ $102</div><div class="l">Валовая прибыль на клиента в месяц</div></div>
+        <div class="stat-cell"><div class="v">≈ $1 430</div><div class="l">LTV (14 месяцев × $102)</div></div>
+        <div class="stat-cell accent"><div class="v">≈ 12</div><div class="l">LTV / CAC · окупаемость CAC ≈ 1.2 мес</div></div>
+      </div>
+    </section>
+
+    <!-- Scenarios -->
+    <section class="doc-section" id="scenarios">
+      <h2>Три сценария роста</h2>
+      <p class="lead">Публичный запуск — месяц 3. Показано количество платящих клиентов на конец месяца и ключевые итоги на месяц 12.</p>
+
+      <div class="spark-wrap" style="margin-bottom:18px">
+        <div class="t"><h3>Динамика платящих клиентов</h3><span>месяцы 3–12 после запуска</span></div>
+        <svg viewBox="0 0 820 300" width="100%" height="300" role="img" aria-label="График роста клиентов по трём сценариям">
+          <!-- grid -->
+          <g stroke="rgba(23,19,16,0.08)" stroke-width="1">
+            <line x1="60" y1="30" x2="800" y2="30"/>
+            <line x1="60" y1="90" x2="800" y2="90"/>
+            <line x1="60" y1="150" x2="800" y2="150"/>
+            <line x1="60" y1="210" x2="800" y2="210"/>
+            <line x1="60" y1="260" x2="800" y2="260"/>
+          </g>
+          <g fill="#857b6e" font-size="12" font-family="Inter Variable, sans-serif" font-weight="600">
+            <text x="18" y="34">2 000</text>
+            <text x="18" y="94">1 500</text>
+            <text x="18" y="154">1 000</text>
+            <text x="26" y="214">500</text>
+            <text x="38" y="264">0</text>
+            <text x="88" y="286">мес 3</text>
+            <text x="248" y="286">мес 5</text>
+            <text x="418" y="286">мес 7</text>
+            <text x="588" y="286">мес 9</text>
+            <text x="758" y="286">мес 12</text>
+          </g>
+          <!-- pessimistic: 25, 60, 110, 150, 200, 240, 300 -->
+          <polyline fill="none" stroke="#8a7f6f" stroke-width="3" stroke-linecap="round"
+            points="100,257 230,252 360,247 490,242 620,236 780,230"/>
+          <!-- base: 50, 130, 230, 330, 480, 620, 800 -->
+          <polyline fill="none" stroke="#FF8A4C" stroke-width="3.5" stroke-linecap="round"
+            points="100,255 230,244 360,232 490,221 620,204 780,170"/>
+          <!-- optimistic: 90, 240, 450, 700, 1000, 1450, 1900 -->
+          <polyline fill="none" stroke="#5338F2" stroke-width="3.5" stroke-linecap="round"
+            points="100,251 230,232 360,206 490,176 620,140 780,36"/>
+          <!-- labels -->
+          <g font-family="Inter Variable, sans-serif" font-size="12.5" font-weight="700">
+            <circle cx="780" cy="230" r="5" fill="#8a7f6f"/><text x="726" y="222" fill="#6b6153">300</text>
+            <circle cx="780" cy="170" r="5" fill="#FF8A4C"/><text x="716" y="162" fill="#c96a35">800</text>
+            <circle cx="780" cy="36" r="5" fill="#5338F2"/><text x="700" y="30" fill="#5338F2">1 900</text>
+          </g>
+        </svg>
+        <div class="s-legend" style="margin-top:6px">
+          <span style="color:var(--ink-2)"><i style="background:#8a7f6f"></i>Пессимистичный</span>
+          <span style="color:var(--ink-2)"><i style="background:#FF8A4C"></i>Базовый</span>
+          <span style="color:var(--ink-2)"><i style="background:#5338F2"></i>Оптимистичный</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Показатель</th><th>Пессимистичный</th><th>Базовый</th><th>Оптимистичный</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Клиентов, месяц 3 (запуск)</td><td class="num">25</td><td class="num">50</td><td class="num">90</td></tr>
+            <tr><td class="hl">Клиентов, месяц 6</td><td class="num">110</td><td class="num">230</td><td class="num">450</td></tr>
+            <tr><td class="hl">Клиентов, месяц 9</td><td class="num">200</td><td class="num">480</td><td class="num">1 000</td></tr>
+            <tr><td class="hl">Клиентов, месяц 12</td><td class="num">300</td><td class="num hl">800</td><td class="num">1 900</td></tr>
+            <tr><td class="hl">MRR, месяц 12</td><td class="num">$33k</td><td class="num hl">$88k</td><td class="num">$209k</td></tr>
+            <tr><td class="hl">ARR run-rate</td><td class="num">$0.4M</td><td class="num hl">$1.06M</td><td class="num">$2.5M</td></tr>
+            <tr><td class="hl">Операционная безубыточность</td><td class="num">месяц 13–15</td><td class="num hl">месяц 7–8</td><td class="num">месяц 5</td></tr>
+            <tr><td class="hl">Кумулятивный кэш-минимум</td><td class="num">−$210k</td><td class="num hl">−$150k</td><td class="num">−$110k</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- P&L -->
+    <section class="doc-section" id="pnl">
+      <h2>P&L базового сценария — месяц 12</h2>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Статья</th><th style="text-align:right">$ / мес</th><th>Комментарий</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Выручка</td><td class="num" style="text-align:right">88 000</td><td>800 клиентов × $110</td></tr>
+            <tr><td>COGS: AI</td><td class="num" style="text-align:right">−1 280</td><td>800 × $1.6 средняя себестоимость генерации</td></tr>
+            <tr><td>COGS: прочее</td><td class="num" style="text-align:right">−4 400</td><td>800 × $5.5: хостинг, CDN, стоки, комиссии</td></tr>
+            <tr><td class="hl">Валовая прибыль (93.5%)</td><td class="num hl" style="text-align:right">82 300</td><td>—</td></tr>
+            <tr><td>Команда 2 чел. + AI-агенты</td><td class="num" style="text-align:right">−16 500</td><td>Операционная модель «2 человека + 4 агента»</td></tr>
+            <tr><td>Инфраструктура, сервисы, юридическое</td><td class="num" style="text-align:right">−3 000</td><td>—</td></tr>
+            <tr><td>Маркетинг</td><td class="num" style="text-align:right">−12 000</td><td>Месяц 12 кривой привлечения</td></tr>
+            <tr><td class="hl">Операционная прибыль</td><td class="num hl" style="text-align:right">≈ +50 800</td><td>Маржинальность ≈ 58% на этом масштабе</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Sensitivity -->
+    <section class="doc-section" id="sensitivity">
+      <h2>Чувствительность</h2>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Если…</th><th>Эффект</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Trial → paid падает с 25% до 15%</td><td>Безубыточность сдвигается на +3–4 месяца; требуется дополнительно ≈ $50k капитала</td></tr>
+            <tr><td class="hl">Churn 10% вместо 7%</td><td>LTV −30%; месяц 12 — 620 клиентов вместо 800 при прочих равных</td></tr>
+            <tr><td class="hl">Цены AI-моделей растут на +30%</td><td>Валовая маржа 93% → 92% — несущественно</td></tr>
+            <tr><td class="hl">Согласования площадок задерживаются на 2 месяца</td><td>Запуск с ограниченным набором каналов; ориентировочно −40% к конверсии trial → paid на этот период</td></tr>
+            <tr><td class="hl">CAC $250 вместо $120</td><td>LTV/CAC ≈ 6 — экономика остаётся здоровой, рост дороже на $8–10k/мес</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout" style="margin-top:22px">
+        <b>Вывод.</b> Модель устойчива к ценам AI и к CAC. Чувствительна к конверсии в оплату и к удержанию — то есть к качеству генерации и регулярности публикаций. Именно туда направлены инвестиции: Brand DNA, визуальные шаблоны и feedback loop.
+      </div>
+    </section>
+
+    <!-- Capital -->
+    <section class="doc-section" id="capital">
+      <h2>Потребность в капитале</h2>
+      <div class="stat-band" style="margin-bottom:22px">
+        <div class="stat-cell accent"><div class="v">$55–60k</div><div class="l">Разработка MVP за 8–10 недель</div></div>
+        <div class="stat-cell"><div class="v">≈ $95k</div><div class="l">Операционные убытки до безубыточности</div></div>
+        <div class="stat-cell"><div class="v">$150k</div><div class="l">Итого, базовый сценарий</div></div>
+        <div class="stat-cell"><div class="v">$200k</div><div class="l">С запасом на пессимистичный сценарий</div></div>
+      </div>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Бюджет разработки MVP</th><th style="text-align:right">Сумма</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Команда: 2 человека × 2.5 месяца</td><td class="num" style="text-align:right">$35 000</td></tr>
+            <tr><td class="hl">AI-агенты: подписки и токены</td><td class="num" style="text-align:right">$6 000–9 000</td></tr>
+            <tr><td class="hl">Инфраструктура staging/prod, AI-API на разработку и бету</td><td class="num" style="text-align:right">$3 000</td></tr>
+            <tr><td class="hl">Аккаунты, домены, стоки, лицензии</td><td class="num" style="text-align:right">$1 500</td></tr>
+            <tr><td class="hl">Юридическое: условия, приватность, DPA</td><td class="num" style="text-align:right">$2 000–4 000</td></tr>
+            <tr><td class="hl">Резерв 15%</td><td class="num" style="text-align:right">$7 500</td></tr>
+            <tr><td class="hl">Итого</td><td class="num hl" style="text-align:right">$55 000–60 000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="doc-footer">
+  <div class="container row">
+    <div>© 2026 BRIIX · Конфиденциально · модель не является публичной офертой и прогнозом гарантированного результата</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <a href="../investors/">Для инвесторов</a>
+      <a href="../presentation.html">Презентация</a>
+      <a href="../index.html">Продукт</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/js/theme.js"></script>
+<script src="../assets/i18n/ru.js"></script>
+<script src="../assets/js/finmodel.js"></script>
+</body>
+</html>

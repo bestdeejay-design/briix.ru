@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="alternate" hreflang="ru" href="https://rucorp.github.io/briix/fin-model/">
+<link rel="alternate" hreflang="en" href="https://rucorp.github.io/briix/en/fin-model/">
+<link rel="alternate" hreflang="x-default" href="https://rucorp.github.io/briix/fin-model/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRIIX — financial model</title>
+<meta name="description" content="BRIIX financial model: assumptions, unit economics, growth scenarios, P&L, sensitivity and an interactive calculator.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c09" media="(prefers-color-scheme: dark)">
+<script>
+  /* No flash: the theme is set before CSS loads */
+  (function () {
+    try {
+      var t = localStorage.getItem('briix-theme');
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+<link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="../../assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../../assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../assets/css/main.css">
+</head>
+<body class="doc-body">
+
+<header class="doc-header">
+  <div class="container">
+    <div class="conf-badge">Confidential · direct link only</div>
+    <h1>BRIIX financial model</h1>
+    <p class="sub">Assumptions, unit economics, three growth scenarios, P&L and sensitivity. The calculator parameters below are interactive: plug in your own and see the result.</p>
+    <div class="row">
+      <a class="lang-toggle on-dark" href="../../fin-model/index.html" hreflang="ru" lang="ru" title="Russian" aria-label="Switch language" onclick="try{localStorage.setItem('briix-lang','ru')}catch(e){}">RU</a>
+      <button class="theme-toggle on-dark" type="button" aria-label="Toggle theme" title="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <a class="link-chip" href="../investors/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        Investor section
+      </a>
+      <a class="link-chip" href="../presentation.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Project presentation
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="doc-main">
+  <div class="container">
+
+    <!-- Calculator -->
+    <section class="doc-section" id="calculator">
+      <h2>Unit economics calculator</h2>
+      <p class="lead">The defaults are model assumptions. Move the sliders to test sensitivity: LTV, CAC, payback, MRR and breakeven recalculate instantly.</p>
+      <div class="calc-shell">
+        <div class="calc-grid">
+          <div class="calc-controls">
+            <div class="ctrl">
+              <label>Paying clients, month 12 <span class="val" id="v-clients">800</span></label>
+              <input type="range" id="s-clients" min="50" max="2500" step="10" value="800">
+            </div>
+            <div class="ctrl">
+              <label>Blended ARPA, $/mo <span class="val" id="v-arpa">$110</span></label>
+              <input type="range" id="s-arpa" min="60" max="200" step="5" value="110">
+            </div>
+            <div class="ctrl">
+              <label>Monthly churn <span class="val" id="v-churn">7%</span></label>
+              <input type="range" id="s-churn" min="3" max="15" step="0.5" value="7">
+            </div>
+            <div class="ctrl">
+              <label>CAC blended, $ <span class="val" id="v-cac">$120</span></label>
+              <input type="range" id="s-cac" min="40" max="400" step="10" value="120">
+            </div>
+            <div class="ctrl">
+              <label>Cost per client, $/mo <span class="val" id="v-cogs">$7.1</span></label>
+              <input type="range" id="s-cogs" min="3" max="20" step="0.1" value="7.1">
+            </div>
+            <div class="ctrl">
+              <label>Fixed costs, $/mo <span class="val" id="v-fixed">$19 000</span></label>
+              <input type="range" id="s-fixed" min="8000" max="45000" step="1000" value="19000">
+            </div>
+            <div class="ctrl">
+              <label>Marketing, $/mo <span class="val" id="v-mkt">$5 000</span></label>
+              <input type="range" id="s-mkt" min="0" max="30000" step="500" value="5000">
+            </div>
+          </div>
+
+          <div>
+            <div class="calc-results">
+              <div class="calc-cell"><div class="k">Gross margin</div><div class="v" id="r-margin">93.5%</div><div class="h">after COGS</div></div>
+              <div class="calc-cell"><div class="k">Gross profit / client</div><div class="v" id="r-gpc">$103</div><div class="h">per month</div></div>
+              <div class="calc-cell"><div class="k">LTV</div><div class="v" id="r-ltv">$1 441</div><div class="h" id="r-lifespan">life 14 mo</div></div>
+              <div class="calc-cell"><div class="k">LTV / CAC</div><div class="v" id="r-ltvcac">12.0</div><div class="h">healthy ≥ 3</div></div>
+              <div class="calc-cell"><div class="k">CAC payback</div><div class="v" id="r-payback">1.2 mo</div><div class="h">from subscription to profit</div></div>
+              <div class="calc-cell"><div class="k">Breakeven</div><div class="v" id="r-breakeven">233</div><div class="h">paying clients</div></div>
+              <div class="calc-cell good wide"><div class="k">MRR in month 12 · operating result</div><div class="v" id="r-mrr">$88 000 · +$58 000</div><div class="h" id="r-note">operating breakeven reached</div></div>
+            </div>
+            <div class="calc-foot">
+              Formulas: LTV = gross profit per client × lifespan (1/churn, rounded) · payback = CAC ÷ gross profit · breakeven = (fixed + marketing) ÷ gross profit per client.
+              The calculator is a transparent projection for the given parameters: the P&L below uses month-12 marketing of $12k, while here the slider value applies. The full model accounts for the plan mix, annual discounts and the growth curve (see the tables below).
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Assumptions -->
+    <section class="doc-section" id="assumptions">
+      <h2>Model assumptions</h2>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Parameter</th><th>Value</th><th>Basis</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Plan mix</td><td class="num">65% / 28% / 7%</td><td>Starter / Growth / Agency — typical for SMB SaaS with three plans</td></tr>
+            <tr><td class="hl">Blended ARPA</td><td class="num">$110/mo</td><td>0.65×79 + 0.28×149 + 0.07×399 ≈ $121 minus annual plan discounts −20%</td></tr>
+            <tr><td class="hl">Funnel conversion</td><td class="num">25% → 35% → 25%</td><td>Visitor → preview → email (≈ 8–9% into trial) → paying. The hook is the preview before payment</td></tr>
+            <tr><td class="hl">Monthly churn</td><td class="num">7% (target) / 10% (pessimistic)</td><td>Average client lifespan 14 / 10 months</td></tr>
+            <tr><td class="hl">AI cost of service</td><td class="num">$2.0 → $1.4</td><td>Model tiers, caching, batching; a hard cap of $6 per client</td></tr>
+            <tr><td class="hl">Other COGS</td><td class="num">≈ $5.5/client</td><td>Hosting, CDN, stock assets, payment provider fees</td></tr>
+            <tr><td class="hl">Fixed costs</td><td class="num">≈ $19k/mo</td><td>Team $14k + AI agent work $2.5k + infrastructure $1.5k + services $1k</td></tr>
+            <tr><td class="hl">Marketing</td><td class="num">$5k (mo 3–6) → $12k (mo 7–12)</td><td>Organic, content, paid traffic, launches on industry platforms</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Unit economics -->
+    <section class="doc-section" id="unit">
+      <h2>Unit economics</h2>
+      <div class="stat-band">
+        <div class="stat-cell"><div class="v">$110</div><div class="l">ARPA blended</div></div>
+        <div class="stat-cell"><div class="v">≈ $102</div><div class="l">Gross profit per client per month</div></div>
+        <div class="stat-cell"><div class="v">≈ $1 430</div><div class="l">LTV (14 months × $102)</div></div>
+        <div class="stat-cell accent"><div class="v">≈ 12</div><div class="l">LTV / CAC · CAC payback ≈ 1.2 mo</div></div>
+      </div>
+    </section>
+
+    <!-- Scenarios -->
+    <section class="doc-section" id="scenarios">
+      <h2>Three growth scenarios</h2>
+      <p class="lead">Public launch — month 3. Shows paying clients at month end and the key results for month 12.</p>
+
+      <div class="spark-wrap" style="margin-bottom:18px">
+        <div class="t"><h3>Paying client growth</h3><span>months 3–12 after launch</span></div>
+        <svg viewBox="0 0 820 300" width="100%" height="300" role="img" aria-label="Client growth chart across three scenarios">
+          <!-- grid -->
+          <g stroke="rgba(23,19,16,0.08)" stroke-width="1">
+            <line x1="60" y1="30" x2="800" y2="30"/>
+            <line x1="60" y1="90" x2="800" y2="90"/>
+            <line x1="60" y1="150" x2="800" y2="150"/>
+            <line x1="60" y1="210" x2="800" y2="210"/>
+            <line x1="60" y1="260" x2="800" y2="260"/>
+          </g>
+          <g fill="#857b6e" font-size="12" font-family="Inter Variable, sans-serif" font-weight="600">
+            <text x="18" y="34">2 000</text>
+            <text x="18" y="94">1 500</text>
+            <text x="18" y="154">1 000</text>
+            <text x="26" y="214">500</text>
+            <text x="38" y="264">0</text>
+            <text x="88" y="286">mo 3</text>
+            <text x="248" y="286">mo 5</text>
+            <text x="418" y="286">mo 7</text>
+            <text x="588" y="286">mo 9</text>
+            <text x="758" y="286">mo 12</text>
+          </g>
+          <!-- pessimistic: 25, 60, 110, 150, 200, 240, 300 -->
+          <polyline fill="none" stroke="#8a7f6f" stroke-width="3" stroke-linecap="round"
+            points="100,257 230,252 360,247 490,242 620,236 780,230"/>
+          <!-- base: 50, 130, 230, 330, 480, 620, 800 -->
+          <polyline fill="none" stroke="#FF8A4C" stroke-width="3.5" stroke-linecap="round"
+            points="100,255 230,244 360,232 490,221 620,204 780,170"/>
+          <!-- optimistic: 90, 240, 450, 700, 1000, 1450, 1900 -->
+          <polyline fill="none" stroke="#5338F2" stroke-width="3.5" stroke-linecap="round"
+            points="100,251 230,232 360,206 490,176 620,140 780,36"/>
+          <!-- labels -->
+          <g font-family="Inter Variable, sans-serif" font-size="12.5" font-weight="700">
+            <circle cx="780" cy="230" r="5" fill="#8a7f6f"/><text x="726" y="222" fill="#6b6153">300</text>
+            <circle cx="780" cy="170" r="5" fill="#FF8A4C"/><text x="716" y="162" fill="#c96a35">800</text>
+            <circle cx="780" cy="36" r="5" fill="#5338F2"/><text x="700" y="30" fill="#5338F2">1 900</text>
+          </g>
+        </svg>
+        <div class="s-legend" style="margin-top:6px">
+          <span style="color:var(--ink-2)"><i style="background:#8a7f6f"></i>Pessimistic</span>
+          <span style="color:var(--ink-2)"><i style="background:#FF8A4C"></i>Base</span>
+          <span style="color:var(--ink-2)"><i style="background:#5338F2"></i>Optimistic</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Metric</th><th>Pessimistic</th><th>Base</th><th>Optimistic</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Clients, month 3 (launch)</td><td class="num">25</td><td class="num">50</td><td class="num">90</td></tr>
+            <tr><td class="hl">Clients, month 6</td><td class="num">110</td><td class="num">230</td><td class="num">450</td></tr>
+            <tr><td class="hl">Clients, month 9</td><td class="num">200</td><td class="num">480</td><td class="num">1 000</td></tr>
+            <tr><td class="hl">Clients, month 12</td><td class="num">300</td><td class="num hl">800</td><td class="num">1 900</td></tr>
+            <tr><td class="hl">MRR, month 12</td><td class="num">$33k</td><td class="num hl">$88k</td><td class="num">$209k</td></tr>
+            <tr><td class="hl">ARR run-rate</td><td class="num">$0.4M</td><td class="num hl">$1.06M</td><td class="num">$2.5M</td></tr>
+            <tr><td class="hl">Operating breakeven</td><td class="num">month 13–15</td><td class="num hl">month 7–8</td><td class="num">month 5</td></tr>
+            <tr><td class="hl">Cumulative cash trough</td><td class="num">−$210k</td><td class="num hl">−$150k</td><td class="num">−$110k</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- P&L -->
+    <section class="doc-section" id="pnl">
+      <h2>Base scenario P&L — month 12</h2>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Item</th><th style="text-align:right">$ / month</th><th>Comment</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Revenue</td><td class="num" style="text-align:right">88 000</td><td>800 clients × $110</td></tr>
+            <tr><td>COGS: AI</td><td class="num" style="text-align:right">−1 280</td><td>800 × $1.6 average AI generation cost</td></tr>
+            <tr><td>COGS: other</td><td class="num" style="text-align:right">−4 400</td><td>800 × $5.5: hosting, CDN, stock assets, payment fees</td></tr>
+            <tr><td class="hl">Gross profit (93.5%)</td><td class="num hl" style="text-align:right">82 300</td><td>—</td></tr>
+            <tr><td>Team of 2 + AI agents</td><td class="num" style="text-align:right">−16 500</td><td>Operating model: “2 people + 4 agents”</td></tr>
+            <tr><td>Infrastructure, services, legal</td><td class="num" style="text-align:right">−3 000</td><td>—</td></tr>
+            <tr><td>Marketing</td><td class="num" style="text-align:right">−12 000</td><td>Month 12 of the acquisition curve</td></tr>
+            <tr><td class="hl">Operating profit</td><td class="num hl" style="text-align:right">≈ +50 800</td><td>Margin ≈ 58% at this scale</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Sensitivity -->
+    <section class="doc-section" id="sensitivity">
+      <h2>Sensitivity</h2>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>If…</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Trial → paid drops from 25% to 15%</td><td>Breakeven shifts by +3–4 months; ≈ $50k of additional capital is required</td></tr>
+            <tr><td class="hl">Churn 10% instead of 7%</td><td>LTV −30%; month 12 — 620 clients instead of 800, all else equal</td></tr>
+            <tr><td class="hl">AI model prices rise by +30%</td><td>Gross margin 93% → 92% — immaterial</td></tr>
+            <tr><td class="hl">Platform approvals are delayed by 2 months</td><td>Launch with a limited set of channels; roughly −40% to the trial → paid conversion for this period</td></tr>
+            <tr><td class="hl">CAC $250 instead of $120</td><td>LTV/CAC ≈ 6 — the economics stay healthy; growth costs $8–10k/mo more</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout" style="margin-top:22px">
+        <b>Conclusion.</b> The model is resilient to AI prices and to CAC. It is sensitive to conversion to paid and to retention — that is, to generation quality and publishing consistency. The investment goes exactly there: Brand DNA, visual templates and the feedback loop.
+      </div>
+    </section>
+
+    <!-- Capital -->
+    <section class="doc-section" id="capital">
+      <h2>Capital requirement</h2>
+      <div class="stat-band" style="margin-bottom:22px">
+        <div class="stat-cell accent"><div class="v">$55–60k</div><div class="l">MVP development in 8–10 weeks</div></div>
+        <div class="stat-cell"><div class="v">≈ $95k</div><div class="l">Operating losses until breakeven</div></div>
+        <div class="stat-cell"><div class="v">$150k</div><div class="l">Total, base scenario</div></div>
+        <div class="stat-cell"><div class="v">$200k</div><div class="l">With headroom for the pessimistic scenario</div></div>
+      </div>
+      <div class="table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>MVP development budget</th><th style="text-align:right">Amount</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Team: 2 people × 2.5 months</td><td class="num" style="text-align:right">$35 000</td></tr>
+            <tr><td class="hl">AI agents: subscriptions and tokens</td><td class="num" style="text-align:right">$6 000–9 000</td></tr>
+            <tr><td class="hl">Staging/prod infrastructure, AI API for development and beta</td><td class="num" style="text-align:right">$3 000</td></tr>
+            <tr><td class="hl">Accounts, domains, stock assets, licenses</td><td class="num" style="text-align:right">$1 500</td></tr>
+            <tr><td class="hl">Legal: terms, privacy, DPA</td><td class="num" style="text-align:right">$2 000–4 000</td></tr>
+            <tr><td class="hl">15% reserve</td><td class="num" style="text-align:right">$7 500</td></tr>
+            <tr><td class="hl">Total</td><td class="num hl" style="text-align:right">$55 000–60 000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="doc-footer">
+  <div class="container row">
+    <div>© 2026 BRIIX · Confidential · this model is not a public offer or a forecast of guaranteed results</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <a href="../investors/">For investors</a>
+      <a href="../presentation.html">Presentation</a>
+      <a href="../index.html">Product</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../assets/js/theme.js"></script>
+<script src="../../assets/i18n/en.js"></script>
+<script src="../../assets/js/finmodel.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Public pages
+Allow: /
+Allow: /index.html
+Allow: /en/
+Allow: /en/index.html
+
+# Hidden sections: direct links only
+Disallow: /presentation.html
+Disallow: /investors/
+Disallow: /fin-model/
+Disallow: /en/presentation.html
+Disallow: /en/investors/
+Disallow: /en/fin-model/
+
+Sitemap: /sitemap.xml

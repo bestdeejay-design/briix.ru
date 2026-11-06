@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<link rel="alternate" hreflang="ru" href="https://rucorp.github.io/briix/presentation.html">
+<link rel="alternate" hreflang="en" href="https://rucorp.github.io/briix/en/presentation.html">
+<link rel="alternate" hreflang="x-default" href="https://rucorp.github.io/briix/presentation.html">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRIIX — презентация проекта</title>
+<meta name="description" content="Презентация BRIIX: AI-маркетолог по URL сайта. Продукт, рынок, бизнес-модель, финмодель, план и команда.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c09" media="(prefers-color-scheme: dark)">
+<script>
+  /* Без мигания: тема ставится до загрузки CSS */
+  (function () {
+    try {
+      var t = localStorage.getItem('briix-theme');
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/inter-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body class="deck-body">
+
+<div class="deck" id="deck">
+  <div class="deck-progress"><i id="deck-progress-bar"></i></div>
+
+  <a class="deck-brand" href="index.html">
+    <img class="logo-mark" src="assets/img/logo.svg" alt="">
+    BRIIX
+  </a>
+  <div class="deck-conf">Конфиденциально · Октябрь 2026</div>
+  <div class="deck-theme">
+    <a class="lang-toggle on-dark" href="en/presentation.html" hreflang="en" lang="en" title="English" aria-label="Переключить язык" onclick="try{localStorage.setItem('briix-lang','en')}catch(e){}">EN</a>
+        <button class="theme-toggle" type="button" aria-label="Переключить тему" title="Переключить тему">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+  </div>
+
+  <div class="slides">
+
+    <!-- ============ 1. TITLE ============ -->
+    <section class="slide active" id="slide-1">
+      <div class="slide-inner s-title-block">
+        <div class="kicker"><i></i>Презентация проекта · pre-seed</div>
+        <h1>BRIIX — <em>AI-маркетолог</em><br>по URL сайта</h1>
+        <div class="tag">Ваш бренд на автопилоте: месяц контента в фирменном стиле — за 90 секунд после ссылки на сайт</div>
+        <div class="meta">
+          <span>Продукт · Рынок · Экономика</span>
+          <span>Октябрь 2026</span>
+          <span>Конфиденциально</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 2. INVESTMENT SUMMARY ============ -->
+    <section class="slide" id="slide-2">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Резюме</div>
+        <h2>SaaS с понятной механикой входа и здоровой экономикой</h2>
+        <p class="s-sub">Вставьте ссылку на сайт — получите месяц контента, готового к публикации. Ноль усилий на входе, превью до оплаты, еженедельная работа — 10 минут.</p>
+        <div class="s-kpis">
+          <div class="s-kpi accent"><div class="v">$79</div><div class="l">Стартовый тариф в месяц — «AI-отдел маркетинга» вместо внешней команды за $800+</div></div>
+          <div class="s-kpi"><div class="v">≈ 93%</div><div class="l">Валовая маржа на масштабе года 1</div></div>
+          <div class="s-kpi"><div class="v">≈ 12</div><div class="l">LTV / CAC при CAC $120 и жизни клиента 14 месяцев</div></div>
+          <div class="s-kpi"><div class="v">$150k</div><div class="l">Потребность в капитале до операционной безубыточности (12 мес)</div></div>
+        </div>
+        <div class="s-cards-2" style="margin-top:14px">
+          <div class="s-card hl">
+            <div class="big">800 клиентов<small>базовый сценарий, месяц 12 · MRR ≈ $88k</small></div>
+            <p>Операционная безубыточность — около 235 платящих клиентов, это месяц 7–8 базового сценария.</p>
+          </div>
+          <div class="s-card">
+            <div class="big">8–10 недель<small>до публичного запуска MVP</small></div>
+            <p>Команда 2 человека + 4 AI-агента, бюджет разработки $55–60k. Критический путь — согласования площадок, а не код.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 3. PROBLEM ============ -->
+    <section class="slide" id="slide-3">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Проблема</div>
+        <h2>Малый бизнес знает, что нужно вести соцсети. Но попадает в пять ловушек</h2>
+        <div class="s-cards-3">
+          <div class="s-card"><div class="n">1</div><h3>Нет времени</h3><p>Владелец занят операционкой. SMM — всегда «последним делом», месяц за месяцем.</p></div>
+          <div class="s-card"><div class="n">2</div><h3>Нет навыка</h3><p>Непонятно, что писать, о чём и в каком тоне. Пустой редактор страшнее занятости.</p></div>
+          <div class="s-card"><div class="n">3</div><h3>Нет бюджета</h3><p>Внешняя команда или штатный маркетолог — от $800 до $3 000 в месяц при неуправляемой отдаче.</p></div>
+          <div class="s-card"><div class="n">4</div><h3>«Некрасиво» без дизайнера</h3><p>Чужие стоковые картинки, стыдно публиковать. Бренд неузнаваем в ленте.</p></div>
+          <div class="s-card"><div class="n">5</div><h3>Нерегулярность</h3><p>Ведут две недели и бросают. Постоянство — главный фактор охватов, и главный убийца.</p></div>
+          <div class="s-card hl"><div class="n">→</div><h3>Следствие</h3><p>Присутствие в соцсетях случайное, а не системное. Регулярный конкурент спокойно забирает клиентов.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4. SOLUTION ============ -->
+    <section class="slide" id="slide-4">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Решение</div>
+        <h2>Один вход — URL сайта. Выход — регулярный бренд-контент</h2>
+        <p class="s-sub">Механика «вставил ссылку → получил контент»: никаких брифов, анкет и вводных звонков. Пользователь видит реальный результат <b>до регистрации и до оплаты</b>.</p>
+        <div class="s-kpis">
+          <div class="s-kpi accent"><div class="v">90 сек</div><div class="l">От ссылки до первых 6 постов в фирменном стиле</div></div>
+          <div class="s-kpi"><div class="v">50+</div><div class="l">Идей в контент-плане с датами, целями и форматами</div></div>
+          <div class="s-kpi"><div class="v">10 мин</div><div class="l">Участие пользователя в неделю — или ноль на автопилоте</div></div>
+          <div class="s-kpi"><div class="v">0</div><div class="l">Форм на входе. Онбординг без регистрации — превью с водяным знаком</div></div>
+        </div>
+        <div class="s-quote" style="margin-top:36px">
+          «Вставьте адрес сайта — через 90 секунд вы увидите свои первые посты.<br>
+          <b>Одобрите — остальное мы сделаем сами.</b>»
+        </div>
+        <p class="s-note">Видимый результат до оплаты — главный конверсионный механизм: посетитель убеждается на собственном контенте, а не на обещаниях.</p>
+      </div>
+    </section>
+
+    <!-- ============ 5. PRODUCT FLOW ============ -->
+    <section class="slide" id="slide-5">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Продукт · путь пользователя</div>
+        <h2>От ссылки до растущей ленты — один замкнутый контур</h2>
+        <div class="s-flow">
+          <div class="node"><div class="st">Шаг 1</div><div class="tt">URL без форм</div><div class="dd">Валидация, краулинг до 30 страниц: тексты, палитра, шрифты, логотип, услуги</div></div>
+          <div class="node"><div class="st">Шаг 2</div><div class="tt">Brand DNA</div><div class="dd">Отрасль, аудитория, тон, УТП, запреты. Self-check фактов второй моделью</div></div>
+          <div class="node"><div class="st">Шаг 3</div><div class="tt">Превью до оплаты</div><div class="dd">6 постов в мокапах площадок с водяным знаком, остальные идеи — закрыты</div></div>
+          <div class="node"><div class="st">Шаг 4</div><div class="tt">План 50+ идей</div><div class="dd">8 рубрик, даты, цели, форматы, сезонность. Очередь с обучением на выборе</div></div>
+          <div class="node"><div class="st">Шаг 5</div><div class="tt">Посты + Designer</div><div class="dd">Текст, визуал, адаптации под каналы. Правки чатом или послойно</div></div>
+          <div class="node"><div class="st">Шаг 6</div><div class="tt">Календарь</div><div class="dd">Одобрение, массовые действия, drag-and-drop, режимы «спросить / автопилот»</div></div>
+          <div class="node"><div class="st">Шаг 7</div><div class="tt">Публикация и рост</div><div class="dd">Расписание, надёжная доставка, метрики → следующий план умнее</div></div>
+        </div>
+        <div class="s-cards-3" style="margin-top:22px">
+          <div class="s-card"><h3>Обратная связь — это сигнал</h3><p>«В план», «Не моё, потому что…», правки и метрики физически меняют следующую генерацию. Система проговаривает: «Понял — вы любите кейсы».</p></div>
+          <div class="s-card"><h3>Модерация до публикации</h3><p>Токсичность, медицинские и финансовые обещания, несуществующие цены и адреса — отсекаются автоматически и сверяются с сайтом.</p></div>
+          <div class="s-card"><h3>История и контроль</h3><p>Каждая правка — версия с откатом. Ничего не публикуется без одобрения, пока пользователь сам не включит автопилот.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 6. BRAND DNA ============ -->
+    <section class="slide" id="slide-6">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Продукт · ядро</div>
+        <h2>Brand DNA — профиль бренда, который работает в каждом посте</h2>
+        <div class="s-cols">
+          <div>
+            <p class="s-sub" style="margin-top:0">Это не «описание компании», а структурированный версионируемый контракт: его соблюдают генерация текста, Designer и модерация. Пользователь может править любой элемент — вручную или в чате.</p>
+            <ul class="s-list">
+              <li>Палитра из CSS-кода и визуала сайта + пара шрифтов</li>
+              <li>Тон общения по шкалам, архетип, «как мы говорим / как не говорим»</li>
+              <li>3 сегмента аудитории с болями и триггерами, до 5 УТП</li>
+              <li>Ключевые и запрещённые темы — гайдрейлы для регулируемых отраслей</li>
+              <li>Self-check второй моделью: цены, адреса, услуги сверяются с сайтом</li>
+            </ul>
+          </div>
+          <div>
+            <div class="s-card hl">
+              <div class="big">≥ 90%</div>
+              <p>Целевое качество Brand DNA без критичных галлюцинаций на контрольной выборке из 30 сайтов разных отраслей — измеряется, а не оценивается на глаз.</p>
+            </div>
+            <div class="s-card" style="margin-top:12px">
+              <h3>Видимость — часть ценности</h3>
+              <p>Пользователь видит поэтапный прогресс: «Читаем сайт → Анализируем отрасль → Строим Brand DNA → Пишем первые посты». Система работает — и это видно.</p>
+            </div>
+            <div class="s-card" style="margin-top:12px">
+              <h3>Нет сайта? Есть анкета</h3>
+              <p>8 вопросов + логотип, опционально — ссылка на профиль соцсети. Продукт работает и для офлайн-бизнеса на старте.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 7. DIFFERENTIATION ============ -->
+    <section class="slide" id="slide-7">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Позиционирование</div>
+        <h2>Не инструмент и не генератор — сотрудник</h2>
+        <p class="s-sub">Категория: AI social media employee. Три опоры, которые защищаются в каждом продуктовом решении — именно они создают глубину, которую невозможно скопировать за выходные.</p>
+        <div class="s-cards-3">
+          <div class="s-card hl"><div class="n">01</div><h3>Brand DNA с визуальной идентичностью</h3><p>Стиль извлекается из самого сайта клиента — палитра, шрифты, голос, аудитория. Контент звучит «как вы», а не как робот. Плюс self-check на факты.</p></div>
+          <div class="s-card hl"><div class="n">02</div><h3>Послойный визуал, а не картинка</h3><p>Библиотека шаблонов + Designer с единой схемой слоёв. Визуал — в цветах и шрифтах клиента, редактируется послойно, адаптируется под все форматы.</p></div>
+          <div class="s-card hl"><div class="n">03</div><h3>Feedback loop как актив</h3><p>Каждое действие меняет следующую генерацию. Накопленные данные — собственный ML-актив, который улучшается с каждым клиентом.</p></div>
+        </div>
+        <div class="s-cards-2" style="margin-top:14px">
+          <div class="s-card"><h3>Чем мы сознательно не являемся</h3><p>Ещё одним генератором текстов, дешёвым инструментом с ручным вводом идей или «обёрткой» с шаблонным результатом. Качество вкладывается в глубину: рендер, планировщик, интеграции, самообучение.</p></div>
+          <div class="s-card"><h3>Доказательство в продукте</h3><p>Главный маркетинговый приём — «до/после» на реальном сайте клиента: экран сайта → 6 постов в его цветах. Честный ответ на претензию «а покажите» — показываем сразу, до регистрации.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 8. FEATURE MAP ============ -->
+    <section class="slide" id="slide-8">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Продукт · охват</div>
+        <h2>Полный контур SMM в одном продукте</h2>
+        <table class="s-table">
+          <thead>
+            <tr><th style="width:22%">Модуль</th><th>MVP — строим сейчас</th><th style="width:30%">Фаза 2 — дорожная карта</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="hl">Onboarding и Brand DNA</td><td>URL без регистрации, краулинг, палитра/шрифты/логотип, self-check, превью 6 постов ≤ 90 с, анкетный путь</td><td>Импорт стиля из соцпрофиля, генерация из товарного фида</td></tr>
+            <tr><td class="hl">Контент-план</td><td>50+ идей по 8 рубрикам, сезонность, очередь с обучением, свои идеи текстом/голосом/фото</td><td>—</td></tr>
+            <tr><td class="hl">Генерация постов</td><td>Текст + визуал, 4 стратегии, адаптации под каналы, карусели, сценарии коротких видео, модерация, версии</td><td>Авто-видео из сценария, анимированные stories</td></tr>
+            <tr><td class="hl">Designer</td><td>Послоиное редактирование, авто-раскладка 1:1 / 4:5 / 9:16 / 1.91:1, удаление фона, свои шаблоны, undo/redo</td><td>—</td></tr>
+            <tr><td class="hl">Каналы и публикация</td><td>4 канала, шифрование токенов, календарь, режим одобрения, ограниченный автопилот</td><td>До 12 каналов, полный автопилот с порогом уверенности</td></tr>
+            <tr><td class="hl">Inbox и реклама</td><td>Модель данных заложена</td><td>Работа с обращениями и лидами, управление рекламой с автооптимизацией бюджета</td></tr>
+            <tr><td class="hl">Аналитика</td><td>Метрики 1 ч / 24 ч / 7 дн, дашборд, влияние на будущие планы, еженедельный отчёт</td><td>Отраслевые бенчмарки, прогноз лучшего времени</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 9. MARKET ============ -->
+    <section class="slide" id="slide-9">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Рынок и аудитория</div>
+        <h2>Малый бизнес с сайтом — и без маркетолога</h2>
+        <div class="s-cols">
+          <div>
+            <ul class="s-list">
+              <li><b>Сегмент:</b> компании 1–50 сотрудников без штатного маркетолога или SMM-менеджера</li>
+              <li><b>Отрасли-точки входа:</b> подрядчики и застройщики, клиники, отели и туризм, профессиональные услуги, технологические компании, e-commerce</li>
+              <li><b>География:</b> старт на скандинавском и англоязычном рынке, далее — ЕС. Интерфейс с первого дня на трёх языках, контент — на любом языке сайта клиента</li>
+              <li><b>Триггер покупки:</b> регулярность без усилий и «красиво, как у больших» — за цену одного обеда в неделю</li>
+            </ul>
+            <div class="s-quote" style="margin-top:26px">
+              Сотни тысяч компаний платят $800–3 000 в месяц за то, что BRIIX делает за <b>$79</b> — с брендовым визуалом и без потери контроля.
+            </div>
+          </div>
+          <div>
+            <div class="s-cards-2" style="grid-template-columns:1fr 1fr; margin-top:0">
+              <div class="s-card"><div class="big">1-50</div><p>Сотрудников — типичный клиент: владелец или администратор без маркетингового бэкграунда</p></div>
+              <div class="s-card"><div class="big">3 боли</div><p>«Нет времени», «не знаю, что писать», «некрасиво без дизайнера» — закрываются первым же превью</p></div>
+              <div class="s-card"><div class="big">B2B SaaS</div><p>Self-serve подписка с низким порогом входа: превью до оплаты, отмена в любой момент</p></div>
+              <div class="s-card"><div class="big">Network</div><p>Каждый пост — витрина продукта: бренд-контент видят клиенты и конкуренты пользователя</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 10. BUSINESS MODEL ============ -->
+    <section class="slide" id="slide-10">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Бизнес-модель</div>
+        <h2>Подписка: $79 · $149 · $399 — и годовой план со скидкой 20%</h2>
+        <table class="s-table">
+          <thead>
+            <tr><th>План</th><th>Цена</th><th>Что входит</th><th>Доля в миксе*</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="hl">Starter</td><td class="num">$79/мес</td><td>1 бренд, 4 канала, 30 постов/мес, 30 AI-изображений, Brand DNA, Designer, аналитика</td><td class="num">65%</td></tr>
+            <tr><td class="hl">Growth</td><td class="num">$149/мес</td><td>8 каналов, 90 постов, 100 изображений, полный автопилот, работа с обращениями</td><td class="num">28%</td></tr>
+            <tr><td class="hl">Agency</td><td class="num">$399/мес</td><td>5 брендов, команды, white-label</td><td class="num">7%</td></tr>
+          </tbody>
+        </table>
+        <div class="s-cards-3" style="margin-top:18px">
+          <div class="s-card"><h3>Нулевой барьер входа</h3><p>Превью 6 постов — без регистрации и карты. Trial 7 дней с полным функционалом Starter. Подписка без привязки.</p></div>
+          <div class="s-card"><h3>Конверсионная воронка</h3><p>Посетитель → превью 25% → email 35% (≈ 8–9% в trial) → платящий 25%. Ключевой хук — результат на собственном сайте до оплаты.</p></div>
+          <div class="s-card"><h3>Расширение чека</h3><p>Апгрейд при упоре в лимиты, рост числа каналов и брендов, годовая оплата. Blended ARPA с учётом скидок — около $110.</p></div>
+        </div>
+        <p class="s-note">* Допущение финансовой модели для типичного SMB SaaS с тремя тарифами.</p>
+      </div>
+    </section>
+
+    <!-- ============ 11. UNIT ECONOMICS ============ -->
+    <section class="slide" id="slide-11">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Юнит-экономика</div>
+        <h2>Маржа не в инфраструктуре — а в качестве продукта</h2>
+        <div class="s-kpis">
+          <div class="s-kpi"><div class="v">$110</div><div class="l">Blended ARPA в месяц</div></div>
+          <div class="s-kpi"><div class="v">≈ $1 430</div><div class="l">LTV при жизни клиента 14 мес и churn 7% в месяц</div></div>
+          <div class="s-kpi"><div class="v">$120</div><div class="l">CAC blended: органика, контент, платный трафик</div></div>
+          <div class="s-kpi accent"><div class="v">1.2 мес</div><div class="l">Окупаемость CAC</div></div>
+        </div>
+        <div class="s-cards-3" style="margin-top:14px">
+          <div class="s-card"><div class="big">≈ 93–94%</div><p>Валовая маржа: себестоимость AI $1.4–2.0 на клиента (потолок $6) + прочий COGS ≈ $5.5 (хостинг, CDN, комиссии).</p></div>
+          <div class="s-card"><div class="big">≈ 235</div><p>Платящих клиентов для операционной безубыточности при фонде $19k/мес и маркетинге $5k/мес — это месяц 7–8.</p></div>
+          <div class="s-card"><div class="big">Стабильна к AI</div><p>Рост цен моделей на +30% снижает маржу до 92% — несущественно. Всё инвестиционное внимание — конверсия и удержание.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 12. FINANCIAL MODEL ============ -->
+    <section class="slide" id="slide-12">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Финансовая модель</div>
+        <h2>Три сценария роста после публичного запуска в месяц 3</h2>
+        <div class="s-bar-chart">
+          <div class="bar-row"><div class="bl">Месяц 3</div><div class="track"><i class="dim" style="width:3%"></i><i class="alt" style="width:6%"></i><i style="width:11%"></i></div><div class="bv">25 / 50 / 90</div></div>
+          <div class="bar-row"><div class="bl">Месяц 6</div><div class="track"><i class="dim" style="width:14%"></i><i class="alt" style="width:29%"></i><i style="width:56%"></i></div><div class="bv">110 / 230 / 450</div></div>
+          <div class="bar-row"><div class="bl">Месяц 9</div><div class="track"><i class="dim" style="width:25%"></i><i class="alt" style="width:60%"></i><i style="width:100%"></i></div><div class="bv">200 / 480 / 1 000</div></div>
+          <div class="bar-row"><div class="bl">Месяц 12</div><div class="track"><i class="dim" style="width:38%"></i><i class="alt" style="width:100%"></i><i style="width:100%"></i></div><div class="bv">300 / 800 / 1 900</div></div>
+        </div>
+        <div class="s-legend">
+          <span><i style="background:linear-gradient(90deg,#5b5248,#7a6f61)"></i>Пессимистичный</span>
+          <span><i style="background:linear-gradient(90deg,#ff8a4c,#ffb38a)"></i>Базовый</span>
+          <span><i style="background:linear-gradient(90deg,#7c5cff,#a594ff)"></i>Оптимистичный</span>
+          <span>Платящие клиенты на конец месяца</span>
+        </div>
+        <table class="s-table">
+          <thead><tr><th>Показатель на месяц 12</th><th>Пессимистичный</th><th>Базовый</th><th>Оптимистичный</th></tr></thead>
+          <tbody>
+            <tr><td>Платящих клиентов</td><td class="num">300</td><td class="num hl">800</td><td class="num">1 900</td></tr>
+            <tr><td>MRR</td><td class="num">$33k</td><td class="num hl">$88k</td><td class="num">$209k</td></tr>
+            <tr><td>ARR run-rate</td><td class="num">$0.4M</td><td class="num hl">$1.06M</td><td class="num">$2.5M</td></tr>
+            <tr><td>Операционная безубыточность</td><td class="num">месяц 13–15</td><td class="num hl">месяц 7–8</td><td class="num">месяц 5</td></tr>
+            <tr><td>Кумулятивный кэш-минимум</td><td class="num">−$210k</td><td class="num hl">−$150k</td><td class="num">−$110k</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 13. P&L ============ -->
+    <section class="slide" id="slide-13">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Финансовая модель · P&L</div>
+        <h2>Базовый сценарий, месяц 12: операционная прибыль ≈ $50 800</h2>
+        <div class="s-cols">
+          <div>
+            <table class="s-table" style="margin-top:0">
+              <thead><tr><th>Статья</th><th style="text-align:right">$ / мес</th></tr></thead>
+              <tbody>
+                <tr><td>Выручка (800 клиентов × $110)</td><td class="num" style="text-align:right">88 000</td></tr>
+                <tr><td>COGS: AI ($1.6) + прочее ($5.5) на клиента</td><td class="num" style="text-align:right">−5 700</td></tr>
+                <tr><td class="hl">Валовая прибыль (93.5%)</td><td class="num hl" style="text-align:right">82 300</td></tr>
+                <tr><td>Команда 2 чел. + AI-агенты</td><td class="num" style="text-align:right">−16 500</td></tr>
+                <tr><td>Инфраструктура, сервисы, юридическое</td><td class="num" style="text-align:right">−3 000</td></tr>
+                <tr><td>Маркетинг</td><td class="num" style="text-align:right">−12 000</td></tr>
+                <tr><td class="hl">Операционная прибыль</td><td class="num hl" style="text-align:right">≈ +50 800</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div class="s-card"><h3>Чувствительность модели</h3>
+              <ul class="s-list" style="margin-top:14px">
+                <li>Цены AI +30% → маржа 93% → 92% — несущественно</li>
+                <li>CAC $250 вместо $120 → LTV/CAC ≈ 6 — рост дороже на $8–10k/мес</li>
+                <li>Churn 10% вместо 7% → LTV −30%, месяц 12 — 620 клиентов вместо 800</li>
+                <li>Конверсия trial → paid 15% вместо 25% → безубыточность сдвигается на +3–4 месяца, нужно +$50k</li>
+              </ul>
+            </div>
+            <div class="s-card hl" style="margin-top:12px">
+              <h3>Вывод для инвестора</h3>
+              <p>Модель устойчива к ценам AI и росту CAC. Чувствительна к двум вещам — конверсии в оплату и удержанию. Именно поэтому инвестиции идут в качество генерации, визуал и feedback loop.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 14. PLAN ============ -->
+    <section class="slide" id="slide-14">
+      <div class="slide-inner">
+        <div class="s-eyebrow">План реализации</div>
+        <h2>MVP — 8–10 недель: 6 недель сборки, затем бета и запуск</h2>
+        <table class="s-table">
+          <thead><tr><th style="width:14%">Неделя</th><th>Фокус</th><th>Результат</th></tr></thead>
+          <tbody>
+            <tr><td class="num">0</td><td>Утверждение скоупа, аккаунты, подача заявок на согласования площадок, инфраструктура</td><td>Приложение на staging</td></tr>
+            <tr><td class="num">1</td><td>AI-шлюз, auth и изоляция данных, краулер, промпты Brand DNA, eval</td><td>URL → Brand DNA для 30 контрольных сайтов</td></tr>
+            <tr><td class="num">2</td><td>Контент-план, очередь идей, превью-сессия, промпты постов, модерация</td><td>Аноним получает 6 превью-постов</td></tr>
+            <tr><td class="num">3</td><td>Рендер-сервис, 60 шаблонов, Designer, генерация изображений</td><td>Пост с фирменным визуалом, правки в редакторе</td></tr>
+            <tr><td class="num">4</td><td>Подключения каналов, публикация и планировщик, календарь, оплата, уведомления</td><td>Полный цикл до публикации в 4 канала</td></tr>
+            <tr><td class="num">5</td><td>Аналитика, квоты, GDPR, лендинг, E2E, нагрузка, безопасность</td><td>Feature-complete MVP на staging</td></tr>
+            <tr><td class="num">6</td><td>Закрытая бета: 20 пользователей из 5 отраслей, ежедневный фидбэк</td><td>Метрики приёмки MVP</td></tr>
+            <tr><td class="num">7–8</td><td>Согласования (или план Б), прод, запуск</td><td>Публичный запуск</td></tr>
+            <tr><td class="num">9–16</td><td>Фаза 2: полный автопилот → обращения → реклама → новые каналы → мультибренд</td><td>Планы Growth и Agency полноценны</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 15. TEAM ============ -->
+    <section class="slide" id="slide-15">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Команда и операционная модель</div>
+        <h2>Капиталоэффективная сборка: 2 человека + 4 AI-агента</h2>
+        <div class="s-cards-4">
+          <div class="s-card"><div class="n">TL</div><h3>Tech Lead</h3><p>Архитектура, AI-шлюз и промпты, интеграции и согласования площадок, DevOps, финальное ревью.</p></div>
+          <div class="s-card"><div class="n">PL</div><h3>Product Lead</h3><p>Продукт и приоритизация, UX, Designer и шаблоны, лендинг, бета-пользователи.</p></div>
+          <div class="s-card"><div class="n">A1·A2</div><h3>Агенты сборки</h3><p>Backend-модули и воркеры, экраны и компоненты — каждая задача: один PR, спека до кода.</p></div>
+          <div class="s-card"><div class="n">A3·A4</div><h3>Агенты качества</h3><p>Промпты, схемы, eval-прогоны, шаблоны. Автотесты, CI, первая линия ревью каждого PR.</p></div>
+        </div>
+        <div class="s-cards-3" style="margin-top:14px">
+          <div class="s-card hl"><div class="big">≈ 4–5×</div><p>Ускорение против классической команды: эффективная скорость ≈ 4–5 человеко-дней в календарный день.</p></div>
+          <div class="s-card"><div class="big">$55–60k</div><p>Бюджет разработки MVP: команда $35k, работа агентов $6–9k, инфраструктура $3k, юридическое и лицензии, резерв 15%.</p></div>
+          <div class="s-card"><div class="big">Правила</div><p>Спека до кода, контракты API как источник истины, лимит работы в процессе, недельные eval-отчёты. Человек отвечает за безопасность, деньги и решения.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 16. RISKS ============ -->
+    <section class="slide" id="slide-16">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Риски</div>
+        <h2>Мы знаем, что может пойти не так — и что делаем</h2>
+        <table class="s-table">
+          <thead><tr><th style="width:34%">Риск</th><th style="width:12%">Вероятность</th><th>Мера</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Согласования площадок затягиваются</td><td class="num">Высокая</td><td>Заявки в неделю 0, демо-видео и политика приватности с первого дня; запасной сценарий запуска без одной сети, список ожидания</td></tr>
+            <tr><td class="hl">Качество генерации «как у всех»</td><td class="num">Высокая</td><td>Инвестиции в глубину: Brand DNA + self-check, послойный визуал, feedback loop, еженедельный eval на контрольной выборке</td></tr>
+            <tr><td class="hl">Галлюцинации (цены, адреса, медицина)</td><td class="num">Средняя</td><td>Сверка с сайтом, отраслевая модерация, список «всегда спрашивать», запрет автоматики по чувствительным темам</td></tr>
+            <tr><td class="hl">Низкая конверсия trial → paid</td><td class="num">Средняя</td><td>Smoke-тест лендинга на раннем этапе за $1k и 2 недели вместо $60k и 10 недель разработки «вслепую»</td></tr>
+            <tr><td class="hl">Стоимость AI съедает маржу</td><td class="num">Средняя</td><td>Тиры моделей, кэширование, бюджетные лимиты, трейсинг каждого вызова. Маржа устойчива к +30% к ценам</td></tr>
+            <tr><td class="hl">Утечка доступов к аккаунтам клиентов</td><td class="num">Низкая</td><td>Шифрование токенов, изоляция данных по рабочим пространствам, минимальные права, аудит доступа</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 17. ASK ============ -->
+    <section class="slide" id="slide-17">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Раунд</div>
+        <h2>Потребность в капитале: $150k до операционной безубыточности</h2>
+        <div class="s-cols">
+          <div>
+            <table class="s-table" style="margin-top:0">
+              <thead><tr><th>Использование средств</th><th style="text-align:right">Сумма</th></tr></thead>
+              <tbody>
+                <tr><td>Разработка MVP (команда, агенты, инфраструктура, юридическое)</td><td class="num" style="text-align:right">$55–60k</td></tr>
+                <tr><td>Операционные расходы до безубыточности</td><td class="num" style="text-align:right">≈ $95k</td></tr>
+                <tr><td class="hl">Итого — базовый сценарий</td><td class="num hl" style="text-align:right">$150k</td></tr>
+                <tr><td>С запасом на пессимистичный сценарий</td><td class="num" style="text-align:right">$200k</td></tr>
+              </tbody>
+            </table>
+            <p class="s-note">Формат: собственные средства / ангельский раунд / pre-seed. При оптимистичном сценарии — выход на бутстрап уже с месяца 5.</p>
+          </div>
+          <div>
+            <div class="s-card hl"><h3>Куда идут деньги</h3>
+              <div class="s-bar-chart" style="margin-top:16px">
+                <div class="bar-row"><div class="bl">Разработка</div><div class="track"><i style="width:38%"></i></div><div class="bv">38%</div></div>
+                <div class="bar-row"><div class="bl">Маркетинг</div><div class="track"><i class="alt" style="width:32%"></i></div><div class="bv">32%</div></div>
+                <div class="bar-row"><div class="bl">Команда</div><div class="track"><i style="width:20%"></i></div><div class="bv">20%</div></div>
+                <div class="bar-row"><div class="bl">Резерв</div><div class="track"><i class="dim" style="width:10%"></i></div><div class="bv">10%</div></div>
+              </div>
+            </div>
+            <div class="s-card" style="margin-top:12px"><h3>Что получает инвестор</h3><p>Прозрачную модель с проверочными воротами, регулярную отчётность по метрикам воронки и удержания, участие в категории с высокой маржой и понятной механикой роста.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 18. GATES ============ -->
+    <section class="slide" id="slide-18">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Дисциплина исполнения</div>
+        <h2>Решения принимаются по воротам, а не по ощущениям</h2>
+        <table class="s-table">
+          <thead><tr><th style="width:8%">#</th><th>Условие GO</th><th style="width:18%">Срок</th><th style="width:16%">Стоп-правило</th></tr></thead>
+          <tbody>
+            <tr><td class="num">G1</td><td class="hl">Smoke-тест лендинга: ≥ 8% посетителей → email на выборке 500+ визитов</td><td>Неделя 2–3</td><td>&lt; 5% → пересмотр позиционирования ДО разработки</td></tr>
+            <tr><td class="num">G2</td><td class="hl">Заявки на согласования публикаций поданы</td><td>Неделя 0</td><td>Запасной сценарий каналов</td></tr>
+            <tr><td class="num">G3</td><td class="hl">Brand DNA ≥ 90% без критичных галлюцинаций на контрольной выборке</td><td>Неделя 1–2</td><td>&lt; 80% → не выходим в бету</td></tr>
+            <tr><td class="num">G4</td><td class="hl">Подтверждённый капитал $150k (или $60k + план на остаток)</td><td>До недели 0</td><td>Старт только с закрытым финансированием</td></tr>
+            <tr><td class="num">G5</td><td class="hl">Проверка имени, домена и торговой марки завершена</td><td>Неделя 0</td><td>Смена имени до публичных материалов</td></tr>
+          </tbody>
+        </table>
+        <div class="s-cards-3" style="margin-top:16px">
+          <div class="s-card"><h3>Критерии приёмки MVP</h3><p>Публикации без сбоев ≥ 98%, ≥ 50% постов одобряются без правок, NPS ≥ 30, себестоимость AI в пределах лимита по фактическим трейсам.</p></div>
+          <div class="s-card"><h3>Метрики беты (неделя 6)</h3><p>20 пользователей из 5 отраслей, ежедневный фидбэк. Решение о публичном запуске — по цифрам, а не по энтузиазму.</p></div>
+          <div class="s-card"><h3>Четыре стратегические ставки</h3><p>Превью конвертирует лучше формы. Бизнес доверяет автопилоту через 2–4 недели. Фирменный шаблон «достаточно красив». Feedback loop реально улучшает выдачу.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 19. VISION ============ -->
+    <section class="slide" id="slide-19">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Видение</div>
+        <h2>«SMM-сотрудник по подписке» для миллиона малых бизнесов</h2>
+        <div class="s-cols">
+          <div>
+            <div class="s-quote">
+              Сделать регулярное бренд-присутствие в соцсетях таким же простым, как подключение к CRM: <b>без маркетолога, без агентства, без дизайнера</b> — для любого бизнеса с сайтом.
+            </div>
+            <ul class="s-list" style="margin-top:28px">
+              <li>От первого канала — к полному контуру: контент, публикация, обращения, реклама, аналитика</li>
+              <li>Система, которая знает бренд клиента лучше штатного сотрудника — потому что учится на каждом решении</li>
+              <li>Собственный ML-актив на накопленных данных: качество растёт с масштабом, а не деградирует</li>
+            </ul>
+          </div>
+          <div>
+            <div class="s-cards-2" style="grid-template-columns:1fr; margin-top:0">
+              <div class="s-card hl"><div class="big">Год 1</div><p>MVP, бета, публичный запуск, 300–1 900 платящих клиентов по сценариям. Фокус — качество генерации и регулярность.</p></div>
+              <div class="s-card"><div class="big">Год 2</div><p>Полный автопилот, работа с обращениями, реклама, 12 каналов, мультибренд и агентский тариф. Выход на смежные рынки ЕС.</p></div>
+              <div class="s-card"><div class="big">Долгосрочно</div><p>Инфраструктурный переход на собственные модели по мере накопления данных — с сохранением маржи и качества.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 20. FINAL ============ -->
+    <section class="slide" id="slide-20">
+      <div class="slide-inner s-title-block">
+        <div class="kicker"><i></i>BRIIX · октябрь 2026</div>
+        <h1>Ваш бренд —<br><em>на автопилоте</em></h1>
+        <div class="tag">Вставьте ссылку на сайт — и через 90 секунд увидите свой первый контент.<br>Дальше всё делает BRIIX.</div>
+        <div class="meta">
+          <span>Продукт: briix</span>
+          <span>Раунд: $150k</span>
+          <span>Контакт — по каналу, которым получена эта презентация</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="deck-controls">
+    <button id="deck-prev" aria-label="Предыдущий слайд">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="deck-counter" id="deck-counter">1 / 20</div>
+    <button id="deck-next" aria-label="Следующий слайд">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+  </div>
+  <div class="deck-hint">← → листать · Home / End · печать в PDF</div>
+</div>
+
+<script src="assets/js/theme.js"></script>
+<script src="assets/js/deck.js"></script>
+</body>
+</html>

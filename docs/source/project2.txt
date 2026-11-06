@@ -1,0 +1,236 @@
+Прикрепить файл напрямую я не могу, поэтому ниже — полный документ в одном блоке. Скопируйте содержимое в файл BRANDPILOT.md (или AGENTS.md) в корень репозитория — он составлен так, чтобы кодовый агент мог использовать его как единый источник правды: контекст, фиксированные решения, схема данных, контракты, эпики с критериями приёмки, правила работы.
+
+Markdown
+
+# BRANDPILOT — Master Spec for Build Agents
+Version: 1.0 · October 2026 · Status: APPROVED FOR BUILD
+Language policy: this doc is in Russian; all code, comments, commit messages, identifiers, API, prompts — in English.
+
+---
+
+## 0. КАК ИСПОЛЬЗОВАТЬ ЭТОТ ФАЙЛ (читать агенту первым)
+
+Ты — один из агентов, собирающих SaaS-продукт Brandpilot. Этот файл — единственный источник правды по продукту, архитектуре и правилам.
+
+Порядок действий для любой задачи:
+1. Прочитай разделы 1–4 (контекст и фиксированные решения). Не оспаривай фиксированные решения — если видишь проблему, опиши её в PR-описании в секции `## Concerns`, но реализуй по спецификации.
+2. Найди свою задачу в разделе 12 (эпики). Критерии приёмки задачи — обязательны.
+3. Перед кодом проверь раздел 5 (конвенции), раздел 6 (модель данных), раздел 7 (API), раздел 8 (AI-слой) — не выдумывай контракты, которых там нет. Если контракта нет — предложи его в `SPEC.md` эпика и остановись для ревью.
+4. Один PR = одна задача. PR < 400 строк diff (без сгенерированных файлов). В описании PR: задача, что сделано, как тестировать, `## Concerns`.
+5. Нельзя: трогать секреты, прод-инфру, биллинг-логику и промпты без явного задания; менять схему БД без миграции; добавлять зависимости без обоснования в PR.
+6. Definition of Done — раздел 14.
+
+Роли агентов:
+- A1 Backend: `apps/api`, `apps/workers`, `packages/db`, адаптеры платформ.
+- A2 Frontend: `apps/web`, `packages/ui`, Designer.
+- A3 AI/Prompt: `packages/ai`, `prompts/`, `evals/`, `templates/`.
+- A4 QA/DevOps: `e2e/`, `infra/`, `.github/`, security, первая линия ревью всех PR.
+Люди: TL (Tech Lead, финальное ревью backend/AI/infra), PL (Product Lead, финальное ревью frontend/UX/templates).
+
+---
+
+## 1. ПРОДУКТ
+
+### 1.1 Одним абзацем
+Brandpilot — SaaS, который по URL сайта компании за ≤ 90 секунд строит профиль бренда (Brand DNA: палитра, шрифты, tone of voice, архетип, ЦА, УТП), генерирует контент-план из 50+ идей, создаёт посты с фирменным визуалом, публикует их по расписанию в соцсети и обучается на решениях пользователя (одобрил/отклонил). Целевой пользователь — малый бизнес без маркетолога. Обещание: «Вставил URL → одобрил → всё публикуется само».
+
+### 1.2 Ключевые дифференциаторы (защищать в каждом решении)
+1. Brand DNA с извлечением визуальной идентичности из сайта + self-check на галлюцинации.
+2. Послойная библиотека шаблонов визуала + Designer — визуал реально в цветах/шрифтах клиента.
+3. Feedback loop: каждое действие пользователя (`feedback_events`) влияет на следующую генерацию.
+4. Превью 6 постов до регистрации и до оплаты.
+5. «Сделано в ЕС, данные в ЕС» — GDPR как продуктовый аргумент.
+
+### 1.3 Персоны
+| Персона | Ключевой сценарий |
+|---|---|
+| Владелец строительной фирмы, нет маркетолога | URL → одобрил 30 постов → забыл на месяц |
+| Админ стоматологии | Визуал в фирменных цветах; страх медицинских ошибок в тексте |
+| Управляющая бутик-отелем | Один пост → адаптации под IG/FB/LinkedIn |
+| CMO-одиночка в SaaS | LinkedIn-экспертность, карусели |
+| Маркетолог e-commerce | Много товаров, акции, Meta Ads (фаза 2) |
+| Агентство (фаза 2) | Мультибренд, white-label |
+
+### 1.4 Тарифы (фиксировано)
+| План | Цена | Лимиты |
+|---|---|---|
+| starter | $79/мес | 1 бренд, 4 канала, 30 постов/мес, 30 AI-изображений/мес |
+| growth | $149/мес | 1 бренд, 8 каналов, 90 постов, 100 AI-изображений, автопилот, inbox |
+| agency | $399/мес | 5 брендов, команды, white-label |
+Годовая оплата −20%. Trial 7 дней без карты, функционал starter.
+
+### 1.5 Бизнес-контекст (для понимания приоритетов)
+- ARPA ≈ $110; целевая себестоимость AI ≤ $2.5/workspace/мес (жёсткий потолок $6); валовая маржа > 90%.
+- Безубыточность ≈ 235 платящих клиентов. Модель чувствительна к конверсии trial→paid (цель 25%) и churn (цель < 7%), т.е. к качеству генерации и регулярности публикаций. Нечувствительна к ценам AI-API.
+- Критический путь — Meta App Review (2–6 недель), заявка подаётся в неделю 0. План Б: запуск без Instagram (Telegram + LinkedIn Personal + Facebook).
+
+---
+
+## 2. СКОУП
+
+### 2.1 MVP (строим сейчас)
+Onboarding & Brand DNA · Контент-план и Idea Queue · Генерация постов (текст, визуал, адаптации, карусели, Reels-сценарии, модерация, версии, чат-правка) · Designer · Каналы: Instagram, Facebook, LinkedIn (Personal + Company), Telegram · Scheduler и календарь · Режим одобрения + уведомления · Аналитика (базовая) · Auth, workspace, роли · Stripe, trial, квоты · GDPR экспорт/удаление · Админка · Лендинг.
+
+### 2.2 Фаза 2 (НЕ реализовывать в MVP, но не блокировать архитектурно)
+Автопилот · Inbox (комментарии/DM) · Meta Ads · TikTok, X, YouTube Shorts, Pinterest, Threads, VK · Мультибренд/команды/white-label · Генерация из товарного фида · Мобильное приложение.
+
+### 2.3 Вне скоупа
+Видеомонтаж · Инфлюенс-маркетинг · CRM · SMM-консультации.
+
+---
+
+## 3. АРХИТЕКТУРА И СТЕК (фиксировано)
+
+### 3.1 Стек
+| Слой | Технология |
+|---|---|
+| Monorepo | pnpm + Turborepo |
+| Frontend | Next.js 15 (App Router), TypeScript strict, Tailwind, shadcn/ui, Zustand, TanStack Query, react-hook-form + Zod, next-intl (EN/NO/RU) |
+| Designer | Fabric.js (canvas), собственная JSON-схема слоёв (раздел 9) |
+| Backend | NestJS 10, TypeScript strict, Prisma, class-validator → OpenAPI (Swagger) |
+| DB | PostgreSQL 16 + pgvector; Row-Level Security по `workspace_id` |
+| Cache/Queue | Redis 7, BullMQ |
+| Crawler | Python 3.12, FastAPI, Playwright, trafilatura, Pillow, colorthief; отдельный сервис `apps/crawler` |
+| Render | Node + Puppeteer: JSON слоёв → PNG; сервис `apps/render` |
+| Storage | S3-compatible (EU region) + CDN; dev — MinIO |
+| Auth | Auth.js: magic link (Resend) + Google OAuth |
+| Billing | Stripe (Checkout, Customer Portal, Webhooks) |
+| AI gateway | собственный пакет `packages/ai` (роутинг по тирам, retry, circuit breaker, кэш, учёт $) |
+| LLM | Tier A: Claude Sonnet-класс (fallback OpenAI GPT-класс) · Tier B: Claude Haiku-класс (fallback Gemini Flash) · Tier C: самая дешёвая модель провайдера (fallback Gemini Flash-Lite). Все — через EU-эндпоинты |
+| Images | FLUX.2 dev (fal.ai) для черновиков; Ideogram 3 для финалов с текстом; rembg (self-hosted в `apps/render`) |
+| Embeddings | text-embedding-3-small (1536) |
+| STT | Whisper API |
+| Search (конкуренты) | Brave Search API (fallback SerpAPI) |
+| Stock | Unsplash + Pexels API |
+| Observability | Sentry, OpenTelemetry → Grafana/Loki/Tempo, Langfuse для AI-трейсов |
+| Infra | Docker, Hetzner Cloud (EU) + Hetzner Object Storage, Terraform, GitHub Actions |
+| E2E | Playwright |
+
+### 3.2 Сервисы
+apps/web (Next.js) ──► apps/api (NestJS) ──► Postgres / Redis / S3 ├─► packages/ai (gateway) ──► LLM/Image/Embedding providers ├─► apps/crawler (Python) ──► target websites, Brave Search ├─► apps/render (Puppeteer) ──► PNG to S3 └─► apps/workers (BullMQ) ──► Meta Graph / LinkedIn / Telegram APIs
+
+text
+
+Queues (BullMQ): `brand-dna`, `plan`, `post-generate`, `render`, `publish`, `metrics`, `notify`, `cleanup`.
+
+### 3.3 Структура репозитория
+/ apps/ web/ Next.js api/ NestJS (modules: auth, workspaces, brand, ideas, posts, designer, channels, publish, analytics, billing, admin, gdpr) workers/ BullMQ processors (shares code with api via packages) crawler/ Python FastAPI render/ Puppeteer render + rembg packages/ db/ Prisma schema, migrations, seed, RLS policies (SQL) ai/ gateway, providers, tiers, cost tracking, prompt loader shared/ Zod schemas (DesignDoc, BrandDNA, Idea, Post), types, constants, platform limits ui/ shared React components, design tokens api-client/ generated from OpenAPI (orval) prompts/ versioned prompt files: <pipeline>/<step>.v<N>.md + schema.json templates/ visual templates JSON (DesignDoc), preview PNGs evals/ golden set (30 sites), eval runner, reports e2e/ Playwright infra/ Terraform, docker-compose, k8s-less (docker compose on Hetzner) docs/ SPEC.md per epic, ADRs, runbooks AGENTS.md this file (or link to it)
+
+text
+
+
+### 3.4 Окружения
+`dev` (docker compose: postgres, redis, minio, mailpit) · `staging` (Hetzner, auto-deploy from `main`) · `prod` (Hetzner, deploy by tag, manual approval).
+
+---
+
+## 4. ФИКСИРОВАННЫЕ РЕШЕНИЯ (ADR summary)
+- ADR-01: NestJS, не FastAPI, для основного API — единый TS-стек фронт/бэк/воркеры.
+- ADR-02: OpenAPI генерируется из NestJS-декораторов; фронт использует только сгенерированный клиент `packages/api-client`. Ручные fetch к API запрещены.
+- ADR-03: Единая JSON-схема `DesignDoc` для Designer и render-svc (раздел 9). Любое изменение — через `packages/shared` + миграция шаблонов.
+- ADR-04: Все AI-вызовы только через `packages/ai`. Прямые вызовы SDK провайдеров вне пакета запрещены.
+- ADR-05: Промпты — файлы в `prompts/` с версией; изменение промпта требует прогона `pnpm eval` и приложенного отчёта.
+- ADR-06: Multi-tenancy через RLS (`SET app.workspace_id`) + явный `workspace_id` в каждом запросе Prisma. Оба уровня обязательны.
+- ADR-07: Публикация — at-least-once с идемпотентностью по `publish_jobs.idempotency_key = post_variant_id + attempt_group`.
+- ADR-08: Инфраструктурная схема AI — «только API» на старте; `packages/ai` проектируется так, чтобы любой тир можно было перевести на self-hosted vLLM-эндпоинт заменой конфига.
+- ADR-09: Персональные данные (email, телефон) не передаются в промпты LLM и не пишутся в логи. Краул-контент перед LLM проходит PII-скраббер.
+- ADR-10: Мягкое удаление везде (`deleted_at`), hard-delete — отдельный cleanup-воркер через 30 дней.
+
+---
+
+## 5. КОНВЕНЦИИ
+
+### 5.1 Код
+- TypeScript strict, ESLint + Prettier (конфиг в репо), no `any` без `// eslint-disable` с причиной.
+- Именование: файлы `kebab-case.ts`, классы `PascalCase`, БД `snake_case`, enum-значения `snake_case` строки.
+- Ошибки API: RFC 7807 `{ type, title, status, detail, instance, code }`; коды в `packages/shared/errors.ts`.
+- Деньги — integer cents; время — UTC ISO в API, `timestamptz` в БД; TZ workspace применяется только на UI/в scheduler.
+- Логи — structured JSON (pino), поля `workspace_id`, `user_id`, `trace_id`, никаких PII.
+- Фичефлаги: `packages/shared/flags.ts` + env `FEATURE_*`. Все Phase-2 модули — за флагом.
+
+### 5.2 Git
+- Ветки `feat/E4.3-template-library`, `fix/...`, `chore/...`. Conventional commits.
+- PR template: Task ID · Summary · How to test · Screenshots (UI) · Eval report (prompts) · Concerns.
+- CI обязательные проверки: lint, typecheck, unit, integration (testcontainers), e2e smoke, prisma migrate diff, OpenAPI diff (breaking → fail).
+
+### 5.3 Тесты
+- Unit: Vitest (web, packages), Jest (api). Покрытие бизнес-логики ≥ 80% в `packages/ai`, `apps/api/src/{publish,billing,brand}`.
+- Integration: Postgres + Redis через testcontainers; адаптеры платформ — через `nock`/MSW с записанными фикстурами.
+- E2E: Playwright по UC из раздела 11; AI-вызовы в e2e мокаются детерминированными фикстурами (`packages/ai` имеет `MockProvider`).
+
+### 5.4 Команды
+pnpm i install pnpm dev all apps (turbo) pnpm db:migrate / db:seed prisma pnpm test / test:int / e2e pnpm eval -- --pipeline brand-dna --set golden30 pnpm openapi:gen regenerate api-client pnpm templates:validate validate templates/*.json against DesignDoc schema
+
+text
+
+
+---
+
+## 6. МОДЕЛЬ ДАННЫХ (Prisma-нотация, сокращённо; полная — `packages/db/schema.prisma`)
+
+```prisma
+model User { id String @id @default(uuid()); email String @unique; name String?; locale String @default("en"); createdAt DateTime; deletedAt DateTime?; memberships Membership[] }
+
+model Workspace { id String @id; name String; ownerId String; plan Plan @default(trial); trialEndsAt DateTime?; timezone String @default("Europe/Oslo"); country String @default("NO"); language String @default("en"); settings Json; createdAt DateTime; deletedAt DateTime? }
+enum Plan { trial starter growth agency }
+
+model Membership { userId String; workspaceId String; role Role; @@id([userId, workspaceId]) }
+enum Role { owner editor viewer }
+
+model PreviewSession { id String @id; domain String; brandProfileId String?; ipHash String; expiresAt DateTime; claimedByWorkspaceId String?; createdAt DateTime; @@index([domain]) }
+
+model BrandProfile { id String @id; workspaceId String?; previewSessionId String?; version Int; sourceUrl String?; industry String; industryConfidence Float; archetype String; tone Json /* {formal:0-1, playful:0-1, bold:0-1, warm:0-1, technical:0-1} */; audiences Json /* [{name, pains[], triggers[]}] */; usps Json; palette Json /* {primary, secondary, accent, background, text} HEX */; fonts Json /* {heading, body} Google Fonts names */; topics Json; forbidden Json; voiceExamples Json /* {do[], dont[]} */; summary String; tagline String?; rawCrawlRef String?; selfCheck Json; createdAt DateTime }
+
+model Competitor { id String @id; brandProfileId String; url String; name String; summary Json }
+
+model Asset { id String @id; workspaceId String; type AssetType; url String; width Int; height Int; meta Json; source String; createdAt DateTime; deletedAt DateTime? }
+enum AssetType { logo photo generated stock render }
+
+model Template { id String @id; workspaceId String? /* null = global */; category String; formats String[] /* ["1:1","4:5","9:16","1.91:1"] */; slots Json /* [{key, type:text|image|color, maxWords?}] */; designDoc Json; previewUrl String; tags String[]; isActive Boolean }
+
+model Idea { id String @id; workspaceId String; title String; rubric Rubric; goal Goal; format PostFormat; channels Platform[]; suggestedDate DateTime?; status IdeaStatus @default(queued); rejectReason String?; origin Origin; brief String; embedding Unsupported("vector(1536)")?; createdAt DateTime }
+enum Rubric { expert selling behind_scenes testimonial fun industry_news faq case_study }
+enum Goal { reach engagement sales }
+enum PostFormat { single carousel story reels_script }
+enum IdeaStatus { queued saved rejected converted }
+enum Origin { ai user }
+
+model Post { id String @id; workspaceId String; ideaId String?; status PostStatus @default(draft); scheduledAt DateTime?; publishedAt DateTime?; baseText String; hashtags String[]; cta String?; altText String?; format PostFormat; designDoc Json; version Int @default(1); moderation Json /* {status: pass|warn|block, flags:[{code, message, span?}]} */; visualStrategy String; autopilot Boolean @default(false); createdAt DateTime; deletedAt DateTime? }
+enum PostStatus { draft pending_approval approved scheduled publishing published failed cancelled }
+
+model PostVariant { id String @id; postId String; channelId String; platform Platform; text String; mediaUrls String[]; aspect String; externalId String?; externalUrl String?; error Json?; @@unique([postId, channelId]) }
+
+model PostVersion { id String @id; postId String; version Int; snapshot Json; author String /* user|ai|system */; reason String?; createdAt DateTime }
+
+model Channel { id String @id; workspaceId String; platform Platform; externalId String; name String; avatarUrl String?; tokenEnc Bytes; tokenExpiresAt DateTime?; scopes String[]; status ChannelStatus; meta Json; createdAt DateTime; deletedAt DateTime? }
+enum Platform { instagram facebook linkedin_personal linkedin_company telegram tiktok x youtube pinterest threads vk }
+enum ChannelStatus { active expired revoked error }
+
+model PublishJob { id String @id; postVariantId String; idempotencyKey String @unique; attempt Int; state JobState; error Json?; lockedUntil DateTime?; runAt DateTime; createdAt DateTime }
+enum JobState { pending running succeeded failed_retryable failed_final }
+
+model Metric { postVariantId String; collectedAt DateTime; reach Int?; impressions Int?; likes Int?; comments Int?; saves Int?; shares Int?; clicks Int?; @@id([postVariantId, collectedAt]) }
+
+model FeedbackEvent { id String @id; workspaceId String; entityType String /* idea|post|brand */; entityId String; action String /* save|reject|approve|edit|regenerate|publish_now */; reason String?; payload Json?; createdAt DateTime }
+
+model Subscription { workspaceId String @id; stripeCustomerId String; stripeSubId String?; plan Plan; status String; periodEnd DateTime?; cancelAt DateTime? }
+model UsageCounter { workspaceId String; period String /* YYYY-MM */; postsGenerated Int; imagesGenerated Int; channelsActive Int; @@id([workspaceId, period]) }
+model AiCall { id String @id; workspaceId String?; purpose String; tier String; provider String; model String; tokensIn Int; tokensOut Int; cached Int; costUsd Decimal; latencyMs Int; traceId String; ok Boolean; createdAt DateTime }
+model Notification { id String @id; workspaceId String; userId String; type String; channel String /* email|telegram|inapp */; payload Json; sentAt DateTime?; readAt DateTime? }
+model AuditLog { id String @id; actorId String; workspaceId String?; action String; target String; meta Json; createdAt DateTime }
+Phase 2 (создать таблицы можно сразу, не использовать): InboxItem, AdCampaign, AdCreative.
+
+RLS: все таблицы с workspaceId имеют политику workspace_id = current_setting('app.workspace_id')::uuid; служебная роль app_admin обходит RLS только в apps/workers и admin-модуле.
+
+7. API (REST, префикс /v1, OpenAPI — источник истины)
+Auth: Bearer session (Auth.js) · заголовок X-Workspace-Id обязателен для всех workspace-ресурсов · анонимные эндпоинты помечены [public].
+
+text
+
+[public] POST /preview                      {url} → {previewSessionId, status}
+[public] GET  /preview/:id                  → {status, progress[], brand?, posts?[]}   (SSE: /preview/:id/events)
+[public] POST /preview/questionnaire        {answers, logo?} → {previewSessionId}
+         POST /preview/:id/claim            → привязка к workspace после регистрации
+
+         GET/PATCH /brand                   текущая версия BrandProfile
+         POST /brand/chat   

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="alternate" hreflang="ru" href="https://rucorp.github.io/briix/presentation.html">
+<link rel="alternate" hreflang="en" href="https://rucorp.github.io/briix/en/presentation.html">
+<link rel="alternate" hreflang="x-default" href="https://rucorp.github.io/briix/presentation.html">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRIIX — project presentation</title>
+<meta name="description" content="BRIIX presentation: Your AI marketer, from your website URL. Product, market, business model, financial model, plan and team.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c09" media="(prefers-color-scheme: dark)">
+<script>
+  /* No flash: the theme is set before CSS loads */
+  (function () {
+    try {
+      var t = localStorage.getItem('briix-theme');
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+<link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body class="deck-body">
+
+<div class="deck" id="deck">
+  <div class="deck-progress"><i id="deck-progress-bar"></i></div>
+
+  <a class="deck-brand" href="index.html">
+    <img class="logo-mark" src="../assets/img/logo.svg" alt="">
+    BRIIX
+  </a>
+  <div class="deck-conf">Confidential · October 2026</div>
+  <div class="deck-theme">
+    <a class="lang-toggle" href="../presentation.html" hreflang="ru" lang="ru" title="Russian" aria-label="Switch language" onclick="try{localStorage.setItem('briix-lang','ru')}catch(e){}">RU</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+  </div>
+
+  <div class="slides">
+
+    <!-- ============ 1. TITLE ============ -->
+    <section class="slide active" id="slide-1">
+      <div class="slide-inner s-title-block">
+        <div class="kicker"><i></i>Project presentation · pre-seed</div>
+        <h1>BRIIX — <em>AI marketer</em><br>from a website URL</h1>
+        <div class="tag">Your brand, on autopilot: a month of on-brand content — 90 seconds after a link to your site</div>
+        <div class="meta">
+          <span>Product · Market · Economics</span>
+          <span>October 2026</span>
+          <span>Confidential</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 2. INVESTMENT SUMMARY ============ -->
+    <section class="slide" id="slide-2">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Summary</div>
+        <h2>A SaaS with a clear entry mechanic and healthy economics</h2>
+        <p class="s-sub">Enter your website URL — get a month of content, ready to publish. Zero effort to start, a preview before payment, 10 minutes of work a week.</p>
+        <div class="s-kpis">
+          <div class="s-kpi accent"><div class="v">$79</div><div class="l">The entry plan per month — an “AI marketing team” instead of an external team at $800+</div></div>
+          <div class="s-kpi"><div class="v">≈ 93%</div><div class="l">Gross margin at year-1 scale</div></div>
+          <div class="s-kpi"><div class="v">≈ 12</div><div class="l">LTV / CAC at CAC $120 and a 14-month client lifespan</div></div>
+          <div class="s-kpi"><div class="v">$150k</div><div class="l">Capital requirement to operating breakeven (12 months)</div></div>
+        </div>
+        <div class="s-cards-2" style="margin-top:14px">
+          <div class="s-card hl">
+            <div class="big">800 clients<small>base scenario, month 12 · MRR ≈ $88k</small></div>
+            <p>Operating breakeven is about 235 paying clients — month 7–8 of the base scenario.</p>
+          </div>
+          <div class="s-card">
+            <div class="big">8–10 weeks<small>to the public MVP launch</small></div>
+            <p>A team of 2 plus 4 AI agents, a development budget of $55–60k. The critical path is platform approvals, not code.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 3. PROBLEM ============ -->
+    <section class="slide" id="slide-3">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Problem</div>
+        <h2>Small businesses know they need to be on social media. But they fall into five traps</h2>
+        <div class="s-cards-3">
+          <div class="s-card"><div class="n">1</div><h3>No time</h3><p>The owner is busy with operations. Social media is always the “last thing to do”, month after month.</p></div>
+          <div class="s-card"><div class="n">2</div><h3>No skill</h3><p>It is unclear what to write, about what, and in what tone. An empty editor is scarier than being busy.</p></div>
+          <div class="s-card"><div class="n">3</div><h3>No budget</h3><p>An external team or an in-house marketer — $800 to $3,000 a month with unmanageable returns.</p></div>
+          <div class="s-card"><div class="n">4</div><h3>“Uninspiring” without a designer</h3><p>Generic stock images you would be embarrassed to publish. The brand is unrecognizable in the feed.</p></div>
+          <div class="s-card"><div class="n">5</div><h3>Inconsistency</h3><p>They run it for two weeks and stop. Consistency is the main driver of reach — and the main killer.</p></div>
+          <div class="s-card hl"><div class="n">→</div><h3>Consequence</h3><p>The social presence is random, not systematic. A consistent competitor calmly takes the clients.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4. SOLUTION ============ -->
+    <section class="slide" id="slide-4">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Solution</div>
+        <h2>One entry point — a website URL. The output — regular branded content</h2>
+        <p class="s-sub">The “enter a URL → get content” mechanic: no briefs, questionnaires or intro calls. The user sees a real result <b>before sign-up and before payment</b>.</p>
+        <div class="s-kpis">
+          <div class="s-kpi accent"><div class="v">90 sec</div><div class="l">From URL to the first 6 on-brand posts</div></div>
+          <div class="s-kpi"><div class="v">50+</div><div class="l">Ideas in the content plan, with dates, goals and formats</div></div>
+          <div class="s-kpi"><div class="v">10 min</div><div class="l">User time per week — or none on autopilot</div></div>
+          <div class="s-kpi"><div class="v">0</div><div class="l">Forms at entry. Onboarding without sign-up — a watermarked preview</div></div>
+        </div>
+        <div class="s-quote" style="margin-top:36px">
+          “Enter your website URL — in 90 seconds you will see your first posts.<br>
+          <b>Approve them — we do the rest.</b>»
+        </div>
+        <p class="s-note">A visible result before payment is the core conversion mechanism: the visitor is convinced by their own content, not by promises.</p>
+      </div>
+    </section>
+
+    <!-- ============ 5. PRODUCT FLOW ============ -->
+    <section class="slide" id="slide-5">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Product · user journey</div>
+        <h2>From URL to a growing feed — one closed loop</h2>
+        <div class="s-flow">
+          <div class="node"><div class="st">Step 1</div><div class="tt">URL, no forms</div><div class="dd">Validation, crawling up to 30 pages: copy, palette, fonts, logo, services</div></div>
+          <div class="node"><div class="st">Step 2</div><div class="tt">Brand DNA</div><div class="dd">Industry, audience, tone, USP, off-limits topics. Fact self-check by a second model</div></div>
+          <div class="node"><div class="st">Step 3</div><div class="tt">Preview before payment</div><div class="dd">6 posts in platform mockups with a watermark; the rest of the ideas are locked</div></div>
+          <div class="node"><div class="st">Step 4</div><div class="tt">A plan of 50+ ideas</div><div class="dd">8 rubrics, dates, goals, formats, seasonality. A queue that learns from your choices</div></div>
+          <div class="node"><div class="st">Step 5</div><div class="tt">Posts + Designer</div><div class="dd">Text, visuals, per-channel adaptations. Edits via chat or layer by layer</div></div>
+          <div class="node"><div class="st">Step 6</div><div class="tt">Calendar</div><div class="dd">Approval, bulk actions, drag-and-drop, “ask / autopilot” modes</div></div>
+          <div class="node"><div class="st">Step 7</div><div class="tt">Publishing and growth</div><div class="dd">Scheduling, reliable delivery, metrics → the next plan is smarter</div></div>
+        </div>
+        <div class="s-cards-3" style="margin-top:22px">
+          <div class="s-card"><h3>Feedback is a signal</h3><p>“Add to plan”, “Not for me, because…” — edits and metrics physically change the next generation. The system says: “Got it — you like case studies.”</p></div>
+          <div class="s-card"><h3>Moderation before publishing</h3><p>Toxicity, medical and financial promises, non-existent prices and addresses — filtered automatically and verified against the site.</p></div>
+          <div class="s-card"><h3>History and control</h3><p>Every edit is a version with rollback. Nothing is published without approval until the user turns on autopilot themselves.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 6. BRAND DNA ============ -->
+    <section class="slide" id="slide-6">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Product · core</div>
+        <h2>Brand DNA — the brand profile that works in every post</h2>
+        <div class="s-cols">
+          <div>
+            <p class="s-sub" style="margin-top:0">This is not a “company description” but a structured, versioned contract: text generation, Designer and moderation all follow it. The user can edit any element — manually or in chat.</p>
+            <ul class="s-list">
+              <li>Palette from the site’s CSS and visuals + a couple of fonts</li>
+              <li>Tone of voice on scales, archetype, “how we speak / how we don’t”</li>
+              <li>3 audience segments with pains and triggers, up to 5 USPs</li>
+              <li>Key and off-limits topics — guardrails for regulated industries</li>
+              <li>Self-check by a second model: prices, addresses, services are verified against the site</li>
+            </ul>
+          </div>
+          <div>
+            <div class="s-card hl">
+              <div class="big">≥ 90%</div>
+              <p>Target Brand DNA quality with no critical hallucinations on a control sample of 30 sites across industries — measured, not eyeballed.</p>
+            </div>
+            <div class="s-card" style="margin-top:12px">
+              <h3>Visibility is part of the value</h3>
+              <p>The user sees step-by-step progress: “Reading the site → Analyzing the industry → Building Brand DNA → Writing the first posts”. The system is working — and it shows.</p>
+            </div>
+            <div class="s-card" style="margin-top:12px">
+              <h3>No website? There is a questionnaire</h3>
+              <p>8 questions + a logo, optionally a link to a social profile. The product also works for offline businesses at the start.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 7. DIFFERENTIATION ============ -->
+    <section class="slide" id="slide-7">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Positioning</div>
+        <h2>Not a tool and not a generator — an employee</h2>
+        <p class="s-sub">Category: AI social media employee. Three pillars, defended in every product decision — they create the depth that cannot be copied over a weekend.</p>
+        <div class="s-cards-3">
+          <div class="s-card hl"><div class="n">01</div><h3>Brand DNA with visual identity</h3><p>The style is extracted from the client’s own site — palette, fonts, voice, audience. The content sounds like you, not like a robot. Plus a fact self-check.</p></div>
+          <div class="s-card hl"><div class="n">02</div><h3>Layered visuals, not a picture</h3><p>A template library + Designer with a single layer schema. The visuals are in the client’s colors and fonts, edited layer by layer, adapted to every format.</p></div>
+          <div class="s-card hl"><div class="n">03</div><h3>The feedback loop as an asset</h3><p>Every action changes the next generation. The accumulated data is an in-house ML asset that improves with every client.</p></div>
+        </div>
+        <div class="s-cards-2" style="margin-top:14px">
+          <div class="s-card"><h3>What we consciously are not</h3><p>Yet another text generator, a cheap tool with manual idea input, or a “wrapper” with template output. The investment goes into depth: rendering, scheduling, integrations, self-learning.</p></div>
+          <div class="s-card"><h3>Proof in the product</h3><p>The core marketing move is a before/after on the client’s real site: a screenshot of the site → 6 posts in their colors. The honest answer to “show us” — we show it immediately, before sign-up.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 8. FEATURE MAP ============ -->
+    <section class="slide" id="slide-8">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Product · reach</div>
+        <h2>The full social media loop in one product</h2>
+        <table class="s-table">
+          <thead>
+            <tr><th style="width:22%">Module</th><th>MVP — being built now</th><th style="width:30%">Phase 2 — roadmap</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="hl">Onboarding and Brand DNA</td><td>URL without sign-up, crawling, palette/fonts/logo, self-check, a 6-post preview ≤ 90 s — instead of a questionnaire</td><td>Style import from a social profile, generation from a product feed</td></tr>
+            <tr><td class="hl">Content plan</td><td>50+ ideas across 8 rubrics, seasonality, a learning queue, your own ideas by text/voice/photo</td><td>—</td></tr>
+            <tr><td class="hl">Post generation</td><td>Text + visuals, 4 strategies, per-channel adaptations, carousels, short video scripts, moderation, versions</td><td>Auto-video from a script, animated stories</td></tr>
+            <tr><td class="hl">Designer</td><td>Layer editing, auto-layout 1:1 / 4:5 / 9:16 / 1.91:1, background removal, custom templates, undo/redo</td><td>—</td></tr>
+            <tr><td class="hl">Channels and publishing</td><td>4 channels, token encryption, a calendar, approval mode, limited autopilot</td><td>Up to 12 channels, full autopilot with a confidence threshold</td></tr>
+            <tr><td class="hl">Inbox and ads</td><td>The data model is in place</td><td>Handling inbound and leads, ad management with automatic budget optimization</td></tr>
+            <tr><td class="hl">Analytics</td><td>Metrics at 1 h / 24 h / 7 days, a dashboard, impact on future plans, a weekly report</td><td>Industry benchmarks, best-time prediction</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 9. MARKET ============ -->
+    <section class="slide" id="slide-9">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Market and audience</div>
+        <h2>Small businesses with a website — and no marketer</h2>
+        <div class="s-cols">
+          <div>
+            <ul class="s-list">
+              <li><b>Segment:</b> companies of 1–50 employees with no in-house marketer or social media manager</li>
+              <li><b>Entry industries:</b> contractors and builders, clinics, hotels and tourism, professional services, technology companies, e-commerce</li>
+              <li><b>Geography:</b> start in the Scandinavian and English-speaking markets, then the EU. The interface in three languages from day one; content in any language of the client’s site</li>
+              <li><b>Purchase trigger:</b> consistency without effort and “looking as good as the big brands” — for the price of one lunch a week</li>
+            </ul>
+            <div class="s-quote" style="margin-top:26px">
+              Hundreds of thousands of companies pay $800–3,000 a month for what BRIIX does for <b>$79</b> — with on-brand visuals and without losing control.
+            </div>
+          </div>
+          <div>
+            <div class="s-cards-2" style="grid-template-columns:1fr 1fr; margin-top:0">
+              <div class="s-card"><div class="big">1-50</div><p>employees — the typical client is an owner or administrator without a marketing background</p></div>
+              <div class="s-card"><div class="big">3 pain points</div><p>“No time”, “don’t know what to write”, “uninspiring without a designer” — resolved by the very first preview</p></div>
+              <div class="s-card"><div class="big">B2B SaaS</div><p>A self-serve subscription with a low barrier to entry: preview before payment, cancel at any time</p></div>
+              <div class="s-card"><div class="big">Network</div><p>Every post is a product showcase: the user’s clients and competitors see the brand content</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 10. BUSINESS MODEL ============ -->
+    <section class="slide" id="slide-10">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Business model</div>
+        <h2>Subscription: $79 · $149 · $399 — and an annual plan at a 20% discount</h2>
+        <table class="s-table">
+          <thead>
+            <tr><th>Plan</th><th>Price</th><th>What’s included</th><th>Share of mix*</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="hl">Starter</td><td class="num">$79/mo</td><td>1 brand, 4 channels, 30 posts/mo, 30 AI images, Brand DNA, Designer, analytics</td><td class="num">65%</td></tr>
+            <tr><td class="hl">Growth</td><td class="num">$149/mo</td><td>8 channels, 90 posts, 100 images, full autopilot, handling inbound</td><td class="num">28%</td></tr>
+            <tr><td class="hl">Agency</td><td class="num">$399/mo</td><td>5 brands, teams, white-label</td><td class="num">7%</td></tr>
+          </tbody>
+        </table>
+        <div class="s-cards-3" style="margin-top:18px">
+          <div class="s-card"><h3>Zero barrier to entry</h3><p>A 6-post preview — without sign-up or a card. A 7-day trial with the full Starter feature set. A subscription with no lock-in.</p></div>
+          <div class="s-card"><h3>Conversion funnel</h3><p>Visitor → preview 25% → email 35% (≈ 8–9% into trial) → paying 25%. The key hook is a result on their own site before payment.</p></div>
+          <div class="s-card"><h3>Expansion revenue</h3><p>Upgrades when users hit plan limits, growth in channels and brands, annual billing. Blended ARPA including discounts — about $110.</p></div>
+        </div>
+        <p class="s-note">* Financial model assumption for a typical SMB SaaS with three plans.</p>
+      </div>
+    </section>
+
+    <!-- ============ 11. UNIT ECONOMICS ============ -->
+    <section class="slide" id="slide-11">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Unit economics</div>
+        <h2>The margin is not in infrastructure — it is in product quality</h2>
+        <div class="s-kpis">
+          <div class="s-kpi"><div class="v">$110</div><div class="l">Blended ARPA per month</div></div>
+          <div class="s-kpi"><div class="v">≈ $1 430</div><div class="l">LTV at a 14-month client lifespan and 7% monthly churn</div></div>
+          <div class="s-kpi"><div class="v">$120</div><div class="l">Blended CAC: organic, content, paid traffic</div></div>
+          <div class="s-kpi accent"><div class="v">1.2 mo</div><div class="l">CAC payback</div></div>
+        </div>
+        <div class="s-cards-3" style="margin-top:14px">
+          <div class="s-card"><div class="big">≈ 93–94%</div><p>Gross margin: AI cost of service $1.4–2.0 per client (cap $6) + other COGS ≈ $5.5 (hosting, CDN, fees).</p></div>
+          <div class="s-card"><div class="big">≈ 235</div><p>Paying clients for operating breakeven at a $19k/mo cost base and $5k/mo marketing — month 7–8.</p></div>
+          <div class="s-card"><div class="big">Stable vs. AI</div><p>A +30% rise in model prices lowers the margin to 92% — immaterial. All investment attention goes to conversion and retention.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 12. FINANCIAL MODEL ============ -->
+    <section class="slide" id="slide-12">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Financial model</div>
+        <h2>Three growth scenarios after the public launch in month 3</h2>
+        <div class="s-bar-chart">
+          <div class="bar-row"><div class="bl">Month 3</div><div class="track"><i class="dim" style="width:3%"></i><i class="alt" style="width:6%"></i><i style="width:11%"></i></div><div class="bv">25 / 50 / 90</div></div>
+          <div class="bar-row"><div class="bl">Month 6</div><div class="track"><i class="dim" style="width:14%"></i><i class="alt" style="width:29%"></i><i style="width:56%"></i></div><div class="bv">110 / 230 / 450</div></div>
+          <div class="bar-row"><div class="bl">Month 9</div><div class="track"><i class="dim" style="width:25%"></i><i class="alt" style="width:60%"></i><i style="width:100%"></i></div><div class="bv">200 / 480 / 1 000</div></div>
+          <div class="bar-row"><div class="bl">Month 12</div><div class="track"><i class="dim" style="width:38%"></i><i class="alt" style="width:100%"></i><i style="width:100%"></i></div><div class="bv">300 / 800 / 1 900</div></div>
+        </div>
+        <div class="s-legend">
+          <span><i style="background:linear-gradient(90deg,#5b5248,#7a6f61)"></i>Pessimistic</span>
+          <span><i style="background:linear-gradient(90deg,#ff8a4c,#ffb38a)"></i>Base</span>
+          <span><i style="background:linear-gradient(90deg,#7c5cff,#a594ff)"></i>Optimistic</span>
+          <span>Paying clients at month end</span>
+        </div>
+        <table class="s-table">
+          <thead><tr><th>Metric for month 12</th><th>Pessimistic</th><th>Base</th><th>Optimistic</th></tr></thead>
+          <tbody>
+            <tr><td>Paying clients</td><td class="num">300</td><td class="num hl">800</td><td class="num">1 900</td></tr>
+            <tr><td>MRR</td><td class="num">$33k</td><td class="num hl">$88k</td><td class="num">$209k</td></tr>
+            <tr><td>ARR run-rate</td><td class="num">$0.4M</td><td class="num hl">$1.06M</td><td class="num">$2.5M</td></tr>
+            <tr><td>Operating breakeven</td><td class="num">month 13–15</td><td class="num hl">month 7–8</td><td class="num">month 5</td></tr>
+            <tr><td>Cumulative cash trough</td><td class="num">−$210k</td><td class="num hl">−$150k</td><td class="num">−$110k</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 13. P&L ============ -->
+    <section class="slide" id="slide-13">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Financial model · P&L</div>
+        <h2>Base scenario, month 12: operating profit ≈ $50,800</h2>
+        <div class="s-cols">
+          <div>
+            <table class="s-table" style="margin-top:0">
+              <thead><tr><th>Item</th><th style="text-align:right">$ / month</th></tr></thead>
+              <tbody>
+                <tr><td>Revenue (800 clients × $110)</td><td class="num" style="text-align:right">88 000</td></tr>
+                <tr><td>COGS: AI ($1.6) + other ($5.5) per client</td><td class="num" style="text-align:right">−5 700</td></tr>
+                <tr><td class="hl">Gross profit (93.5%)</td><td class="num hl" style="text-align:right">82 300</td></tr>
+                <tr><td>Team of 2 + AI agents</td><td class="num" style="text-align:right">−16 500</td></tr>
+                <tr><td>Infrastructure, services, legal</td><td class="num" style="text-align:right">−3 000</td></tr>
+                <tr><td>Marketing</td><td class="num" style="text-align:right">−12 000</td></tr>
+                <tr><td class="hl">Operating profit</td><td class="num hl" style="text-align:right">≈ +50 800</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div class="s-card"><h3>Model sensitivity</h3>
+              <ul class="s-list" style="margin-top:14px">
+                <li>AI prices +30% → margin 93% → 92% — immaterial</li>
+                <li>CAC $250 instead of $120 → LTV/CAC ≈ 6 — growth costs $8–10k/mo more</li>
+                <li>Churn 10% instead of 7% → LTV −30%, month 12 — 620 clients instead of 800</li>
+                <li>Trial → paid conversion 15% instead of 25% → breakeven shifts by +3–4 months, +$50k needed</li>
+              </ul>
+            </div>
+            <div class="s-card hl" style="margin-top:12px">
+              <h3>Investor takeaway</h3>
+              <p>The model is resilient to AI prices and CAC growth. It is sensitive to two things — conversion to paid and retention. That is why the investment goes into generation quality, visuals and the feedback loop.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 14. PLAN ============ -->
+    <section class="slide" id="slide-14">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Execution plan</div>
+        <h2>MVP — 8–10 weeks: 6 weeks of building, then beta and launch</h2>
+        <table class="s-table">
+          <thead><tr><th style="width:14%">Week</th><th>Focus</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td class="num">0</td><td>Scope sign-off, accounts, filing platform approval applications, infrastructure</td><td>The application on staging</td></tr>
+            <tr><td class="num">1</td><td>The AI gateway, auth and data isolation, the crawler, Brand DNA prompts, evals</td><td>URL → Brand DNA for 30 control sites</td></tr>
+            <tr><td class="num">2</td><td>Content plan, idea queue, preview session, post prompts, moderation</td><td>An anonymous visitor gets 6 preview posts</td></tr>
+            <tr><td class="num">3</td><td>The render service, 60 templates, Designer, image generation</td><td>A post with an on-brand visual, edits in the editor</td></tr>
+            <tr><td class="num">4</td><td>Channel connections, publishing and scheduler, calendar, payments, notifications</td><td>The full cycle to publishing in 4 channels</td></tr>
+            <tr><td class="num">5</td><td>Analytics, quotas, GDPR, landing page, E2E, load, security</td><td>A feature-complete MVP on staging</td></tr>
+            <tr><td class="num">6</td><td>Closed beta: 20 users from 5 industries, daily feedback</td><td>MVP acceptance metrics</td></tr>
+            <tr><td class="num">7–8</td><td>Approvals (or plan B), production, launch</td><td>Public launch</td></tr>
+            <tr><td class="num">9–16</td><td>Phase 2: full autopilot → inbound → ads → new channels → multi-brand</td><td>The Growth and Agency plans are full-featured</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 15. TEAM ============ -->
+    <section class="slide" id="slide-15">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Team and operating model</div>
+        <h2>A capital-efficient build: 2 people + 4 AI agents</h2>
+        <div class="s-cards-4">
+          <div class="s-card"><div class="n">TL</div><h3>Tech Lead</h3><p>Architecture, the AI gateway and prompts, integrations and platform approvals, DevOps, final review.</p></div>
+          <div class="s-card"><div class="n">PL</div><h3>Product Lead</h3><p>Product and prioritization, UX, Designer and templates, landing page, beta users.</p></div>
+          <div class="s-card"><div class="n">A1·A2</div><h3>Build agents</h3><p>Backend modules and workers, screens and components — every task: one PR, spec before code.</p></div>
+          <div class="s-card"><div class="n">A3·A4</div><h3>Quality agents</h3><p>Prompts, schemas, eval runs, templates. Automated tests, CI, first-line review of every PR.</p></div>
+        </div>
+        <div class="s-cards-3" style="margin-top:14px">
+          <div class="s-card hl"><div class="big">≈ 4–5×</div><p>Acceleration versus a classic team: an effective speed of ≈ 4–5 person-days per calendar day.</p></div>
+          <div class="s-card"><div class="big">$55–60k</div><p>MVP development budget: team $35k, agent work $6–9k, infrastructure $3k, legal and licenses, 15% reserve.</p></div>
+          <div class="s-card"><div class="big">Rules</div><p>Spec before code, API contracts as the source of truth, a work-in-process limit, weekly eval reports. A human is responsible for security, money and decisions.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 16. RISKS ============ -->
+    <section class="slide" id="slide-16">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Risks</div>
+        <h2>We know what can go wrong — and what we do about it</h2>
+        <table class="s-table">
+          <thead><tr><th style="width:34%">Risk</th><th style="width:12%">Likelihood</th><th>Measure</th></tr></thead>
+          <tbody>
+            <tr><td class="hl">Platform approvals drag on</td><td class="num">High</td><td>0 applications per week; a demo video and a privacy policy from day one; a fallback launch plan without one network, a waitlist</td></tr>
+            <tr><td class="hl">Generation quality that looks like everyone else’s</td><td class="num">High</td><td>Investment in depth: Brand DNA + self-check, layered visuals, the feedback loop, a weekly eval on a control sample</td></tr>
+            <tr><td class="hl">Hallucinations (prices, addresses, medical claims)</td><td class="num">Medium</td><td>Site verification, industry moderation, an “always ask” list, automation disabled on sensitive topics</td></tr>
+            <tr><td class="hl">Low trial → paid conversion</td><td class="num">Medium</td><td>An early landing-page smoke test for $1k and 2 weeks instead of $60k and 10 weeks of building blind</td></tr>
+            <tr><td class="hl">AI cost eats the margin</td><td class="num">Medium</td><td>Model tiers, caching, budget limits, tracing of every call. The margin absorbs a +30% price increase</td></tr>
+            <tr><td class="hl">Leakage of client account credentials</td><td class="num">Low</td><td>Token encryption, per-workspace data isolation, minimal permissions, access auditing</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 17. ASK ============ -->
+    <section class="slide" id="slide-17">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Round</div>
+        <h2>Capital requirement: $150k to operating breakeven</h2>
+        <div class="s-cols">
+          <div>
+            <table class="s-table" style="margin-top:0">
+              <thead><tr><th>Use of funds</th><th style="text-align:right">Amount</th></tr></thead>
+              <tbody>
+                <tr><td>MVP development (team, agents, infrastructure, legal)</td><td class="num" style="text-align:right">$55–60k</td></tr>
+                <tr><td>Operating expenses until breakeven</td><td class="num" style="text-align:right">≈ $95k</td></tr>
+                <tr><td class="hl">Total — base scenario</td><td class="num hl" style="text-align:right">$150k</td></tr>
+                <tr><td>With headroom for the pessimistic scenario</td><td class="num" style="text-align:right">$200k</td></tr>
+              </tbody>
+            </table>
+            <p class="s-note">Format: own funds / angel round / pre-seed. In the optimistic scenario — bootstrap from month 5.</p>
+          </div>
+          <div>
+            <div class="s-card hl"><h3>Where the money goes</h3>
+              <div class="s-bar-chart" style="margin-top:16px">
+                <div class="bar-row"><div class="bl">Development</div><div class="track"><i style="width:38%"></i></div><div class="bv">38%</div></div>
+                <div class="bar-row"><div class="bl">Marketing</div><div class="track"><i class="alt" style="width:32%"></i></div><div class="bv">32%</div></div>
+                <div class="bar-row"><div class="bl">Team</div><div class="track"><i style="width:20%"></i></div><div class="bv">20%</div></div>
+                <div class="bar-row"><div class="bl">Reserve</div><div class="track"><i class="dim" style="width:10%"></i></div><div class="bv">10%</div></div>
+              </div>
+            </div>
+            <div class="s-card" style="margin-top:12px"><h3>What the investor gets</h3><p>A transparent model with check gates, regular reporting on funnel and retention metrics, exposure to a high-margin category with a clear growth mechanic.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 18. GATES ============ -->
+    <section class="slide" id="slide-18">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Execution discipline</div>
+        <h2>Decisions are made by gates, not by feel</h2>
+        <table class="s-table">
+          <thead><tr><th style="width:8%">#</th><th>GO condition</th><th style="width:18%">Timeline</th><th style="width:16%">Stop rule</th></tr></thead>
+          <tbody>
+            <tr><td class="num">G1</td><td class="hl">Landing smoke test: ≥ 8% of visitors → email on a sample of 500+ visits</td><td>Week 2–3</td><td>&lt; 5% — revisit positioning BEFORE development</td></tr>
+            <tr><td class="num">G2</td><td class="hl">Publication approval filings submitted</td><td>Week 0</td><td>Channel fallback plan</td></tr>
+            <tr><td class="num">G3</td><td class="hl">Brand DNA ≥ 90% with no critical hallucinations on the control sample</td><td>Week 1–2</td><td>&lt; 80% — we do not enter beta</td></tr>
+            <tr><td class="num">G4</td><td class="hl">Confirmed capital of $150k (or $60k + a plan for the rest)</td><td>By week 0</td><td>Start only with funding closed</td></tr>
+            <tr><td class="num">G5</td><td class="hl">Name, domain and trademark checks completed</td><td>Week 0</td><td>Name change before public materials</td></tr>
+          </tbody>
+        </table>
+        <div class="s-cards-3" style="margin-top:16px">
+          <div class="s-card"><h3>MVP acceptance criteria</h3><p>Publishing success ≥ 98%, ≥ 50% of posts approved without edits, NPS ≥ 30, AI cost of service within the limit per actual traces.</p></div>
+          <div class="s-card"><h3>Beta metrics (week 6)</h3><p>20 users from 5 industries, daily feedback. The public launch decision — based on numbers, not enthusiasm.</p></div>
+          <div class="s-card"><h3>Four strategic bets</h3><p>A preview converts better than a form. Businesses trust the autopilot after 2–4 weeks. An on-brand template is “beautiful enough”. The feedback loop genuinely improves the output.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 19. VISION ============ -->
+    <section class="slide" id="slide-19">
+      <div class="slide-inner">
+        <div class="s-eyebrow">Vision</div>
+        <h2>An “AI social media employee on subscription” for a million small businesses</h2>
+        <div class="s-cols">
+          <div>
+            <div class="s-quote">
+              Make regular branded social presence as simple as connecting a CRM: <b>no marketer, no agency, no designer</b> — for any business with a website.
+            </div>
+            <ul class="s-list" style="margin-top:28px">
+              <li>From the first channel to the full loop: content, publishing, inbound, ads, analytics</li>
+              <li>A system that knows the client’s brand better than an in-house employee — because it learns from every decision</li>
+              <li>An in-house ML asset built on accumulated data: quality grows with scale instead of degrading</li>
+            </ul>
+          </div>
+          <div>
+            <div class="s-cards-2" style="grid-template-columns:1fr; margin-top:0">
+              <div class="s-card hl"><div class="big">Year 1</div><p>MVP, beta, public launch, 300–1,900 paying clients across the scenarios. The focus is generation quality and consistency.</p></div>
+              <div class="s-card"><div class="big">Year 2</div><p>Full autopilot, handling inbound, ads, 12 channels, multi-brand and an agency plan. Expansion into adjacent EU markets.</p></div>
+              <div class="s-card"><div class="big">Long-term</div><p>A gradual move to in-house models as data accumulates — preserving margin and quality.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 20. FINAL ============ -->
+    <section class="slide" id="slide-20">
+      <div class="slide-inner s-title-block">
+        <div class="kicker"><i></i>BRIIX · October 2026</div>
+        <h1>Your brand —<br><em>on autopilot</em></h1>
+        <div class="tag">Enter your website URL — and in 90 seconds you will see your first content.<br>BRIIX does the rest.</div>
+        <div class="meta">
+          <span>Product: briix</span>
+          <span>Round: $150k</span>
+          <span>Contact — through the channel this presentation came from</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="deck-controls">
+    <button id="deck-prev" aria-label="Previous slide">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="deck-counter" id="deck-counter">1 / 20</div>
+    <button id="deck-next" aria-label="Next slide">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+  </div>
+  <div class="deck-hint">← → navigate · Home / End · print to PDF</div>
+</div>
+
+<script src="../assets/js/theme.js"></script>
+<script src="../assets/js/deck.js"></script>
+</body>
+</html>

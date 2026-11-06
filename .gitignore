@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Agent workspace
+.omo/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Node / build
+node_modules/
+dist/
+build/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

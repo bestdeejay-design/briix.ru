@@ -78,6 +78,33 @@ curl https://api.example/v1/chat/completions \\
   </div>`;
 }
 
+/* ---------- кабинет ---------- */
+function guard() { return true; }
+function overview() {
+  const app = document.getElementById('app');
+  const total = state.usage.length;
+  const tokens = state.usage.reduce((s, u) => s + u.tin + u.tout, 0);
+  const cost = state.usage.reduce((s, u) => s + u.cost, 0);
+  const activeKeys = state.keys.filter((k) => k.status === 'active').length;
+  app.innerHTML = `
+  <h1>Обзор</h1>
+  <p class="lead">Workspace: <strong>demo</strong> (личный) · проект: default</p>
+  <div class="grid">
+    <div class="card stat"><div class="n">${fmt(total)}</div><div class="l">запросов</div></div>
+    <div class="card stat"><div class="n">${fmt(tokens)}</div><div class="l">токенов всего</div></div>
+    <div class="card stat"><div class="n">$${cost.toFixed(4)}</div><div class="l">стоимость (оценка)</div></div>
+    <div class="card stat"><div class="n">${activeKeys}</div><div class="l">активных ключей</div></div>
+  </div>
+  <h2>Быстрые действия</h2>
+  <div class="row">
+    <button onclick="go('/keys')">Выпустить ключ</button>
+    <button class="ghost" onclick="go('/playground')">Открыть playground</button>
+  </div>
+  <h2>Статус</h2>
+  <div class="card"><span class="tag ok">mock-адаптер: active</span> &nbsp; <span class="tag warn">реальный inference: фаза 2</span>
+  <p class="lead" style="margin:10px 0 0">Прототип обслуживает только mock-модели; выбор backend (ЦОД / Yandex Cloud) — за владельцем, см. issue R1.</p></div>`;
+}
+
 function models() {
   const app = document.getElementById('app');
   app.innerHTML = `

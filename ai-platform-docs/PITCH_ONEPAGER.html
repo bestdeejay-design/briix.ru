@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Единый AI-шлюз — питч для инвесторов и партнёров</title>
+<style>
+  :root{--bg:#0b1119;--panel:#121d28;--panel2:#172532;--line:#29404d;--text:#f2f5f2;--muted:#a8b8b8;--mint:#a8f0c5;--mint2:#55d99a;--amber:#f2c879}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:#080d13;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+  body{display:flex;justify-content:center;padding:22px}
+  .sheet{width:297mm;min-height:210mm;background:var(--bg);padding:10mm 11mm 8mm;display:flex;flex-direction:column;gap:4.2mm;position:relative;overflow:hidden;border:1px solid #24313a}
+  .sheet:before{content:"";position:absolute;right:-35mm;top:-52mm;width:120mm;height:120mm;border:1px solid rgba(168,240,197,.12);border-radius:50%;box-shadow:0 0 0 15mm rgba(168,240,197,.025),0 0 0 31mm rgba(168,240,197,.018);pointer-events:none}
+  .topline{display:flex;justify-content:space-between;align-items:center;color:var(--mint);font-size:8pt;letter-spacing:.16em;text-transform:uppercase;font-weight:700;position:relative;z-index:1}
+  .brandmark{display:flex;align-items:center;gap:8px}.dot{width:8px;height:8px;background:var(--mint2);border-radius:50%;box-shadow:0 0 15px rgba(85,217,154,.7)}
+  .stage{border:1px solid var(--line);border-radius:99px;padding:5px 10px;color:var(--muted);letter-spacing:.05em;text-transform:none;font-weight:500}
+  header{position:relative;z-index:1;border-bottom:1px solid var(--line);padding:1mm 0 4mm;display:grid;grid-template-columns:1fr 56mm;align-items:end;gap:8mm}
+  h1{font-size:27pt;line-height:1.02;letter-spacing:-.045em;margin:0;max-width:205mm;font-weight:750}
+  h1 span{color:var(--mint)}
+  .subhead{margin-top:2.5mm;color:var(--muted);font-size:10.5pt;line-height:1.35;max-width:210mm}
+  .tagbox{align-self:end;border-left:2px solid var(--mint2);padding:1mm 0 1mm 4mm;color:var(--muted);font-size:8.5pt;line-height:1.4}
+  .tagbox b{display:block;color:var(--text);font-size:10pt;margin-bottom:1mm}
+  .main{display:grid;grid-template-columns:1.62fr 1fr;gap:4mm;position:relative;z-index:1;flex:1;min-height:0}
+  .card{background:linear-gradient(145deg,var(--panel),rgba(18,29,40,.77));border:1px solid var(--line);border-radius:3mm;padding:4mm 4.5mm}
+  .script{display:flex;flex-direction:column;justify-content:space-between}
+  .eyebrow{color:var(--mint);font-size:7.3pt;text-transform:uppercase;letter-spacing:.14em;font-weight:750;margin-bottom:2mm}
+  .script h2{font-size:14pt;letter-spacing:-.02em;margin:0 0 2.4mm}
+  .script p{font-size:9.25pt;line-height:1.45;color:#e0e8e6;margin:0 0 2mm}
+  .script p:last-of-type{margin-bottom:0}
+  .quote{border-left:2px solid var(--mint2);padding-left:3.4mm}
+  .quote strong{color:#fff}
+  .side{display:grid;grid-template-rows:1fr 1fr 1fr;gap:3mm}
+  .mini{padding:3.4mm 4mm}
+  .mini h3{font-size:10pt;margin:0 0 1.3mm;letter-spacing:-.01em}
+  .mini p{font-size:8.3pt;line-height:1.4;color:var(--muted);margin:0}
+  .mini .num{color:var(--mint);font-size:7.3pt;letter-spacing:.14em;font-weight:750;margin-bottom:1.4mm}
+  .footer{display:grid;grid-template-columns:1.1fr 1fr 1.1fr;gap:3mm;position:relative;z-index:1}
+  .footcard{border-top:1px solid var(--line);padding:2.5mm 1mm 0}
+  .footcard h3{font-size:8.3pt;color:var(--mint);letter-spacing:.09em;text-transform:uppercase;margin:0 0 1.2mm}
+  .footcard p{font-size:7.7pt;line-height:1.37;color:var(--muted);margin:0}
+  .footcard b{color:var(--text)}
+  .fine{font-size:6.5pt;color:#7f9296;line-height:1.25;border-top:1px solid rgba(41,64,77,.6);padding-top:2mm;position:relative;z-index:1}
+  @media screen and (max-width:900px){body{padding:0}.sheet{width:100%;min-height:100vh;border:0;padding:24px;gap:18px}header{grid-template-columns:1fr}.tagbox{display:none}h1{font-size:34px}.main{grid-template-columns:1fr}.side{grid-template-columns:1fr;grid-template-rows:auto}.footer{grid-template-columns:1fr}.script p{font-size:14px}.mini p{font-size:13px}}
+  @media print{
+    @page{size:A4 landscape;margin:0}
+    html,body{width:297mm;height:210mm;background:var(--bg);padding:0;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .sheet{width:297mm;height:210mm;min-height:0;padding:9mm 10mm 7mm;border:0;gap:3.5mm;page-break-after:avoid;break-after:avoid;overflow:hidden}
+    .topline{font-size:7.5pt}header{padding-bottom:3mm}h1{font-size:25pt}.subhead{font-size:9.5pt}
+    .main{gap:3mm}.card{padding:3.2mm 3.8mm}.script h2{font-size:13pt}.script p{font-size:8.25pt;line-height:1.37;margin-bottom:1.5mm}.side{gap:2mm}.mini{padding:2.8mm 3.4mm}.mini h3{font-size:9pt}.mini p{font-size:7.4pt;line-height:1.33}.footer{gap:2mm}.footcard p{font-size:7pt}.fine{font-size:6pt}
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+  <div class="topline">
+    <div class="brandmark"><i class="dot"></i><span>Технологическая платформа · рабочее название</span></div>
+    <div class="stage">Investor &amp; partner brief · 2026</div>
+  </div>
+  <header>
+    <div>
+      <h1>Несколько ИИ.<br><span>Один API. Один ключ.</span></h1>
+      <div class="subhead">OpenAI-совместимый шлюз для российских компаний и разработчиков — с единым кабинетом, выбором моделей и контролем использования.</div>
+    </div>
+    <div class="tagbox"><b>Суть проекта</b>Доступ к разрешённым моделям через одну платформу — с инфраструктурой, которую можно выбирать по экономике.</div>
+  </header>
+  <section class="main">
+    <article class="card script">
+      <div>
+        <div class="eyebrow">Устный питч · около 90 секунд</div>
+        <h2>Мы строим единую точку доступа к ИИ-моделям</h2>
+        <div class="quote">
+          <p>Мы создаём веб-платформу, которая даёт российским компаниям и разработчикам <strong>единый OpenAI-совместимый API для работы с несколькими ИИ-моделями</strong>. Вместо отдельных интеграций и ключей клиент получает один ключ, один кабинет и контроль использования.</p>
+          <p>Для юридических лиц мы строим сценарий оплаты в рублях с расчётного счёта и понятного документооборота. Для разработчиков — быстрый доступ к моделям через привычный API. Следующим этапом может стать веб-чат, который позволит попробовать модели и затем перейти к API.</p>
+          <p>У команды уже есть собственный небольшой ЦОД, опыт настройки локальных моделей и шлюз для доступа к платформам моделей. Сейчас мы сравниваем экономику собственного размещения и облачных вариантов, включая Yandex Cloud. <strong>Пользовательский интерфейс останется единым — backend можно подключать и менять через адаптеры.</strong></p>
+          <p>Стартовая ценовая гипотеза — наценка не выше 20% к подтверждённой базовой стоимости. Сейчас ищем пилотных клиентов и партнёров по моделям и инфраструктуре; инвестиционный разговор будем опирать на проверенную экономику и результаты пилотов.</p>
+        </div>
+      </div>
+    </article>
+    <aside class="side">
+      <section class="card mini"><div class="num">01 / КЛИЕНТЫ</div><h3>Две точки входа</h3><p><b>Юрлица:</b> доступ к моделям и рублёвый расчёт с расчётного счёта.<br><b>Разработчики:</b> несколько моделей через один API-ключ.</p></section>
+      <section class="card mini"><div class="num">02 / ОСНОВА</div><h3>Не с нуля</h3><p>Свой небольшой ЦОД, опыт локального inference и уже созданный шлюз. Проверяем фактическую себестоимость и готовность к многопользовательской работе.</p></section>
+      <section class="card mini"><div class="num">03 / ЭКОНОМИКА</div><h3>Прозрачный старт</h3><p>Рабочая гипотеза — наценка до 20% к базе. Сравниваем собственный ЦОД, managed-модели и облачные вычисления; условия провайдеров проверяем отдельно.</p></section>
+    </aside>
+  </section>
+  <section class="footer">
+    <div class="footcard"><h3>Что создаём</h3><p>Веб-кабинет · единый API · каталог моделей · ключи и лимиты · учёт запросов.</p></div>
+    <div class="footcard"><h3>Кого ищем</h3><p>Пилотных клиентов, провайдеров моделей и инфраструктуры, партнёров по интеграции.</p></div>
+    <div class="footcard"><h3>Следующий шаг</h3><p>Проверить unit economics на реальной нагрузке и провести первые клиентские пилоты. Без выдуманных метрик и обещаний.</p></div>
+  </section>
+  <div class="fine">Рабочий материал для переговоров. Конкретные модели, тарифы, SLA, договорные права и схема обработки данных не заявляются до проверки. Наценка — предварительная гипотеза, не публичный прайс.</div>
+</main>
+</body>
+</html>

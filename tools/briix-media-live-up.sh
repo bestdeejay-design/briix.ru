@@ -29,7 +29,8 @@ if port_busy 8300; then
     echo "ERROR: port 8300 is busy by another process" >&2; exit 1
   fi
 else
-  ssh -f -N -M -S /tmp/briix-live-ssh-control -L 8300:127.0.0.1:8390 fonotext-stand
+  # Detached master; stdout/stderr closed so the script's pipes don't hang on it.
+  ssh -f -N -M -S /tmp/briix-live-ssh-control -L 8300:127.0.0.1:8390 fonotext-stand >/dev/null 2>&1 </dev/null
   sleep 1
   echo "tunnel: started 127.0.0.1:8300 → fonotext-stand:8390"
 fi

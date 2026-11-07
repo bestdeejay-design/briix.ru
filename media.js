@@ -137,7 +137,7 @@
   }
   function heading() {
 
-    return `<div class="page-header media-heading"><div><div class="eyebrow">Визуальная мастерская</div><h1>Изображения</h1><p>От идеи до визуального черновика: фото и видео. Спокойно, наглядно, в одном месте.</p></div><button class="btn media-help" data-media-action="help">${icon('help')}<span>Как это работает</span></button></span> <button class="btn ${liveActive() ? 'primary' : ''} media-live-toggle" data-media-action="live" aria-pressed="${liveActive()}">${icon('terminal')}${liveActive() ? '<span>Live включён</span>' : '<span>Приватный live (эксперимент)</span>'}</button></div>
+    return `<div class="page-header media-heading"><div><div class="eyebrow">Визуальная мастерская</div><h1>Изображения</h1><p>От идеи до визуального черновика: фото и видео. Спокойно, наглядно, в одном месте.</p></div><span><button class="btn media-help" data-media-action="help">${icon('help')}<span>Как это работает</span></button></span> <button class="btn ${liveActive() ? 'primary' : ''} media-live-toggle" data-media-action="live" aria-pressed="${liveActive()}">${icon('terminal')}${liveActive() ? '<span>Live включён</span>' : '<span>Приватный live (эксперимент)</span>'}</button></div>
       <div class="media-mode-note">${icon('flask')}<span><strong>Локальный мок, не нейросеть.</strong> Фото выбраны из готовой коллекции; видео — плавная анимация кадра. Бриф сохраняется, но не управляет пикселями. Без API, кредитов и загрузки файлов.</span></div>
       <div id="media-storage-notice" class="storage-banner" role="status" hidden></div>
       <div id="media-live-banner" class="storage-banner" role="status" hidden></div>

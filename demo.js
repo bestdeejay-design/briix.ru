@@ -101,6 +101,8 @@
     media: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 16 5-5 4 4 3-3 6 6"/><path d="m14 3 1.2 3.8L19 8l-3.8 1.2L14 13l-1.2-3.8L9 8l3.8-1.2L14 3Z"/>',
     play: '<path d="m9 5 10 7-10 7V5Z"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 16 5-5 4 4 3-3 6 6"/>',
+    music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4m-3 0h6"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5M21 12H9"/>'
   };
   function icon(name, extra = '') { return `<svg class="icon ${extra}" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.sparkles}</svg>`; }
@@ -112,7 +114,8 @@
   function currentChat() { const id = route().id; return state.chats.find(c => c.id === id); }
   function route() {
     const parts = (location.hash || '#/home').replace(/^#\/?/, '').split('/');
-    return { page: ['home', 'assistants', 'prompts', 'favorites', 'media', 'settings', 'chat'].includes(parts[0]) ? parts[0] : 'home', id: parts[1] || '' };
+    const page = ['home', 'assistants', 'prompts', 'favorites', 'media', 'images', 'music', 'settings', 'chat'].includes(parts[0]) ? parts[0] : 'home';
+    return { page: page === 'images' ? 'media' : page, id: parts[1] || '' };
   }
   function navigate(path) {
     closeSidebar(false);
@@ -213,7 +216,7 @@
   function renderSidebar() {
     const r = route();
     const favoriteCount = state.chats.filter(c => c.favorite).length + state.saved.length + state.favoritePrompts.length;
-    const nav = [['assistants', 'grid', 'Помощники'], ['prompts', 'library', 'Библиотека промптов'], ['media', 'media', 'Медиа-студия'], ['favorites', 'star', 'Избранное']];
+    const nav = [['assistants', 'grid', 'Помощники'], ['prompts', 'library', 'Библиотека промптов'], ['media', 'image', 'Изображения'], ['music', 'music', 'Музыка'], ['favorites', 'star', 'Избранное']];
     const sorted = [...state.chats].sort((a, b) => b.updatedAt - a.updatedAt);
     const today = new Date().setHours(0, 0, 0, 0);
     const groups = [['Сегодня', sorted.filter(c => c.updatedAt >= today)], ['Ранее', sorted.filter(c => c.updatedAt < today)]];
@@ -231,7 +234,7 @@
   }
   function renderTopbar() {
     const r = route(); const chat = currentChat();
-    const labels = { home: 'Новый диалог', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Медиа-студия', settings: 'Настройки', chat: chat?.title || 'Диалог не найден' };
+    const labels = { home: 'Новый диалог', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Изображения', music: 'Музыка', settings: 'Настройки', chat: chat?.title || 'Диалог не найден' };
     $('#topbar').innerHTML = `<button class="icon-btn mobile-menu" data-action="toggle-sidebar" aria-label="Открыть меню" aria-controls="sidebar" aria-expanded="false">${icon('menu')}</button><div class="breadcrumb">${icon('compass')}<span class="workspace-crumb">Личное пространство</span><span class="slash">/</span><span class="breadcrumb-current">${esc(labels[r.page])}</span></div><div class="topbar-actions"><button class="badge" data-action="about" title="Это демо со сценарными ответами"><span class="dot"></span>Демо без backend</button><span class="topbar-separator"></span><button class="icon-btn" data-action="toggle-theme" aria-pressed="${document.documentElement.dataset.theme === 'dark'}" aria-label="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}" title="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button><button class="icon-btn help-top" data-action="shortcuts" aria-label="Справка и горячие клавиши" title="Справка и горячие клавиши">${icon('help')}</button></div>`;
   }
   function updateSidebarAccess() {
@@ -290,7 +293,7 @@
     const selected = assistant(state.selectedAssistant);
     const name = state.settings.name.trim().split(' ')[0];
     const quickIcons = [selected.icon, 'lightbulb', 'route'];
-    main.innerHTML = `<section class="home" aria-labelledby="home-title"><div class="home-intro"><div class="greeting-mark">${brandMark()}</div><h1 id="home-title">${name ? esc(name) + ', с чего начнём?' : 'Больше ясности. Меньше рутины.'}</h1><p>Поможем разобраться, найти слова и превратить идею в следующий шаг.</p></div><div class="assistant-strip" role="group" aria-label="Выбор помощника">${assistants.slice(0, 5).map(a => `<button class="assistant-chip tone-${a.tone} ${a.id === selected.id ? 'selected' : ''}" data-action="select-assistant" data-id="${a.id}" aria-pressed="${a.id === selected.id}">${icon(a.icon)}${esc(a.name)}</button>`).join('')}<a class="assistant-chip more" href="#/assistants" aria-label="Все помощники" title="Все помощники">${icon('grid')}</a></div>${composerMarkup()}${state.settings.showSuggestions ? `<div class="quick-heading"><h2>Немного вдохновения для старта</h2><button class="text-btn" data-action="shuffle-prompts">${icon('refresh')}Другой помощник</button></div><div class="quick-grid" id="quick-grid">${selected.prompts.map((p, i) => `<button class="quick-card tone-${selected.tone}" data-action="use-assistant-prompt" data-id="${selected.id}" data-index="${i}">${icon(quickIcons[i])}<strong>${esc(p.title)}</strong><span>${esc(p.text.length > 85 ? p.text.slice(0, 82) + '…' : p.text)}</span></button>`).join('')}</div>` : ''}<div class="home-bottom">${icon('flask')}Это демо: ответы сценарные, возможности интерфейса — настоящие.<button data-action="about">Подробнее</button></div></section>`;
+    main.innerHTML = `<section class="home" aria-labelledby="home-title"><div class="home-intro"><div class="greeting-mark">${brandMark()}</div><h1 id="home-title">${name ? esc(name) + ', с чего начнём?' : 'Больше ясности. Меньше рутины.'}</h1><p>Поможем разобраться, найти слова и превратить идею в следующий шаг.</p></div><div class="assistant-strip" role="group" aria-label="Выбор помощника">${assistants.slice(0, 5).map(a => `<button class="assistant-chip tone-${a.tone} ${a.id === selected.id ? 'selected' : ''}" data-action="select-assistant" data-id="${a.id}" aria-pressed="${a.id === selected.id}">${icon(a.icon)}${esc(a.name)}</button>`).join('')}<a class="assistant-chip more" href="#/assistants" aria-label="Все помощники" title="Все помощники">${icon('grid')}</a></div>${composerMarkup()}${state.settings.showSuggestions ? `<div class="quick-heading"><h2>Немного вдохновения для старта</h2><button class="text-btn" data-action="shuffle-prompts">${icon('refresh')}Другой помощник</button></div><div class="quick-grid" id="quick-grid">${selected.prompts.map((p, i) => `<button class="quick-card tone-${selected.tone}" data-action="use-assistant-prompt" data-id="${selected.id}" data-index="${i}">${icon(quickIcons[i])}<strong>${esc(p.title)}</strong><span>${esc(p.text.length > 85 ? p.text.slice(0, 82) + '…' : p.text)}</span></button>`).join('')}</div>` : ''}<div class="studio-links" role="group" aria-label="Мастерские"><a class="studio-link" href="#/media"><span class="avatar tone-green">${icon('image')}</span><span class="studio-link-text"><strong>Изображения</strong><small>Фото и видео для контента · локальный мок</small></span>${icon('arrowRight')}</a><a class="studio-link" href="#/music"><span class="avatar tone-teal">${icon('music')}</span><span class="studio-link-text"><strong>Музыка</strong><small>Песня, инструментал или джингл · локальный мок</small></span>${icon('arrowRight')}</a></div><div class="home-bottom">${icon('flask')}Это демо: ответы сценарные, возможности интерфейса — настоящие.<button data-action="about">Подробнее</button></div></section>`;
     renderAttachments(); updateComposerState();
   }
   /* Catalogs */
@@ -556,7 +559,7 @@
     openModal('Знакомьтесь, ' + a.name.toLowerCase(), `<div class="modal-detail-top tone-${a.tone}">${avatar(a, 'large')}<div><h3>${esc(a.name)}</h3><p>${esc(a.short)}</p></div></div><p>${esc(a.description)}</p><div class="skill-list tone-${a.tone}">${a.skills.map(s => `<span class="skill">${esc(s)}</span>`).join('')}</div><div class="eyebrow" style="margin-top:22px">Попробуйте на примере</div><div class="detail-prompts">${a.prompts.map((p, i) => `<button class="detail-prompt" data-action="use-assistant-prompt" data-id="${a.id}" data-index="${i}"><span>${esc(p.title)}</span>${icon('arrowRight')}</button>`).join('')}</div><div class="catalog-note">${icon('flask')}<span>Ответы сценарные. Помощник не подключён к модели и не выполняет действия во внешних сервисах.</span></div>`, [{ label: 'Закрыть', action: closeModal }, { label: 'Начать диалог', primary: true, action: () => { state.selectedAssistant = a.id; closeModal(); navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); } }]);
   }
   function about() {
-    openModal('Место для идей. Пока — демо.', `<p>Это интерактивный прототип пользовательского опыта BRIIX. Можно исследовать весь интерфейс без регистрации и backend.</p><div class="about-grid"><div class="about-item">${icon('check')}<div><strong>Работает по-настоящему</strong><p>Выбор помощника, диалоги, поиск, история, избранное, экспорт, настройки, тёмная тема и мобильная версия. Данные сохраняются в вашем браузере.</p></div></div><div class="about-item">${icon('flask')}<div><strong>Имитируется честно</strong><p>Ответы — заранее подготовленные сценарии, а не работа нейросети. Медиа-студия использует локальные изображения и анимации, не inference. Знакомые примеры раскрываются подробно; на другой текст помощник даёт демонстрационный ответ своего профиля.</p></div></div><div class="about-item">${icon('paperclip')}<div><strong>Файлы — визуальные заглушки</strong><p>Сохраняются только имя, тип и размер. Содержимое не читается, никуда не загружается и не анализируется.</p></div></div><div class="about-item">${icon('shield')}<div><strong>Локально не значит навсегда</strong><p>Очистка данных браузера удалит историю. Для переноса или резервной копии используйте экспорт JSON в настройках. Не вводите чувствительные данные на общем устройстве.</p></div></div></div><div class="eyebrow" style="margin-top:20px">Вопросы о демо</div><div class="faq-list">${faqItem('model', 'Это настоящая нейросеть?', 'Нет. Ответы заранее подготовлены под примеры и профили помощников. Так можно проверять интерфейс, не подключая модель и не отправляя данные наружу.')}${faqItem('storage', 'Куда сохраняются диалоги?', 'Только в localStorage этого браузера. На другом устройстве или после очистки данных браузера история не появится. Для переноса есть экспорт и импорт JSON в настройках.')}${faqItem('files', 'Что происходит с файлами?', 'Это визуальные заглушки. Сохраняются имя, тип и размер, чтобы проверить интерфейс вложений. Содержимое не читается, не анализируется и не загружается на сервер.')}${faqItem('backend', 'Можно ли потом подключить backend?', 'Да. Экраны, состояние и сценарные ответы отделены друг от друга. Позже сценарный генератор можно заменить реальным API, сохранив пользовательский интерфейс.')}</div>`, [{ label: 'Понятно, попробуем', primary: true, action: closeModal }], true);
+    openModal('Место для идей. Пока — демо.', `<p>Это интерактивный прототип пользовательского опыта BRIIX. Можно исследовать весь интерфейс без регистрации и backend.</p><div class="about-grid"><div class="about-item">${icon('check')}<div><strong>Работает по-настоящему</strong><p>Выбор помощника, диалоги, поиск, история, избранное, экспорт, настройки, тёмная тема и мобильная версия. Данные сохраняются в вашем браузере.</p></div></div><div class="about-item">${icon('flask')}<div><strong>Имитируется честно</strong><p>Ответы — заранее подготовленные сценарии, а не работа нейросети. Раздел «Изображения» использует локальные картинки и анимации, а «Музыка» — синтезированную в браузере звуковую заглушку без вокала. Это не inference. Знакомые примеры раскрываются подробно; на другой текст помощник даёт демонстрационный ответ своего профиля.</p></div></div><div class="about-item">${icon('paperclip')}<div><strong>Файлы — визуальные заглушки</strong><p>Сохраняются только имя, тип и размер. Содержимое не читается, никуда не загружается и не анализируется.</p></div></div><div class="about-item">${icon('shield')}<div><strong>Локально не значит навсегда</strong><p>Очистка данных браузера удалит историю. Для переноса или резервной копии используйте экспорт JSON в настройках. Не вводите чувствительные данные на общем устройстве.</p></div></div></div><div class="eyebrow" style="margin-top:20px">Вопросы о демо</div><div class="faq-list">${faqItem('model', 'Это настоящая нейросеть?', 'Нет. Ответы заранее подготовлены под примеры и профили помощников. Так можно проверять интерфейс, не подключая модель и не отправляя данные наружу.')}${faqItem('storage', 'Куда сохраняются диалоги?', 'Только в localStorage этого браузера. На другом устройстве или после очистки данных браузера история не появится. Для переноса есть экспорт и импорт JSON в настройках.')}${faqItem('files', 'Что происходит с файлами?', 'Это визуальные заглушки. Сохраняются имя, тип и размер, чтобы проверить интерфейс вложений. Содержимое не читается, не анализируется и не загружается на сервер.')}${faqItem('backend', 'Можно ли потом подключить backend?', 'Да. Экраны, состояние и сценарные ответы отделены друг от друга. Позже сценарный генератор можно заменить реальным API, сохранив пользовательский интерфейс.')}</div>`, [{ label: 'Понятно, попробуем', primary: true, action: closeModal }], true);
   }
   function shortcuts() {
     openModal('Меньше кликов, больше мысли', `<p>Работает на macOS, Windows и Linux. Вместо ⌘ можно использовать Ctrl.</p>${[['Поиск по пространству', isMac ? '⌘ K' : 'Ctrl K'], ['Новый диалог', isMac ? '⌘ ⇧ O' : 'Ctrl ⇧ O'], ['Отправить сообщение', state.settings.enterToSend ? 'Enter' : (isMac ? '⌘ Enter' : 'Ctrl Enter')], ['Перенести строку', 'Shift Enter'], ['Закрыть окно или меню', 'Esc'], ['Перейти по результатам поиска', '↑ / ↓ / Enter']].map(([label, keys]) => `<div class="shortcut-row"><span>${label}</span><kbd>${keys}</kbd></div>`).join('')}<div class="catalog-note">${icon('info')}<span>Настройки отправки можно поменять в разделе «Поведение». На телефоне используйте кнопку со стрелкой.</span></div>`, [{ label: 'Открыть настройки', action: () => { closeModal(); navigate('settings'); } }, { label: 'Закрыть', primary: true, action: closeModal }]);
@@ -574,7 +577,7 @@
   /* Search */
   function openSearch() {
     if (modal.open) closeModal(); closeSidebar(false); searchReturnFocus = document.activeElement; searchQuery = '';
-    searchModal.innerHTML = `<div class="search-input-row">${icon('search')}<input id="global-search" type="search" autocomplete="off" placeholder="Диалоги, помощники, промпты, медиа…" aria-label="Поиск по диалогам, помощникам, промптам и медиа" aria-controls="search-results"><button class="icon-btn small" data-action="close-search" aria-label="Закрыть поиск">${icon('close')}</button></div><div class="search-results" id="search-results"></div><div class="search-footer"><span>↑ ↓ — выбрать · Enter — открыть</span><span>Esc — закрыть</span></div>`;
+    searchModal.innerHTML = `<div class="search-input-row">${icon('search')}<input id="global-search" type="search" autocomplete="off" placeholder="Диалоги, помощники, промпты, изображения, музыка…" aria-label="Поиск по диалогам, помощникам, промптам, изображениям и музыке" aria-controls="search-results"><button class="icon-btn small" data-action="close-search" aria-label="Закрыть поиск">${icon('close')}</button></div><div class="search-results" id="search-results"></div><div class="search-footer"><span>↑ ↓ — выбрать · Enter — открыть</span><span>Esc — закрыть</span></div>`;
     updateSearchResults(); if (!searchModal.open) searchModal.showModal(); $('#global-search').focus();
   }
   function closeSearch() { if (searchModal.open) searchModal.close(); }
@@ -585,8 +588,9 @@
     const prompts = q ? promptLibrary.filter(p => (p.title + ' ' + p.description + ' ' + p.text).toLowerCase().includes(q)).slice(0, 5) : [];
     const group = (label, rows) => rows.length ? `<div class="search-group-label">${label}</div>${rows.join('')}` : '';
     const result = (action, id, ic, title, subtitle) => `<button class="search-result" data-action="${action}" data-id="${esc(id)}">${icon(ic)}<span class="search-result-text"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></span>${icon('arrowRight')}</button>`;
-    const media = !q || 'медиа-студия фото видео генерация контент'.includes(q) ? [result('search-media', '', 'media', 'Медиа-студия', 'Фото, видео и рецепты · локальный мок')] : [];
-    $('#search-results').innerHTML = chats.length || people.length || prompts.length || media.length ? group('Разделы', media) + group('Диалоги', chats.map(c => result('search-chat', c.id, 'chat', c.title, assistant(c.assistantId).name + ' · ' + dateLabel(c.updatedAt)))) + group('Помощники', people.map(a => result('search-assistant', a.id, a.icon, a.name, a.short))) + group('Промпты', prompts.map(p => result('use-prompt', p.id, 'library', p.title, p.category + ' · ' + assistant(p.assistant).name))) : `<div class="search-empty">По запросу «${esc(searchQuery)}» ничего нет.<br><span class="faint">Попробуйте «план», «письмо» или «код».</span></div>`;
+    const media = !q || 'изображения медиа-студия медиа фото видео картинки генерация контент'.includes(q) ? [result('search-media', '', 'image', 'Изображения', 'Фото, видео и рецепты · локальный мок')] : [];
+    const music = !q || 'музыка песни песня вокал инструментал джингл трек звук музыкальный'.includes(q) ? [result('search-music', '', 'music', 'Музыка', 'Песни, инструменталы и джинглы · локальный мок')] : [];
+    $('#search-results').innerHTML = chats.length || people.length || prompts.length || media.length || music.length ? group('Разделы', media.concat(music)) + group('Диалоги', chats.map(c => result('search-chat', c.id, 'chat', c.title, assistant(c.assistantId).name + ' · ' + dateLabel(c.updatedAt)))) + group('Помощники', people.map(a => result('search-assistant', a.id, a.icon, a.name, a.short))) + group('Промпты', prompts.map(p => result('use-prompt', p.id, 'library', p.title, p.category + ' · ' + assistant(p.assistant).name))) : `<div class="search-empty">По запросу «${esc(searchQuery)}» ничего нет.<br><span class="faint">Попробуйте «план», «письмо» или «код».</span></div>`;
   }
   /* Patterns reused from site/: reveal on scroll, sticky header shadow, settings scroll-spy */
   function setupReveals() {
@@ -615,18 +619,20 @@
   /* Rendering and events */
   function render() {
     const r = route();
+    if (r.page !== 'music') window.BRIIX_MUSIC?.pause();
     renderSidebar(); renderTopbar();
     if (r.page === 'home') renderHome();
     else if (r.page === 'assistants') renderAssistants();
     else if (r.page === 'prompts') renderPrompts();
     else if (r.page === 'favorites') renderFavorites();
     else if (r.page === 'settings') renderSettings();
-    else if (r.page === 'media') { if (window.BRIIX_MEDIA) window.BRIIX_MEDIA.render(main, { icon, esc, toast, openModal, closeModal, download, copyText, navigate, reducedMotion }); else main.innerHTML = '<section class="page"><h1>Медиа-студия</h1><p>Модуль не загрузился. Обновите страницу или проверьте локальные файлы.</p></section>'; }
+    else if (r.page === 'music') { if (window.BRIIX_MUSIC) window.BRIIX_MUSIC.render(main, { icon, esc, toast, openModal, closeModal, download, copyText, navigate, reducedMotion }); else main.innerHTML = '<section class="page"><h1>Музыка</h1><p>Модуль не загрузился. Обновите страницу или проверьте локальные файлы.</p></section>'; }
+    else if (r.page === 'media') { if (window.BRIIX_MEDIA) window.BRIIX_MEDIA.render(main, { icon, esc, toast, openModal, closeModal, download, copyText, navigate, reducedMotion }); else main.innerHTML = '<section class="page"><h1>Изображения</h1><p>Модуль не загрузился. Обновите страницу или проверьте локальные файлы.</p></section>'; }
     else renderChat();
     updateStorageNotice();
     if (r.page === 'chat') scrollToBottom(true); else main.scrollTop = 0;
     setupReveals(); updateTopbarShadow(); if (r.page === 'settings') updateSettingsSpy();
-    document.title = (r.page === 'chat' && currentChat() ? currentChat().title + ' — BRIIX' : ({ home: 'Ваше пространство для идей', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Медиа-студия', settings: 'Настройки' }[r.page] || 'Диалог')) + ' — BRIIX';
+    document.title = (r.page === 'chat' && currentChat() ? currentChat().title + ' — BRIIX' : ({ home: 'Ваше пространство для идей', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Изображения', music: 'Музыка', settings: 'Настройки' }[r.page] || 'Диалог')) + ' — BRIIX';
   }
   const actions = {
     'new-chat': () => { pendingAttachments = []; state.selectedAssistant = state.settings.defaultAssistant; navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); },
@@ -668,6 +674,7 @@
     'about': about, 'shortcuts': shortcuts, 'close-modal': closeModal,
     'search': openSearch, 'close-search': closeSearch,
     'search-media': () => { closeSearch(); navigate('media'); },
+    'search-music': () => { closeSearch(); navigate('music'); },
     'search-chat': el => { closeSearch(); navigate('chat/' + el.dataset.id); },
     'search-assistant': el => { closeSearch(); assistantDetails(el.dataset.id); },
     'toggle-sidebar': () => $('#sidebar').classList.contains('open') ? closeSidebar() : openSidebar(),
@@ -679,7 +686,7 @@
   };
   function resetDemo(notify) { if (activeStream) stopResponse(); state = freshState(); pendingAttachments = []; pendingSend = false; storageAvailable = true; storageProtected = false; storageWarning = ''; persist(); applySettings(); closeModal(); navigate('home'); if (notify) toast('Начальное демо восстановлено'); }
   document.addEventListener('click', event => {
-    if (event.target.closest('.media-page, .media-modal')) return;
+    if (event.target.closest('.media-page, .media-modal, .music-page, .music-modal')) return;
     const el = event.target.closest('[data-action]'); if (!el || el.disabled) return;
     const action = actions[el.dataset.action]; if (action) { event.preventDefault(); action(el); }
   });
@@ -731,7 +738,7 @@
   window.addEventListener('hashchange', () => { closeSidebar(false); pendingAttachments = []; if (draftTimer) flushDraft(); render(); });
   window.addEventListener('resize', () => { updateComposerState(); $$('.faq-item.open .faq-a').forEach(a => { a.style.maxHeight = a.scrollHeight + 'px'; }); });
   main.addEventListener('scroll', onMainScroll, { passive: true });
-  window.addEventListener('pagehide', () => { flushDraft(); window.BRIIX_MEDIA?.suspend(); });
+  window.addEventListener('pagehide', () => { flushDraft(); window.BRIIX_MEDIA?.suspend(); window.BRIIX_MUSIC?.suspend(); });
   mobileQuery.addEventListener('change', () => { closeSidebar(false); updateSidebarAccess(); });
   systemTheme.addEventListener('change', () => { if (state.settings.theme === 'system') { applySettings(); renderTopbar(); } });
   window.addEventListener('storage', event => {

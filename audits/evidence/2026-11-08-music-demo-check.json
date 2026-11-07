@@ -1,0 +1,402 @@
+{
+  "date": "2026-11-08",
+  "task": "Music section in the static demo + rename Media studio to Images",
+  "branch": "arena/dddc314e-briix-ru",
+  "base_commit": "d0e489912203c0870b7e36f1c77009c5133864fd",
+  "scope": "static demo only; no model bus, no live inference, no server or store work",
+  "browser_suites": {
+    "tools/check-music.cjs": {
+      "passed": 23,
+      "failed": 0,
+      "checks": [
+        "navigation, images rename and #/images alias",
+        "theme toggle stays on music route",
+        "short brief rejected",
+        "kind defaults and genre/mood BPM suggestion",
+        "instrumental synthesis and escaped project",
+        "playback, seek and pause",
+        "WAV download",
+        "vocal task returns backing track with structure",
+        "jingle duration",
+        "library filters, search, favorite and reuse",
+        "brief export",
+        "delete confirmation",
+        "simulated error and retry",
+        "cancel",
+        "running job recovered after reload",
+        "axe clean in light and dark",
+        "tablist keyboard navigation",
+        "global search music",
+        "music assistant, prompt category and scripted answer",
+        "library capacity guard keeps favorites",
+        "corrupt storage protected until explicit clear",
+        "mobile navigation and layout",
+        "no page errors and no external requests"
+      ],
+      "failures": [],
+      "environment": "Chromium 153 headless (@sparticuz/chromium), static server http://127.0.0.1:3000"
+    },
+    "tools/check-demo.cjs": {
+      "passed": 20,
+      "failed": 0,
+      "checks": [
+        "all routes render",
+        "theme route guard and settings focus",
+        "header theme toggle stays on route",
+        "bootstrap theme validation",
+        "draft flush and cross-tab guard",
+        "pending-send guard and scripted response",
+        "stream holder across navigation",
+        "simulated error retry and one-shot reset",
+        "attachment validation and metadata only",
+        "durable export excludes ephemeral",
+        "import normalization",
+        "regenerate variant cap",
+        "corrupt storage protected until explicit clear",
+        "modal version focus guard",
+        "skip link",
+        "markdown escaping and copy-code guard",
+        "global search media",
+        "code header contrast",
+        "reduced motion and axe [{\"theme\":\"light\",\"route\":\"home\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"assistants\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"prompts\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"favorites\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"settings\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"media\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"chat/example-coffee\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"home\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"assistants\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"prompts\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"favorites\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"settings\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"media\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"chat/example-coffee\",\"violations\":[]}]",
+        "no page errors or external requests"
+      ],
+      "failures": [],
+      "environment": "Chromium 153 headless (@sparticuz/chromium), static server http://127.0.0.1:3000"
+    },
+    "tools/check-media.cjs": {
+      "passed": 25,
+      "failed": 0,
+      "checks": [
+        "short prompt rejected",
+        "reference type/size/count limits",
+        "photo job and escaped project",
+        "image preview/download 1:1",
+        "image preview/download 4:5",
+        "image preview/download 16:9",
+        "image preview/download 9:16",
+        "video playback/download 16:9",
+        "video playback/download 9:16",
+        "WebM fallback playback",
+        "populated image label contrast",
+        "library filters/search/favorite/reuse",
+        "brief export",
+        "delete confirmation",
+        "simulated error and retry",
+        "cancel",
+        "running job recovered after reload",
+        "active limit and protected capacity",
+        "bounded eviction preserves favorites",
+        "retry capacity remains reloadable",
+        "corrupt storage protected and explicit clear recovery",
+        "tab keyboard navigation",
+        "help modal focus/escape",
+        "responsive and axe [{\"width\":390,\"tab\":\"create\",\"violations\":[]},{\"width\":390,\"tab\":\"library\",\"violations\":[]},{\"width\":390,\"tab\":\"queue\",\"violations\":[]},{\"width\":390,\"tab\":\"models\",\"violations\":[]},{\"width\":1440,\"tab\":\"create\",\"violations\":[]},{\"width\":1440,\"tab\":\"library\",\"violations\":[]},{\"width\":1440,\"tab\":\"queue\",\"violations\":[]},{\"width\":1440,\"tab\":\"models\",\"violations\":[]}]",
+        "no page errors or external requests"
+      ],
+      "failures": [],
+      "environment": "Chromium 153 headless (@sparticuz/chromium), static server http://127.0.0.1:3000"
+    }
+  },
+  "local_synthesis_timing": [
+    {
+      "duration": 10,
+      "wall_ms": 4765
+    },
+    {
+      "duration": 20,
+      "wall_ms": 4145
+    },
+    {
+      "duration": 30,
+      "wall_ms": 6931
+    }
+  ],
+  "files_sha256": {
+    "music.js": "b257e18987fc10b2342819a6e38c04b251c3ec6064ba144051dee20928e6399d",
+    "music.css": "233f2f6960dab76c403baf2f90650f9b77cf645826f85816038d4214eb5830ee",
+    "demo.js": "4509d7c5fd7d076742d1001c8dd0c8820a0c548a3b684c22fd48f0b22e61a87e",
+    "demo.css": "c8fee4ee14063852958936c655f5fa26f1c9f564b695ebf61da2a95c4bab370f",
+    "demo-data.js": "0d8550bc2b7aba9450796f8bbc6bec7e12a26d33c4a80a38cc4fa9e8ebba91c6",
+    "media.js": "95d95af1043ac4075343ef49130327ff3a3cafb8b0d4418e72b4f1fd40e39a66",
+    "index.html": "49043a98addd419b82ccd50c2164ccea2e8e6b5703c156b2bb5ccac03dbc3584",
+    "tools/check-music.cjs": "5a16cbf8011aa385634aac678a8e2367067777d4240dabdeca5e7815c8e2b10c",
+    "audits/task-music-demo-section.md": "8dac66ad7894e90ecfefc0c8d033ac08139a755b226c08af14375ac8254178c3",
+    "audits/README.md": "a66e393ccfb1e96c2d2e7b7523e2eff3ae97ac055ff034e305823960b62e48dd"
+  },
+  "checks": [
+    {
+      "name": "browser_suite:music",
+      "pass": true,
+      "detail": {
+        "passed": 23,
+        "failed": 0
+      }
+    },
+    {
+      "name": "browser_suite:demo",
+      "pass": true,
+      "detail": {
+        "passed": 20,
+        "failed": 0
+      }
+    },
+    {
+      "name": "browser_suite:media",
+      "pass": true,
+      "detail": {
+        "passed": 25,
+        "failed": 0
+      }
+    },
+    {
+      "name": "node_check:demo.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:demo-data.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:media.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:music.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:tools/check-music.cjs",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "css_braces:demo.css",
+      "pass": true,
+      "detail": {
+        "open": 533,
+        "close": 533
+      }
+    },
+    {
+      "name": "css_no_conflict:demo.css",
+      "pass": true
+    },
+    {
+      "name": "css_braces:media.css",
+      "pass": true,
+      "detail": {
+        "open": 228,
+        "close": 228
+      }
+    },
+    {
+      "name": "css_no_conflict:media.css",
+      "pass": true
+    },
+    {
+      "name": "css_braces:music.css",
+      "pass": true,
+      "detail": {
+        "open": 165,
+        "close": 165
+      }
+    },
+    {
+      "name": "css_no_conflict:music.css",
+      "pass": true
+    },
+    {
+      "name": "no_site_or_docs_changes",
+      "pass": true,
+      "detail": [
+        "audits/README.md",
+        "audits/task-music-demo-section.md",
+        "demo-data.js",
+        "demo.css",
+        "demo.js",
+        "index.html",
+        "media.js",
+        "music.css",
+        "music.js",
+        "tools/check-music.cjs"
+      ]
+    },
+    {
+      "name": "session_branch",
+      "pass": true
+    },
+    {
+      "name": "origin_main_in_head",
+      "pass": true
+    },
+    {
+      "name": "diff_whitespace",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "no_cjk:music.js",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:music.js",
+      "pass": true
+    },
+    {
+      "name": "final_newline:music.js",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:music.css",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:music.css",
+      "pass": true
+    },
+    {
+      "name": "final_newline:music.css",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:demo.js",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:demo.js",
+      "pass": true
+    },
+    {
+      "name": "final_newline:demo.js",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:demo.css",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:demo.css",
+      "pass": true
+    },
+    {
+      "name": "final_newline:demo.css",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:demo-data.js",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:demo-data.js",
+      "pass": true
+    },
+    {
+      "name": "final_newline:demo-data.js",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:media.js",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:media.js",
+      "pass": true
+    },
+    {
+      "name": "final_newline:media.js",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:index.html",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:index.html",
+      "pass": true
+    },
+    {
+      "name": "final_newline:index.html",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:tools/check-music.cjs",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:tools/check-music.cjs",
+      "pass": true
+    },
+    {
+      "name": "final_newline:tools/check-music.cjs",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:audits/task-music-demo-section.md",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:audits/task-music-demo-section.md",
+      "pass": true
+    },
+    {
+      "name": "final_newline:audits/task-music-demo-section.md",
+      "pass": true
+    },
+    {
+      "name": "no_cjk:audits/README.md",
+      "pass": true
+    },
+    {
+      "name": "no_trailing_ws:audits/README.md",
+      "pass": true
+    },
+    {
+      "name": "final_newline:audits/README.md",
+      "pass": true
+    },
+    {
+      "name": "site_hidden_guard_intact",
+      "pass": true
+    },
+    {
+      "name": "site_theme_tokens_intact",
+      "pass": true
+    },
+    {
+      "name": "site_css_unchanged",
+      "pass": true
+    },
+    {
+      "name": "index_loads_music",
+      "pass": true
+    },
+    {
+      "name": "no_runtime_deps",
+      "pass": true
+    },
+    {
+      "name": "music_no_network_calls",
+      "pass": true
+    },
+    {
+      "name": "music_no_audio_in_storage",
+      "pass": true
+    }
+  ],
+  "passed": 55,
+  "failed": 0,
+  "not_verified": [
+    "real iOS/Android devices and Safari/Firefox",
+    "background audio session on mobile OS",
+    "screen readers (NVDA/VoiceOver)",
+    "low-end device performance",
+    "live model bus #23 and capabilities song.vocal / music.generate",
+    "store packaging and review",
+    "music model weight licences"
+  ]
+}

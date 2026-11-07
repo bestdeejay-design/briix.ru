@@ -199,6 +199,13 @@ kbd { font-family: var(--font); font-size: 10px; font-weight: 450; color: var(--
 .quick-card > .icon { width: 18px; height: 18px; color: var(--tone); margin-bottom: 13px; }
 .quick-card strong { font-size: 12px; font-weight: 550; margin-bottom: 5px; }
 .quick-card span { font-size: 11px; color: var(--faint); line-height: 1.65; }
+.studio-links { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-top: 22px; }
+.studio-link { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); transition: border-color var(--motion-base) var(--ease-standard), box-shadow var(--motion-base) var(--ease-standard); }
+.studio-link:hover { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.studio-link-text { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.studio-link-text strong { font-size: 12px; font-weight: 550; }
+.studio-link-text small { font-size: 10px; color: var(--faint); }
+.studio-link > .icon { width: 16px; height: 16px; color: var(--muted); }
 .home-bottom { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 27px; font-size: 9px; color: var(--faint); }
 .home-bottom .icon { width: 12px; height: 12px; }
 .home-bottom button { font-size: 9px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
@@ -445,6 +452,7 @@ dialog { color: var(--ink); }
   body.sidebar-open { overflow: hidden; }
 }
 @media (max-width: 540px) {
+  .studio-links { grid-template-columns: 1fr; }
   .topbar { padding: 0 11px; }
   .topbar-actions .badge { font-size: 8px; padding: 2px 5px; }
   .topbar-actions .help-top { display: none; }

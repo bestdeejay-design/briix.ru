@@ -150,11 +150,43 @@
   }
 
   async function cancel(j) {
-    try { await fetch(server() + '/jobs/' + encodeURIComponent(j.serverJobId) + '/cancel', { method: 'POST', headers: headers() }); }
-    catch { /* server gone: mark interrupted below */ }
+    let reachable = false;
+    try {
+      const r = await fetch(server() + '/jobs/' + encodeURIComponent(j.serverJobId) + '/cancel', { method: 'POST', headers: headers() });
+      reachable = r.ok || r.status === 409; // сервер ответил: его правда принимаем
+    } catch { /* сеть/туннель умерли: C2 — это НЕ «отменено» */ }
     stopPoll(j.serverJobId);
-    host.patchJob(j.id, { status: 'cancelled' });
-    api().toast('Live-задача остановлена.');
+    if (reachable) {
+      host.patchJob(j.id, { status: 'cancelled' });
+      api().toast('Live-задача остановлена.');
+    } else {
+      // C2: сетевая ошибка отмены ≠ отменено. Прерываем и показываем баннер.
+      host.patchJob(j.id, { status: 'interrupted', error: 'Не удалось отменить: сервер недоступен.' });
+      banner('Связь с сервером потеряна при отмене. Задача помечена как прерванная; повтор доступен в очереди.');
+      api().toast('Отменить не удалось: сервер недоступен. Задача прервана.', 'error');
+    }
+  }
+
+  async function resubmit(j) {
+    // C3: повтор прерванной/истёкшей live-задачи — новый серверный джоб.
+    if (!token()) { askToken(); host.patchJob(j.id, { status: 'interrupted', error: 'Нет bearer-токена.' }); return; }
+    banner('');
+    let payload;
+    try {
+      const r = await fetch(server() + '/jobs', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ type: j.type, prompt: j.prompt, params: j.ratio && j.type === 'image' ? { ratio: j.ratio } : {} })
+      });
+      if (!r.ok) { host.patchJob(j.id, { status: 'error', error: 'Сервер не принял повтор (' + r.status + ').' }); api().toast('Сервер не принял повтор задачи.', 'error'); return; }
+      payload = await r.json();
+    } catch {
+      host.patchJob(j.id, { status: 'interrupted', error: 'Сервер недоступен при повторе.' });
+      banner('Мок-режим (live недоступен): повтор не отправлен.');
+      return;
+    }
+    host.patchJob(j.id, { serverJobId: payload.job_id, status: 'queued', error: null });
+    api().toast('Live-задача повторно отправлена на сервер.');
+    startPoll(j.id, payload.job_id);
   }
 
   function askToken() {
@@ -198,6 +230,7 @@
     toggle,
     submit,
     cancel,
+    resubmit,
     download,
     displayUrl,
     settings: () => ({ server: server(), hasToken: !!token() }),

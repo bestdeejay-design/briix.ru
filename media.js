@@ -268,11 +268,17 @@
   }
   function submit() {
     syncForm();
-    if (liveActive()) { window.BRIIX_MEDIA_LIVE.submit({ type: form.type === 'video' ? 'image' : form.type, prompt: form.prompt.trim(), project: form.project.trim(), ratio: form.ratio }); return; }
-    const error = $('#media-form-error', root);
-    if (form.prompt.trim().length < 12) { error.hidden = false; error.textContent = 'Добавьте хотя бы 12 символов: что показать, какой свет и какое настроение.'; $('#media-prompt', root).setAttribute('aria-invalid', 'true'); $('#media-prompt', root).focus(); return; }
+    // C1: в live-режиме те же клиентские проверки ДО ухода на сервер, чтобы не
+    // получать generic 400/429 от bff: валидация промпта и лимит активности.
+    if (form.prompt.trim().length < 12) {
+      const error = $('#media-form-error', root);
+      error.hidden = false; error.textContent = 'Добавьте хотя бы 12 символов: что показать, какой свет и какое настроение.';
+      $('#media-prompt', root).setAttribute('aria-invalid', 'true'); $('#media-prompt', root).focus();
+      return;
+    }
     if (activeCount() >= MAX_ACTIVE || !makeRoom()) { host.toast('Достигнут лимит очереди или медиатеки. Освободите место в медиатеке.', 'error'); return; }
-    error.hidden = true; $('#media-prompt', root).removeAttribute('aria-invalid');
+    $('#media-form-error', root).hidden = true; $('#media-prompt', root).removeAttribute('aria-invalid');
+    if (liveActive()) { window.BRIIX_MEDIA_LIVE.submit({ type: form.type === 'video' ? 'image' : form.type, prompt: form.prompt.trim(), project: form.project.trim(), ratio: form.ratio }); return; }
     const j = { id: uid(), type: form.type, recipe: form.recipe, asset: form.asset, goal: form.goal, ratio: form.ratio, project: form.project.trim(), prompt: form.prompt.trim(), status: 'queued', progress: 0, favorite: false, createdAt: Date.now(), startedAt: null, fail: form.failNext, references: references.map(f => ({ ...f })) };
     state.jobs.unshift(j);
     // Capacity was checked before insertion. Only oldest unprotected settled work is evicted.
@@ -285,10 +291,13 @@
     if (j.mode === 'live') { window.BRIIX_MEDIA_LIVE && window.BRIIX_MEDIA_LIVE.cancel(j); return; }
     j.status = 'cancelled'; j.startedAt = null; const saved = persist(); updateCounts(); renderPanel(); host.toast(saved ? 'Задача остановлена. Бриф сохранён.' : 'Задача остановлена. Бриф доступен только в этой вкладке.'); }
   function retry(id) {
-    const old = job(id); if (!old || !['error', 'cancelled'].includes(old.status)) return;
+    // C3: прерванная (interrupted) и истёкшая (expired) live-задача тоже повторяется.
+    const old = job(id); if (!old || !['error', 'cancelled', 'interrupted', 'expired'].includes(old.status)) return;
     if (activeCount() >= MAX_ACTIVE || !makeRoom()) { host.toast('Очередь или хранилище заполнены. Освободите место перед повтором.', 'error'); return; }
-    const j = { ...old, id: uid(), status: 'queued', progress: 0, favorite: false, createdAt: Date.now(), startedAt: null, fail: false };
-    state.jobs.unshift(j); trimCapacity(); persist(); updateCounts(); renderPanel(); ensureTimer(); host.toast('Повтор добавлен в очередь без демо-ошибки.');
+    // Новая задача — чистая: server-поля старой live-задачи не наследуются.
+    const j = { ...old, id: uid(), status: 'queued', progress: 0, favorite: false, createdAt: Date.now(), startedAt: null, fail: false, serverJobId: undefined, resultUrl: undefined, error: undefined, stage: undefined };
+    state.jobs.unshift(j); trimCapacity(); persist(); updateCounts(); renderPanel(); ensureTimer(); host.toast(old.mode === 'live' ? 'Live-задача отправлена повторно.' : 'Повтор добавлен в очередь без демо-ошибки.');
+    if (old.mode === 'live' && window.BRIIX_MEDIA_LIVE && window.BRIIX_MEDIA_LIVE.active()) window.BRIIX_MEDIA_LIVE.resubmit(j);
   }
   function reuse(id) { const j = job(id); if (!j) return; host.closeModal(); form = { ...form, type: j.type, recipe: j.recipe, asset: j.asset, goal: j.goal, ratio: j.ratio, project: j.project, prompt: j.prompt, failNext: false }; references = j.references.map(f => ({ ...f })); tab = 'create'; render(); $('#media-prompt', root)?.focus(); host.toast('Бриф перенесён в форму. Можно изменить детали.'); }
   function favorite(id) { const j = job(id); if (!j || j.status !== 'ready') return; j.favorite = !j.favorite; persist(); if (tab === 'library') updateLibrary(); else if (tab === 'create') { $('#media-preview', root).innerHTML = previewMarkup(readyJobs()[0]); $('video', root)?.load(); } if (detailId === id && $('#modal').open) detail(id); }

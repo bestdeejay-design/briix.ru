@@ -33,6 +33,8 @@ const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000
 const TOKEN = 'test-token';
 let bffUp = true;   // /health up
 let filesUp = true; // /files/{id} up (false simulates retention cleanup 404)
+let cancelUp = true; // /cancel up (false simulates failed cancel, C2)
+let jobsPostCount = 0; // count of POST /jobs (C3 resubmit)
 function bffServer(port) {
   return new Promise(resolve => {
     const s = http.createServer((req, res) => {
@@ -40,7 +42,8 @@ function bffServer(port) {
       if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
       if (req.url === '/health') { res.writeHead(bffUp ? 200 : 503, cors); res.end(bffUp ? JSON.stringify({ ok: true, backends: { image: true, music: true, text: true } }) : 'down'); return; }
       if (req.headers.authorization !== 'Bearer ' + TOKEN) { res.writeHead(401, cors); res.end('{"error":{"code":"unauthorized"}}'); return; }
-      if (req.url === '/jobs' && req.method === 'POST') { res.writeHead(202, cors); res.end(JSON.stringify({ job_id: 'job-abc' })); return; }
+      if (req.url === '/jobs' && req.method === 'POST') { jobsPostCount++; res.writeHead(202, cors); res.end(JSON.stringify({ job_id: 'job-abc' })); return; }
+      if (req.url === '/jobs/job-abc/cancel' && req.method === 'POST') { if (!cancelUp) { res.writeHead(500, cors); res.end('{"error":{"code":"internal"}}'); return; } res.writeHead(200, cors); res.end(JSON.stringify({ id: 'job-abc', status: 'cancelled' })); return; }
       const m = req.url.match(/^\/jobs\/([\w-]+)$/);
       if (m) { res.writeHead(200, cors); res.end(JSON.stringify({ id: m[1], type: 'image', status: 'ready', result_url: '/files/' + m[1], provenance: { model: 'flux-2-klein-4b (sd.cpp)', params: { ratio: '1:1' }, wall_clock_ms: 1234, queued_ms: 56 } })); return; }
       const f = req.url.match(/^\/files\/([\w-]+)$/);
@@ -154,6 +157,48 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('briix-media-v1')); return s.jobs.find(j => j.mode === 'live')?.status === 'expired'; }, {}, { timeout: 10000 });
   filesUp = true;
   ok('Т5 expired after server cleanup 404', { status: 'expired' });
+
+  // ---- C2: cancel при ошибке сервера → interrupted + баннер, НЕ cancelled ----
+  cancelUp = false;
+  p = await freshPage({ version: 2, jobs: [liveRecord()] });
+  await p.locator('#media-tab-queue').click();
+  await p.locator('[data-media-action="cancel"]').click();
+  await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('briix-media-v1')); return s.jobs.find(j => j.mode === 'live')?.status === 'interrupted'; }, {}, { timeout: 10000 });
+  assert.equal(await p.locator('#media-live-banner').isHidden(), false, 'cancel-failure banner shown');
+  assert.ok((await p.locator('#media-live-banner').innerText()).includes('прерван'));
+  cancelUp = true;
+  const afterCancel = (await read(p)).jobs.find(j => j.mode === 'live');
+  assert.equal(afterCancel.status, 'interrupted');
+  ok('C2 failed cancel → interrupted + banner, not cancelled', { status: afterCancel.status });
+
+  // ---- C3: retry interrupted → resubmit принимает serverJobId, job готов ----
+  const postsBefore = jobsPostCount;
+  p = await freshPage({ version: 2, jobs: [liveRecord({ status: 'interrupted' })] });
+  await p.locator('[data-media-action="live"]').click(); // interrupted не авто-восстанавливается: включаем live вручную
+  await sleep(400);
+  await p.locator('#media-tab-queue').click();
+  await p.locator('[data-media-action="retry"]').click();
+  await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('briix-media-v1')); const j = s.jobs.find(x => x.mode === 'live'); return j && j.serverJobId === 'job-abc' && j.status === 'ready'; }, {}, { timeout: 15000 });
+  assert.equal(jobsPostCount, postsBefore + 1, 'resubmit hit POST /jobs exactly once');
+  const retried = (await read(p)).jobs.find(j => j.mode === 'live');
+  assert.equal(retried.status, 'ready');
+  assert.deepEqual(errors, []);
+  ok('C3 retry interrupted → resubmit → ready', { serverJobId: retried.serverJobId });
+
+  // ---- C1: короткий промпт в live-режиме не уходит на сервер (клиентская валидация) ----
+  const postsBeforeC1 = jobsPostCount;
+  p = await freshPage();
+  await p.evaluate(() => localStorage.removeItem('briix-media-v1'));
+  await p.reload();
+  await p.waitForSelector('.media-page');
+  await p.locator('[data-media-action="live"]').click();
+  await sleep(400);
+  await p.locator('#media-prompt').fill('коротко');
+  await p.locator('#media-generate').click();
+  await sleep(500);
+  assert.equal(jobsPostCount, postsBeforeC1, 'no POST /jobs for short prompt');
+  assert.equal(await p.locator('#media-form-error').isHidden(), false, 'inline validation error shown');
+  ok('C1 short prompt rejected client-side, no server call', { posts: jobsPostCount });
 
   assert.deepEqual(errors, [], 'no page errors across all scenarios');
   await b.close(); staticS.close(); bffS.close();

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """CLI wrapper around musicgen-small for media-bff music jobs.
 
-Usage: python musicgen-cli.py --prompt "..." --out /path/out.wav [--tokens 750]
-Loads model once per invocation (process-per-job, spec v2). threads=8.
+Usage: python musicgen-cli.py --prompt "..." --out /path/out.wav [--tokens 750] [--threads 8]
+Loads model once per invocation (process-per-job, spec v2).
 """
 import argparse
 import sys
@@ -12,8 +12,6 @@ import torch
 from transformers import AutoProcessor, MusicgenForConditionalGeneration
 from scipy.io.wavfile import write as wav_write
 
-torch.set_num_threads(8)
-
 MODEL = "facebook/musicgen-small"
 
 
@@ -22,7 +20,10 @@ def main():
     ap.add_argument("--prompt", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--tokens", type=int, default=750)  # 750 tokens ~= 15 s @ 50 Hz
+    # F6: треды задаются вызывающим (bff передаёт фактический тяжёлый бюджет).
+    ap.add_argument("--threads", type=int, default=8)
     args = ap.parse_args()
+    torch.set_num_threads(args.threads)
 
     t0 = time.time()
     processor = AutoProcessor.from_pretrained(MODEL)

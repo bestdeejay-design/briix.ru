@@ -32,3 +32,16 @@ RestartSec=5
 
 [Install]
 WantedBy=default.target
+
+# Обновление 08.11.2026 (волна фиксов, см. README):
+# - cron-строка `30 * * * * cron-cleanup` УДАЛЕНА из crontab (гонка с in-process retention bff);
+#   скрипт cron-cleanup оставлен как артефакт.
+# - systemd hardening (drop-in *.service.d/hardening.conf, оба юнита): NoNewPrivileges,
+#   ProtectSystem=strict, ReadWritePaths=/home/badai/briix-media (+~/.ollama для ollama),
+#   PrivateTmp, PrivateDevices, ProtectKernel*, RestrictAddressFamilies, RestrictNamespaces,
+#   RestrictRealtime, LockPersonality, SystemCallArchitectures=native, UMask=0077.
+#   MemoryDenyWriteExecute НЕ ставится (torch требует exec-память).
+# - media-bff: явные Environment=THREAD_BUDGET=8 / Environment=TEXT_BUDGET=4.
+# - bff.py: chat_completions идёт через ThreadBudget (F1), acquire атомарен при отмене (F2),
+#   warmup ждёт освобождения бюджета, токены 64→128 (F5), musicgen-cli --threads (F6),
+#   save_jobs() после stage-апдейтов (F7).

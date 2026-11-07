@@ -1,0 +1,19 @@
+{
+ "id": "job-7f848ec83eeb23de",
+ "type": "text",
+ "prompt": "Ответь одним словом: работает",
+ "params": {},
+ "status": "ready",
+ "result_url": null,
+ "error": null,
+ "provenance": {
+  "model": "qwen3:4b-instruct",
+  "params": {},
+  "wall_clock_ms": 985,
+  "queued_ms": null
+ },
+ "created_at": 1794084687.128615,
+ "started_at": 1794084687.12983,
+ "finished_at": 1794084688.1146586,
+ "queued_ms": 1
+}

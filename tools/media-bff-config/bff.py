@@ -60,10 +60,19 @@ class ThreadBudget:
         self.held = 0
 
     async def acquire(self, n):
+        # F2: атомарность при отмене посреди ожидания. Считаем взятые единицы
+        # локально; при исключении (cancel) возвращаем взятое и пробрасываем.
         if n > self.total:
             raise ValueError(f"requested {n} tokens > budget {self.total}")
-        for _ in range(n):
-            await self._sem.acquire()
+        got = 0
+        try:
+            for _ in range(n):
+                await self._sem.acquire()
+                got += 1
+        except BaseException:
+            if got:
+                self.release(got)
+            raise
         self.held += n
 
     def release(self, n):
@@ -447,6 +456,18 @@ async def chat_completions(request):
     def err_event(code, message, error_code):
         return {"error": {"code": error_code, "message": message, "request_id": rid}}
 
+    # F1: chat_completions идёт через общий тредо-бюджет, как и job-путь.
+    if not await backend_available("text"):
+        return envelope(503, "Бэкенд текста недоступен.", "backend_unavailable", request)
+    await BUDGET.acquire(TEXT_BUDGET)
+    try:
+        return await _chat_ollama(request, payload, rid, err_event)
+    finally:
+        BUDGET.release(TEXT_BUDGET)
+
+
+async def _chat_ollama(request, payload, rid, err_event):
+    log(f"chat {rid} stream={payload['stream']} tokens={TEXT_BUDGET} held={BUDGET.held}")
     if not payload["stream"]:
         # Non-stream: OpenAI-подобный ответ, usage от провайдера (ollama).
         try:
@@ -559,18 +580,20 @@ def run_worker(j, loop):
         cmd = [str(SD_CLI), "--diffusion-model", str(Path.home() / "briix-media/models/flux-2-klein-4b-Q8_0.gguf"),
                "--vae", str(Path.home() / "briix-media/models/full_encoder_small_decoder.safetensors"),
                "--llm", str(Path.home() / "briix-media/models/Qwen3-4B-Q6_K.gguf"),
-               "--cfg-scale", "1.0", "--steps", "4", "--threads", "8", "--offload-to-cpu",
+               "--cfg-scale", "1.0", "--steps", "4", "--threads", str(THREAD_BUDGET), "--offload-to-cpu",
                "-o", str(out), "-p", j["prompt"]]
         timeout = HEAVY_TIMEOUT
     elif jtype == "music":
-        cmd = [str(MUSIC_PY), str(MUSIC_CLI), "--prompt", j["prompt"], "--out", str(out), "--tokens", "750"]
+        # F6: передаём фактический тяжёлый бюджет тредов в CLI.
+        cmd = [str(MUSIC_PY), str(MUSIC_CLI), "--prompt", j["prompt"], "--out", str(out),
+               "--tokens", "750", "--threads", str(THREAD_BUDGET)]
         timeout = MUSIC_TIMEOUT
     else:
         cmd = None  # HTTP path handled by async worker
 
     if cmd:
         env = dict(os.environ)
-        env["OMP_NUM_THREADS"] = "8"
+        env["OMP_NUM_THREADS"] = str(THREAD_BUDGET)
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=env,
                                 start_new_session=True)
         PROCS[jid] = proc
@@ -699,6 +722,7 @@ async def music_stage_watcher(j):
         try:
             if ext.exists() and ext.stat().st_size > 0:
                 j["stage"] = "generating"
+                save_jobs()  # F7: stage-апдейты фиксируются в jobs.json сразу
                 log(f"stage generating {j['id']}")
                 return
         except OSError:
@@ -775,8 +799,11 @@ async def music_warmup():
     """S2: прогрев musicgen при старте bff (холодный прогон 356с > старого таймаута).
 
     Короткий прогон с малым числом токенов грузит модель в память; image-воркер
-    при этом не стартует (прогрев идёт мимо очереди и бюджета). Пропускается,
-    если music-джоб уже queued/running.
+    при этом не стартует (прогрев идёт мимо очереди и бюджета; F5: дополнительно
+    ждёт освобождения тредо-бюджета). Признаём честно (F5): прогрев греет
+    page-cache модели на диске, а не RAM — модель всё равно грузится в процесс
+    при первом джобе, но чтение уже тёплое. Пропускается, если music-джоб уже
+    queued/running.
     """
     await asyncio.sleep(3)  # дать стартовать сервису и логам
     if any(j["type"] == "music" and j["status"] in ("queued", "running") for j in JOBS.values()):
@@ -786,9 +813,20 @@ async def music_warmup():
         log("warmup skipped: music backend missing")
         return
     out = RESULTS / "warmup.wav"
-    cmd = [str(MUSIC_PY), str(MUSIC_CLI), "--prompt", "warmup ping", "--out", str(out), "--tokens", "64"]
+    # F5: не стартуем прогрев, пока тредо-бюджет занят реальными джобами.
+    waited = 0
+    while BUDGET.held != 0:
+        if waited == 0:
+            log(f"warmup gate: budget held={BUDGET.held}, waiting")
+        await asyncio.sleep(5)
+        waited += 5
+        if waited >= MUSIC_TIMEOUT:
+            log("warmup skipped: budget busy too long")
+            return
+    cmd = [str(MUSIC_PY), str(MUSIC_CLI), "--prompt", "warmup ping", "--out", str(out),
+           "--tokens", "128", "--threads", str(THREAD_BUDGET)]
     env = dict(os.environ)
-    env["OMP_NUM_THREADS"] = "8"
+    env["OMP_NUM_THREADS"] = str(THREAD_BUDGET)
     started = time.time()
     log("music warmup started")
     proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.DEVNULL,

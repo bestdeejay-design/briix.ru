@@ -1,0 +1,172 @@
+{
+  "date": "2026-11-07",
+  "scope": "documentation request for issue #23; no live server/model/browser E2E validation",
+  "base_commit": "f15d3aaffb99a82d434e790a341d35286ad27661",
+  "files": {
+    "audits/task-23-model-bus-request.md": "5f38dc8749dfa58865c1e10e1c5a75bfe303b71506a3533e41e77b005705a202",
+    "audits/README.md": "abc38859caf7b93badc4472c83eff29a5f0f9fa0338aa36f43fb62d732b141a6"
+  },
+  "checks": [
+    {
+      "name": "session_branch",
+      "pass": true
+    },
+    {
+      "name": "origin_main_in_head",
+      "pass": true
+    },
+    {
+      "name": "only_audits_changed",
+      "pass": true,
+      "detail": [
+        "audits/README.md",
+        "audits/evidence/2026-11-07-model-bus-request-check.json",
+        "audits/task-23-model-bus-request.md"
+      ]
+    },
+    {
+      "name": "diff_whitespace",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "task-23-model-bus-request.md:no_conflict_markers",
+      "pass": true
+    },
+    {
+      "name": "task-23-model-bus-request.md:no_trailing_whitespace",
+      "pass": true
+    },
+    {
+      "name": "task-23-model-bus-request.md:final_newline",
+      "pass": true
+    },
+    {
+      "name": "README.md:no_conflict_markers",
+      "pass": true
+    },
+    {
+      "name": "README.md:no_trailing_whitespace",
+      "pass": true
+    },
+    {
+      "name": "README.md:final_newline",
+      "pass": true
+    },
+    {
+      "name": "local_link:2026-11-07-cpu-self-hosting-stands.md",
+      "pass": true
+    },
+    {
+      "name": "local_link:../ai-platform-docs/API.md",
+      "pass": true
+    },
+    {
+      "name": "local_link:../ai-platform-docs/ARCHITECTURE.md",
+      "pass": true
+    },
+    {
+      "name": "local_link:../ai-platform/DECISIONS.md",
+      "pass": true
+    },
+    {
+      "name": "local_link:evidence/2026-11-07-model-bus-request-check.json",
+      "pass": true
+    },
+    {
+      "name": "json_block_1",
+      "pass": true
+    },
+    {
+      "name": "request_has_three_core_routes",
+      "pass": true
+    },
+    {
+      "name": "vocal_route_not_musicgen_substitution",
+      "pass": true
+    },
+    {
+      "name": "unverified_section_present",
+      "pass": true
+    },
+    {
+      "name": "no_private_infra_alias_copied",
+      "pass": true
+    },
+    {
+      "name": "node_check:site/assets/js/deck.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:site/assets/js/finmodel.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:site/assets/js/landing.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:site/assets/js/theme.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:demo.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:demo-data.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:media.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "hidden_guard",
+      "pass": true,
+      "detail": 3
+    },
+    {
+      "name": "theme_tokens",
+      "pass": true
+    },
+    {
+      "name": "css_braces",
+      "pass": true,
+      "detail": {
+        "open": 653,
+        "close": 653
+      }
+    },
+    {
+      "name": "btn_rule",
+      "pass": true
+    },
+    {
+      "name": "print_rule",
+      "pass": true
+    },
+    {
+      "name": "css_no_conflict_markers",
+      "pass": true
+    },
+    {
+      "name": "en_mirror",
+      "pass": true
+    },
+    {
+      "name": "browser_tests_not_run_missing_playwright",
+      "pass": true,
+      "detail": "playwright unavailable; no application files changed"
+    }
+  ],
+  "passed": 35,
+  "failed": 0
+}

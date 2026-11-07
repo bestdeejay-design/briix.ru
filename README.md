@@ -12,6 +12,7 @@ demo.css        — дизайн-система, светлая/тёмная т�
 demo.js         — состояние, маршруты, диалоги, поиск, избранное, настройки
 demo-data.js    — помощники, промпты и сценарные ответы
 media.js        — Медиа-студия: локальный фото/видео-мок, очередь и медиатека
+media-live.js   — опциональный режим «Приватный live» (свой media-bff, см. audits/task-23-media-live-wave1.md)
 media.css       — стили Медиа-студии
 assets/media/   — локальные JPEG/MP4/WebM и manifest
 tools/          — сборка ассетов и browser-проверки (только для разработки)
@@ -49,6 +50,7 @@ python3 -m http.server 3000 --bind 0.0.0.0
 ```bash
 node tools/check-demo.cjs
 node tools/check-media.cjs
+node tools/check-media-live.cjs   # режим «Приватный live»: миграция v2, восстановление, blob, баннер
 node tools/check-media-visual.cjs
 python3 tools/build-media-assets.py --check --ffmpeg /path/to/ffmpeg
 ```
@@ -61,6 +63,7 @@ python3 tools/build-media-assets.py --check --ffmpeg /path/to/ffmpeg
 - `audits/2026-11-06-free-mock-guide.md` — как бесплатно собрать локальный мок.
 - `audits/2026-11-06-demo-code-css-audit.md` — аудит кода/CSS и результаты проверок.
 - `audits/task-media-local-mock.md` — итог задачи и критерии приёмки.
+- `audits/task-23-media-live-wave1.md` — «Приватный live»: media-bff, миграция storage v2, транспорт и доказательства Т1–Т8.
 
 ## Границы
 

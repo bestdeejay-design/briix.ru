@@ -31,6 +31,11 @@
 - `task-23-model-bus-request.md` — запрос к INFRA на единую шину моделей для приватного live-демо (#23), предлагаемый контракт, вокальный маршрут и сохранённое ревью PR #22.
 - `evidence/2026-11-07-model-bus-request-check.json` — локальные проверки запроса к шине; не benchmark и не live-приёмка #23.
 
+### Мобильный путь и сторы
+
+- `2026-11-08-mobile-app-roadmap.md` — подробный план: mobile web → PWA → iOS/Android-оболочки → beta/store submission; gates, backlog, риски, безопасность и контракты шины.
+- `evidence/2026-11-08-mobile-app-roadmap-check.json` — локальные проверки плана; не mobile E2E, не store approval и не проверка стендов.
+
 ### Медиа-студия и локальный мок
 
 - `2026-11-06-media-hub-research.md` — исследование медиа-хабов, провайдеров, бесплатных лимитов, лицензий и РФ-контура.

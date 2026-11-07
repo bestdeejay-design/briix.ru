@@ -1,0 +1,184 @@
+{
+  "date": "2026-11-08",
+  "scope": "mobile roadmap documentation; no mobile E2E, store submission, server/model validation",
+  "base_commit": "a6849fca334e1a8df0489e246c8cda8b58093d3e",
+  "files": {
+    "audits/2026-11-08-mobile-app-roadmap.md": "5e3f75cc5a7e98354377975e45ae81bb2c8f381fcc4f04c14718e476695e988f",
+    "audits/README.md": "755e663c49ceb14b95d3af9ad9fdaf53a0262e8024dfe76e36d459c79471459a"
+  },
+  "stats": {
+    "plan_lines": 1523,
+    "plan_chars": 60944,
+    "json_blocks": 4,
+    "local_links": 3,
+    "fragment_links": 21
+  },
+  "checks": [
+    {
+      "name": "session_branch",
+      "pass": true
+    },
+    {
+      "name": "origin_main_in_head",
+      "pass": true
+    },
+    {
+      "name": "only_audits_changed",
+      "pass": true,
+      "detail": [
+        "audits/2026-11-08-mobile-app-roadmap.md",
+        "audits/README.md",
+        "audits/evidence/2026-11-08-mobile-app-roadmap-check.json"
+      ]
+    },
+    {
+      "name": "diff_whitespace",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "2026-11-08-mobile-app-roadmap.md:no_conflict_markers",
+      "pass": true
+    },
+    {
+      "name": "2026-11-08-mobile-app-roadmap.md:no_trailing_whitespace",
+      "pass": true
+    },
+    {
+      "name": "2026-11-08-mobile-app-roadmap.md:final_newline",
+      "pass": true
+    },
+    {
+      "name": "README.md:no_conflict_markers",
+      "pass": true
+    },
+    {
+      "name": "README.md:no_trailing_whitespace",
+      "pass": true
+    },
+    {
+      "name": "README.md:final_newline",
+      "pass": true
+    },
+    {
+      "name": "no_cjk_artifacts",
+      "pass": true
+    },
+    {
+      "name": "toc_fragment_links",
+      "pass": true,
+      "detail": {
+        "missing": []
+      }
+    },
+    {
+      "name": "local_link:task-23-model-bus-request.md",
+      "pass": true
+    },
+    {
+      "name": "local_link:evidence/2026-11-08-mobile-app-roadmap-check.json",
+      "pass": true
+    },
+    {
+      "name": "local_link:evidence/2026-11-08-mobile-app-roadmap-check.json",
+      "pass": true
+    },
+    {
+      "name": "json_block_1",
+      "pass": true
+    },
+    {
+      "name": "json_block_2",
+      "pass": true
+    },
+    {
+      "name": "json_block_3",
+      "pass": true
+    },
+    {
+      "name": "json_block_4",
+      "pass": true
+    },
+    {
+      "name": "has_phases_m0_m9",
+      "pass": true
+    },
+    {
+      "name": "has_unverified_section",
+      "pass": true
+    },
+    {
+      "name": "has_delivery_section",
+      "pass": true
+    },
+    {
+      "name": "no_store_guarantee",
+      "pass": true
+    },
+    {
+      "name": "node_check:site/assets/js/deck.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:site/assets/js/finmodel.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:site/assets/js/landing.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:site/assets/js/theme.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:demo.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:demo-data.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "node_check:media.js",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "hidden_guard",
+      "pass": true
+    },
+    {
+      "name": "theme_tokens",
+      "pass": true
+    },
+    {
+      "name": "css_braces",
+      "pass": true
+    },
+    {
+      "name": "btn_rule",
+      "pass": true
+    },
+    {
+      "name": "print_rule",
+      "pass": true
+    },
+    {
+      "name": "css_no_conflict_markers",
+      "pass": true
+    },
+    {
+      "name": "en_mirror",
+      "pass": true
+    }
+  ],
+  "passed": 37,
+  "failed": 0
+}

@@ -30,9 +30,13 @@ if port_busy 8300; then
   fi
 else
   # Detached master; stdout/stderr closed so the script's pipes don't hang on it.
-  ssh -f -N -M -S /tmp/briix-live-ssh-control -L 8300:127.0.0.1:8390 fonotext-stand >/dev/null 2>&1 </dev/null
+  # 08.11 (root cause #23): plain ssh died silently on idle/NAT reset — замена на
+  # autossh -M 0 + ServerAlive*: ssh сам рвёт мёртвое соединение, autossh поднимает заново.
+  AUTOSSH_GATETIME=0 autossh -M 0 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+    -o ExitOnForwardFailure=yes -f -N \
+    -S /tmp/briix-live-ssh-control -L 8300:127.0.0.1:8390 fonotext-stand >/dev/null 2>&1 </dev/null
   sleep 1
-  echo "tunnel: started 127.0.0.1:8300 → fonotext-stand:8390"
+  echo "tunnel: started (autossh) 127.0.0.1:8300 → fonotext-stand:8390"
 fi
 
 # 3. Verdict.

@@ -3,7 +3,9 @@
 # Idempotent; kills only processes we recognise (our ssh control socket / our http.server).
 set -euo pipefail
 
-# Tunnel: try the control socket first, then a precise cmdline fallback.
+# Tunnel: kill the autossh supervisor first (иначе он перезапустит ssh после -O exit).
+pkill -f "autossh.*8300" >/dev/null 2>&1 || true
+# Then the control socket, then a precise cmdline fallback.
 if ssh -S /tmp/briix-live-ssh-control -O check fonotext-stand >/dev/null 2>&1; then
   ssh -S /tmp/briix-live-ssh-control -O exit fonotext-stand >/dev/null 2>&1 || true
 fi
@@ -18,6 +20,7 @@ if lsof -ti tcp:8300 -sTCP:LISTEN >/dev/null 2>&1; then
 else
   echo "tunnel: down"
 fi
+rm -f /tmp/briix-live-ssh-control
 
 # Static server: our python http.server bound to 8388.
 if lsof -ti tcp:8388 -sTCP:LISTEN >/dev/null 2>&1; then

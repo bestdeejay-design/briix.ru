@@ -9,7 +9,8 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 
 const ROOT = path.resolve(__dirname, '..');
-const PORT = Number(process.env.BRIIX_BASE_PORT || 8392);
+// Порт 0 = свободный порт от системы: общий раннер не любит фиксированные.
+const PORT = Number(process.env.BRIIX_BASE_PORT || 0);
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.m4a': 'audio/mp4', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 const posted = [];
 let jobSeq = 0;
@@ -52,7 +53,8 @@ const host = () => {
 
 (async () => {
   await new Promise(resolve => server.listen(PORT, '0.0.0.0', resolve));
-  const BASE = `http://${host()}:${PORT}`;
+  const ACTUAL_PORT = server.address().port;
+  const BASE = `http://${host()}:${ACTUAL_PORT}`;
   const browser = await launch();
   const results = [];
   const ok = (name, data = {}) => { results.push({ name, ...data }); console.log('PASS', name, JSON.stringify(data)); };

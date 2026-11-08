@@ -35,6 +35,8 @@ let bffUp = true;   // /health up
 let filesUp = true; // /files/{id} up (false simulates retention cleanup 404)
 let cancelUp = true; // /cancel up (false simulates failed cancel, C2)
 let jobsPostCount = 0; // count of POST /jobs (C3 resubmit)
+let blockSubmit = false; // 422 content_blocked on POST /jobs
+const POLICY_MESSAGE = 'Запрос нарушает политику контента: откровенный материал не генерируется.';
 function bffServer(port) {
   return new Promise(resolve => {
     const s = http.createServer((req, res) => {
@@ -42,7 +44,11 @@ function bffServer(port) {
       if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
       if (req.url === '/health') { res.writeHead(bffUp ? 200 : 503, cors); res.end(bffUp ? JSON.stringify({ ok: true, backends: { image: true, music: true, text: true } }) : 'down'); return; }
       if (req.headers.authorization !== 'Bearer ' + TOKEN) { res.writeHead(401, cors); res.end('{"error":{"code":"unauthorized"}}'); return; }
-      if (req.url === '/jobs' && req.method === 'POST') { jobsPostCount++; res.writeHead(202, cors); res.end(JSON.stringify({ job_id: 'job-abc' })); return; }
+      if (req.url === '/jobs' && req.method === 'POST') {
+        jobsPostCount++;
+        if (blockSubmit) { res.writeHead(422, { ...cors, 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: { code: 'content_blocked', message: POLICY_MESSAGE } })); return; }
+        res.writeHead(202, cors); res.end(JSON.stringify({ job_id: 'job-abc' })); return;
+      }
       if (req.url === '/jobs/job-abc/cancel' && req.method === 'POST') { if (!cancelUp) { res.writeHead(500, cors); res.end('{"error":{"code":"internal"}}'); return; } res.writeHead(200, cors); res.end(JSON.stringify({ id: 'job-abc', status: 'cancelled' })); return; }
       const m = req.url.match(/^\/jobs\/([\w-]+)$/);
       if (m) { res.writeHead(200, cors); res.end(JSON.stringify({ id: m[1], type: 'image', status: 'ready', result_url: '/files/' + m[1], provenance: { model: 'flux-2-klein-4b (sd.cpp)', params: { ratio: '1:1' }, wall_clock_ms: 1234, queued_ms: 56 } })); return; }
@@ -206,6 +212,33 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   assert.equal(jobsPostCount, postsBeforeC1, 'no POST /jobs for short prompt');
   assert.equal(await p.locator('#media-form-error').isHidden(), false, 'inline validation error shown');
   ok('C1 short prompt rejected client-side, no server call', { posts: jobsPostCount });
+
+  // ---- C4: 422 — карточка отказа, а не «сервер недоступен» ----
+  p = await freshPage();
+  await p.evaluate(() => localStorage.removeItem('briix-media-v1'));
+  await p.reload();
+  await p.waitForSelector('.media-page');
+  await p.locator('[data-media-action="live"]').click();
+  await sleep(400);
+  blockSubmit = true;
+  const postsBeforeC4 = jobsPostCount;
+  const jobsBeforeC4 = await p.evaluate(() => (JSON.parse(localStorage.getItem('briix-media-v1'))?.jobs || []).length);
+  await p.locator('#media-prompt').fill('Откровенная сцена, которую сервер отклонит по политике контента.');
+  await p.locator('#media-generate').click();
+  await p.waitForSelector('#media-refusal', { timeout: 15000 });
+  const refusalC4 = await p.locator('#media-refusal').innerText();
+  assert.ok(refusalC4.includes(POLICY_MESSAGE), 'server message verbatim');
+  assert.match(refusalC4, /Не пройдена проверка контента/);
+  assert.ok(!/Сервер недоступен|ошибка сервера/i.test(refusalC4));
+  assert.equal(jobsPostCount, postsBeforeC4 + 1);
+  assert.equal(await p.evaluate(() => (JSON.parse(localStorage.getItem('briix-media-v1'))?.jobs || []).length), jobsBeforeC4, 'no job for a blocked prompt');
+  assert.equal(await p.locator('#media-live-banner').isHidden(), true, 'no mock banner');
+  assert.equal(await p.evaluate(() => window.BRIIX_MEDIA_LIVE.active()), true, 'live stays live');
+  await p.locator('[data-media-action="edit-blocked"]').click();
+  assert.equal(await p.locator('#media-refusal').count(), 0);
+  assert.match(await p.locator('#media-prompt').inputValue(), /Откровенная сцена/);
+  blockSubmit = false;
+  ok('C4 422 content_blocked: refusal card, prompt kept, no mock fallback', {});
 
   assert.deepEqual(errors, [], 'no page errors across all scenarios');
   await b.close(); staticS.close(); bffS.close();

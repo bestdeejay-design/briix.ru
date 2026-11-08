@@ -24,10 +24,14 @@ function wav() {
   return buf;
 }
 const WAV = wav();
+// Real AAC/M4A from the stand (PR #33): decoding a genuine server file, not a renamed WAV.
+const M4A_PATH = path.join(ROOT, 'assets/media/showcase/ballad30.m4a');
+const M4A = fs.existsSync(M4A_PATH) ? fs.readFileSync(M4A_PATH) : null;
+const POLICY_MESSAGE = 'Запрос нарушает политику контента: откровенный материал не генерируется.';
 
 let state;
 function resetBff() {
-  state = { healthUp: true, musicReady: true, vocalReady: false, fileGone: false, polls: 0, posts: [], cancels: [], failSubmit: false };
+  state = { healthUp: true, musicReady: true, vocalReady: true, fileGone: false, polls: 0, posts: [], cancels: [], failSubmit: false, blockSubmit: false };
 }
 resetBff();
 
@@ -59,7 +63,8 @@ function bffServer(port) {
       if (req.url === '/v1/models') {
         send(200, { object: 'list', data: [
           { id: 'musicgen-small', capabilities: ['music.generate'], status: state.musicReady ? 'ready' : 'unavailable', limits: { max_duration_seconds: 420, max_concurrent_jobs: 1 } },
-          { id: 'ace-step-1.5', capabilities: ['song.vocal'], status: state.vocalReady ? 'ready' : 'unavailable', limits: {} },
+          { id: 'ace-step-flash', capabilities: ['song.vocal'], status: state.vocalReady ? 'ready' : 'unavailable', limits: { max_duration_seconds: 30, max_concurrent_jobs: 1 }, latency: { source: 'measured', seconds: 111 } },
+          { id: 'ace-step-pro', capabilities: ['song.vocal'], status: state.vocalReady ? 'ready' : 'unavailable', limits: { max_duration_seconds: 150, max_concurrent_jobs: 1 }, latency: { source: 'measured', seconds: 596 } },
           { id: 'qwen3:4b-instruct', capabilities: ['chat', 'text.generate'], status: 'ready', limits: {} }
         ] });
         return;
@@ -70,6 +75,7 @@ function bffServer(port) {
         req.on('end', () => {
           state.posts.push({ body: JSON.parse(raw || '{}'), idem: req.headers['idempotency-key'] || null });
           if (state.failSubmit) { send(503, { error: { code: 'backend_unavailable', message: 'down' } }); return; }
+          if (state.blockSubmit) { send(422, { error: { code: 'content_blocked', message: POLICY_MESSAGE } }); return; }
           send(202, { job_id: 'job-music-1' });
         });
         return;
@@ -77,6 +83,19 @@ function bffServer(port) {
       if (req.url.startsWith('/jobs/') && req.url.endsWith('/cancel')) { state.cancels.push(req.url); send(200, { id: 'job-music-1', status: 'cancelled' }); return; }
       if (req.url.startsWith('/jobs/')) {
         state.polls++;
+        const post = state.posts.at(-1)?.body || {};
+        const vocalModel = post.params?.model || null;
+        if (vocalModel) {
+          // Vocal route: honest stages from the stand, M4A result.
+          const stages = ['writing-lyrics', 'synthesizing', 'album-cover'];
+          if (state.polls <= stages.length) {
+            send(200, { id: 'job-music-1', type: 'music', status: 'running', stage: stages[state.polls - 1], provenance: { model: vocalModel, capability: 'song.vocal', params: post.params } });
+            return;
+          }
+          send(200, { id: 'job-music-1', type: 'music', status: 'ready', result_url: '/files/job-music-1', mime: M4A ? 'audio/mp4' : 'audio/wav', size: (M4A || WAV).length,
+            provenance: { model: vocalModel, capability: 'song.vocal', wall_clock_ms: 111000, queued_ms: 12, params: post.params } });
+          return;
+        }
         if (state.polls === 1) { send(200, { id: 'job-music-1', type: 'music', status: 'running', stage: 'model-warmup', provenance: { model: 'musicgen-small', capability: 'instrumental' } }); return; }
         send(200, { id: 'job-music-1', type: 'music', status: 'ready', result_url: '/files/job-music-1', mime: 'audio/wav', size: WAV.length,
           provenance: { model: 'musicgen-small', capability: 'instrumental', wall_clock_ms: 81234, queued_ms: 42 } });
@@ -84,7 +103,9 @@ function bffServer(port) {
       }
       if (req.url.startsWith('/files/')) {
         if (state.fileGone) { send(404, { error: { code: 'file_gone', message: 'expired' } }); return; }
-        res.writeHead(200, { 'Content-Type': 'audio/wav', ...cors }); res.end(WAV); return;
+        const song = !!state.posts.at(-1)?.body?.params?.model;
+        const body = song && M4A ? M4A : WAV;
+        res.writeHead(200, { 'Content-Type': song && M4A ? 'audio/mp4' : 'audio/wav', ...cors }); res.end(body); return;
       }
       send(404, { error: { code: 'not_found', message: 'nf' } });
     });
@@ -129,13 +150,100 @@ function bffServer(port) {
   assert.match(await p.locator('.music-mode-note').innerText(), /Приватный live/);
   ok('live toggles on and the mode note switches', {});
 
-  // Vocals stay honest-unavailable: no active button, no server call.
+  // Vocal route is live now: two modes from the catalog, timings shown as measurements.
+  await p.locator('[data-music-action="kind"][data-id="song"]').click();
+  assert.equal(await p.locator('.music-vocal-mode').count(), 2);
+  assert.match(await p.locator('.music-vocal-mode[data-id="flash"]').innerText(), /111|1,9|1\.9/);
+  assert.match(await p.locator('.music-vocal-mode[data-id="pro"]').innerText(), /до 150/);
+  assert.equal(await p.locator('#music-vocal-unavailable').count(), 0);
+  assert.equal(await p.locator('#music-lyrics').isVisible(), true);
+  ok('song kind offers Flash and Pro with catalog timings', {});
+
+  // Lyrics are mandatory for vocals — client stops before any POST.
+  await p.locator('#music-prompt').fill('Тёплая песня о вечернем городе с русским вокалом и припевом.');
+  await p.locator('#music-generate').click();
+  assert.equal(state.posts.length, 0);
+  assert.equal(await p.locator('#music-lyrics').getAttribute('aria-invalid'), 'true');
+  assert.match(await p.locator('#music-form-error').innerText(), /лирик/i);
+  ok('vocal brief without lyrics rejected client-side', {});
+
+  // Flash: model, lyrics, language and duration all travel in params.
+  await p.locator('[data-music-action="lyric-tag"][data-id="verse"]').click();
+  await p.locator('#music-lyrics').fill('[verse]\nВечерний город дышит теплом\n[chorus]\nМы ещё успеем домой');
+  await p.locator('[data-music-action="duration"][data-id="30"]').click();
+  await p.locator('#music-generate').click();
+  await p.waitForFunction(k => (JSON.parse(localStorage.getItem(k))?.tracks || []).some(t => t.mode === 'live' && t.status === 'ready'), KEY, { timeout: 30000 });
+  let songPost = state.posts.at(-1).body;
+  assert.equal(songPost.params.model, 'ace-step-flash');
+  assert.equal(songPost.params.language, 'ru');
+  assert.equal(songPost.params.duration, 30);
+  assert.match(songPost.params.lyrics, /\[chorus\]/);
+  let songTrack = (await read(p)).tracks.find(t => t.mode === 'live');
+  assert.equal(songTrack.vocalMode, 'flash');
+  assert.equal(songTrack.provenance.model, 'ace-step-flash');
+  ok('Flash song: params.model/lyrics/language/duration → server', { params: { ...songPost.params, lyrics: songPost.params.lyrics.length } });
+
+  // Real M4A from the stand decodes and names the download .m4a.
+  await p.waitForFunction(id => !!window.BRIIX_MUSIC_LIVE.audioFor(id), songTrack.id, { timeout: 20000 });
+  const songAudio = await p.evaluate(id => { const e = window.BRIIX_MUSIC_LIVE.audioFor(id); return { type: e.blob.type, bytes: e.bytes, duration: e.duration, peaks: e.peaks.length }; }, songTrack.id);
+  assert.equal(songAudio.peaks, 128);
+  if (M4A) {
+    assert.match(songAudio.type, /mp4|m4a|aac/);
+    assert.ok(songAudio.duration > 20, 'duration decoded from the real 30-second AAC file');
+  }
+  const dl = p.waitForEvent('download', { timeout: 15000 });
+  await p.locator('[data-music-action="download"]').first().click();
+  const file = await dl;
+  assert.match(file.suggestedFilename(), M4A ? /\.m4a$/ : /\.wav$/);
+  ok('server audio decodes and downloads with the right extension', { type: songAudio.type, duration: songAudio.duration, name: file.suggestedFilename() });
+
+  // Lyrics of a live song stay visible in the card (no tag parser needed).
+  assert.match(await p.locator('.music-lyrics-block').innerText(), /Текст песни/);
+  ok('live song card exposes its lyrics', {});
+
+  // Pro raises the duration ceiling to 150 s and switches the model.
+  await p.locator('[data-music-action="vocal-mode"][data-id="pro"]').click();
+  assert.equal(await p.locator('[data-music-action="duration"][data-id="150"]').count(), 1);
+  await p.locator('[data-music-action="duration"][data-id="60"]').click();
+  await p.locator('#music-generate').click();
+  await p.waitForFunction(k => (JSON.parse(localStorage.getItem(k))?.tracks || []).some(t => t.mode === 'live' && t.vocalMode === 'pro'), KEY, { timeout: 15000 });
+  songPost = state.posts.at(-1).body;
+  assert.equal(songPost.params.model, 'ace-step-pro');
+  assert.equal(songPost.params.duration, 60);
+  ok('Pro song: 60 s within the 150 s ceiling', { params: { model: songPost.params.model, duration: songPost.params.duration } });
+
+  // 422 is a verdict, not a failure: card with the server text, prompt kept, no new job.
+  state.blockSubmit = true;
+  const tracksBefore = (await read(p)).tracks.length;
+  await p.locator('#music-prompt').fill('Откровенный запрос, который сервер отклонит по политике контента.');
+  await p.locator('#music-generate').click();
+  await p.waitForSelector('#music-refusal', { timeout: 15000 });
+  const refusal = await p.locator('#music-refusal').innerText();
+  assert.ok(refusal.includes(POLICY_MESSAGE), 'server message shown verbatim');
+  assert.match(refusal, /Не пройдена проверка контента/);
+  assert.ok(!/ошибка сервера|Сервер недоступен|Попробовать снова/i.test(refusal));
+  assert.equal((await read(p)).tracks.length, tracksBefore, 'no job created for a blocked prompt');
+  assert.equal(await p.locator('#music-live-banner').isHidden(), true, 'no mock fallback banner');
+  assert.equal(await p.evaluate(() => window.BRIIX_MUSIC_LIVE.active()), true, 'live stays live after a refusal');
+  await p.locator('[data-music-action="edit-blocked"]').click();
+  assert.equal(await p.locator('#music-refusal').count(), 0);
+  assert.match(await p.locator('#music-prompt').inputValue(), /Откровенный запрос/);
+  ok('422 content_blocked: card, server text, prompt kept, live intact', {});
+  state.blockSubmit = false;
+
+  // Vocal models can be down while MusicGen is up: the gate is per route.
+  await p.close();
+  resetBff(); state.vocalReady = false;
+  p = await page();
+  await enableLive(p);
   await p.locator('[data-music-action="kind"][data-id="song"]').click();
   assert.equal(await p.locator('#music-vocal-unavailable').isVisible(), true);
   assert.equal(await p.locator('#music-generate').isDisabled(), true);
   await p.locator('#music-prompt').fill('Песня о городе с русским вокалом и припевом.');
   assert.equal(state.posts.length, 0);
-  ok('song.vocal unavailable in live: disabled button, no POST', { posts: state.posts.length });
+  await p.locator('[data-music-action="kind"][data-id="instrumental"]').click();
+  assert.equal(await p.locator('#music-generate').isDisabled(), false);
+  ok('vocal models unavailable: song blocked, instrumental still live', { posts: state.posts.length });
 
   // Client-side validation still runs before anything leaves the browser.
   await p.locator('[data-music-action="kind"][data-id="instrumental"]').click();
@@ -180,7 +288,7 @@ function bffServer(port) {
   await p.close();
 
   // Backend marked unavailable in the catalog must not look active.
-  resetBff(); state.musicReady = false;
+  resetBff(); state.musicReady = false; state.vocalReady = false;
   p = await page();
   await p.locator('[data-music-action="live"]').click();
   await p.waitForFunction(() => !window.BRIIX_MUSIC_LIVE.active() && !document.querySelector('#music-live-banner').hidden, {}, { timeout: 10000 });

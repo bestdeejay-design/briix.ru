@@ -127,6 +127,23 @@
       finish('complete');
     }).catch(error => {
       if (error?.name === 'AbortError') { finish('stopped'); return; }
+      if (error?.code === 'content_blocked') {
+        // Отказ политики — полноценный ответ, а не ошибка: статус complete, без «повторить».
+        message.content = 'Этот запрос я генерировать не буду — политика контента briix.ru.'
+          + (error.message ? '\n\n' + error.message : '')
+          + '\n\nХудожественная нагота допустима, порнография — нет. Переформулируйте запрос — и продолжим.';
+        delete message.liveError;
+        store.provenance[message.id] = {
+          model, wallMs: Date.now() - started, streamed: false, contentBlocked: true,
+          policyMessage: error.message || null, at: Date.now()
+        };
+        persist();
+        setBanner('Запрос не прошёл проверку контента на сервере. Это ответ политики, а не сбой: измените формулировку и отправьте снова.');
+        persistChat();
+        refresh();
+        finish('complete');
+        return;
+      }
       const reason = error?.code === 'unauthorized' ? 'Сервер отклонил токен.'
         : error?.code === 'unavailable' ? 'Текстовый бэкенд недоступен.'
         : error?.code === 'network' ? 'Связь с сервером потеряна.'
@@ -151,6 +168,7 @@
     const p = store.provenance[message.id];
     if (!p) return '';
     const seconds = Number.isFinite(p.wallMs) ? (p.wallMs / 1000).toFixed(1) + ' с' : '—';
+    if (p.contentBlocked) return `<div class="chat-live-provenance chat-policy-note" data-chat-provenance="${esc(message.id)}">Проверка контента · отказ сервера · ${seconds} · это не ошибка связи</div>`;
     return `<div class="chat-live-provenance" data-chat-provenance="${esc(message.id)}">${esc(p.model || 'модель сервера')} · ${seconds} · ${p.streamed ? 'поток SSE' : 'ответ целиком' + (p.fallbackReason ? ' (' + esc(p.fallbackReason) + ')' : '')} · приватный live</div>`;
   }
 

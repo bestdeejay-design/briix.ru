@@ -1,18 +1,26 @@
 /* BRIIX Music — optional "Приватный live (эксперимент)" mode.
- * Instrumental and jingle briefs go to the user's own media-bff as type=music jobs;
- * the returned WAV is fetched with the bearer token and played by the studio player.
- * Vocals are never faked: song.vocal stays honest-unavailable until the catalog says ready.
+ * Briefs go to the user's own media-bff as type=music jobs; the returned M4A/MP3/WAV is
+ * fetched with the bearer token and played by the studio player.
+ * Three routes: MusicGen instrumental (no model), ACE-Step Flash and Pro (params.model +
+ * params.lyrics + params.language). Every route stays honest-unavailable until the catalog
+ * says ready — no instrumental substitution for a song, ever.
  * Audio lives in memory as a blob URL; localStorage keeps only the brief and provenance.
  */
 (() => {
   'use strict';
   const POLL_MS = 2500;
-  const MAX_SERVER_DURATION = 30;
+  const MAX_SERVER_DURATION = 30;   // MusicGen route: backend clamps, keep the old cap
+  const VOCAL_SPECS = {
+    flash: { model: 'ace-step-flash', max: 30, seconds: 111 },
+    pro: { model: 'ace-step-pro', max: 150, seconds: 596 }
+  };
+  const MAX_LYRICS = 8000;
   const polls = new Map();      // serverJobId -> timer
   const audioCache = new Map(); // track id -> {url, blob, peaks, duration}
   let active = false;
   let catalog = { status: 'unavailable', model: null };
   let vocal = { status: 'unavailable', model: null };
+  let vocalModels = { flash: { status: 'unavailable' }, pro: { status: 'unavailable' } };
   const api = () => window.BRIIX_MUSIC && window.BRIIX_MUSIC._api;
   const bus = () => window.BRIIX_BUS;
   const banner = text => api()?.setLiveBanner(text || '');
@@ -38,9 +46,23 @@
     try {
       catalog = await bus().capability('music.generate', force);
       vocal = await bus().capability('song.vocal', force);
+      const entries = {};
+      for (const [id, spec] of Object.entries(VOCAL_SPECS)) {
+        let entry = { status: 'unavailable', limits: null, latency: null };
+        try { entry = await bus().modelById(spec.model, force); } catch { /* каталог уже упал — статус ниже */ }
+        entries[id] = {
+          id, status: entry.status === 'ready' ? 'ready' : 'unavailable', model: spec.model,
+          limits: entry.limits || null,
+          latency: entry.latency?.seconds ? entry.latency : { seconds: spec.seconds, note: 'замер стенда' },
+          maxDuration: Number(entry.limits?.max_duration_seconds ?? entry.limits?.max_duration) || spec.max
+        };
+      }
+      vocalModels = entries;
+      if (Object.values(entries).some(e => e.status === 'ready')) vocal = { status: 'ready', model: entries.pro.status === 'ready' ? VOCAL_SPECS.pro.model : VOCAL_SPECS.flash.model };
     } catch (error) {
       catalog = { status: 'unavailable', model: null };
       vocal = { status: 'unavailable', model: null };
+      vocalModels = { flash: { status: 'unavailable' }, pro: { status: 'unavailable' } };
       if (error.code === 'unauthorized') { askToken(); throw error; }
     }
     return catalog;
@@ -59,42 +81,66 @@
     if (!bus().hasToken()) { askToken(); if (!bus().hasToken()) return; }
     try { await refreshCatalog(true); }
     catch { banner('Каталог моделей не получен: проверьте bearer-токен.'); api().refresh(); return; }
-    if (catalog.status !== 'ready') {
-      banner('Музыкальный бэкенд на сервере недоступен (music.generate: unavailable). Раздел остаётся в локальном моке.');
-      toast('Сервер ответил, но music.generate помечен unavailable — включаю мок.', 'error');
+    if (catalog.status !== 'ready' && vocal.status !== 'ready') {
+      banner('Музыкальные модели на сервере недоступны (music.generate и вокальные модели: unavailable). Раздел остаётся в локальном моке.');
+      toast('Сервер ответил, но музыкальные модели помечены unavailable — включаю мок.', 'error');
       api().refresh(); return;
     }
     active = true; banner('');
     api().refresh();
-    toast('Live-режим включён. Инструментал и джингл считает ' + (catalog.model || 'сервер') + '. Вокал: ' + (vocal.status === 'ready' ? 'готов' : 'не подключён') + '.');
+    const readyModes = Object.entries(vocalModels).filter(([, e]) => e.status === 'ready').map(([id]) => id === 'flash' ? 'Flash' : 'Pro');
+    toast('Live-режим включён. Инструментал и джингл: ' + (catalog.status === 'ready' ? catalog.model || 'сервер' : 'недоступны') + '. Вокал: ' + (readyModes.length ? readyModes.join(' + ') : 'не подключён') + '.');
     recover();
   }
 
-  async function submit({ kind, prompt, project, duration, genre, mood, key, bpm }) {
+  async function submit({ kind, prompt, project, duration, genre, mood, key, bpm, vocalMode = 'flash', lyrics = '', language = 'ru' }) {
     if (!bus().hasToken()) { askToken(); if (!bus().hasToken()) return; }
-    if (kind === 'song') { toast('Вокал не подключён: задача не отправляется на сервер.', 'error'); return; }
+    api()?.setRefusal(null);
+    const isSong = kind === 'song';
+    const spec = VOCAL_SPECS[vocalMode] || VOCAL_SPECS.flash;
+    const entry = vocalModels[vocalMode] || { status: 'unavailable' };
+    if (isSong && entry.status !== 'ready') { toast('Режим вокала недоступен: задача не отправляется на сервер.', 'error'); return; }
+    if (isSong && !String(lyrics || '').trim()) { toast('Для песни нужна лирика — сервер принимает её в params.lyrics.', 'error'); return; }
+    if (!isSong && catalog.status !== 'ready') { toast('Инструментальная модель недоступна: задача не отправляется на сервер.', 'error'); return; }
+    const cap = isSong ? (entry.maxDuration || spec.max) : MAX_SERVER_DURATION;
+    const seconds = Math.min(cap, Math.max(5, Number(duration) || (isSong ? 30 : 15)));
+    const params = isSong
+      ? { model: spec.model, lyrics: String(lyrics).slice(0, MAX_LYRICS), language: language === 'en' ? 'en' : 'ru', duration: seconds }
+      : { duration: seconds };
     banner('');
     const localId = 'live-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
     let serverJobId;
     try {
       serverJobId = await bus().submitJob({
         type: 'music', prompt,
-        params: { duration: Math.min(MAX_SERVER_DURATION, Math.max(1, Number(duration) || 15)) },
+        params,
         idempotencyKey: localId
       });
     } catch (error) {
       if (error.code === 'unauthorized') { askToken(); toast('Сервер отклонил токен.', 'error'); return; }
+      if (error.code === 'content_blocked') {
+        // Отказ модерации — не сбой сервера: мок не включаем, задачу не создаём, повтор не предлагаем.
+        api()?.setRefusal({ message: error.message, prompt, kind, at: new Date().toISOString() });
+        api().refresh();
+        return;
+      }
+      if (error.code === 'bad_params') { toast(error.message || 'Сервер отклонил параметры брифа.', 'error'); return; }
       if (error.code === 'queue_full') { toast('Очередь сервера заполнена. Попробуйте позже.', 'error'); return; }
       if (error.code === 'unavailable') { goMock('Музыкальный бэкенд недоступен — включён локальный мок.'); return; }
       goMock('Сервер недоступен — включён локальный мок.');
       return;
     }
     api().addTrack({
-      id: localId, kind, genre, mood, key, goal: 'social', duration: Math.min(MAX_SERVER_DURATION, Number(duration) || 15),
-      bpm, project, prompt, status: 'queued', serverJobId, resultUrl: null, provenance: null
+      id: localId, kind, genre, mood, key, goal: 'social', duration: seconds,
+      bpm, project, prompt, status: 'queued', serverJobId, resultUrl: null, provenance: null,
+      vocalMode: isSong ? (vocalMode === 'pro' ? 'pro' : 'flash') : null,
+      lyrics: isSong ? String(lyrics).slice(0, MAX_LYRICS) : '', language: isSong ? language : null,
+      serverModel: isSong ? spec.model : catalog.model || 'musicgen-small'
     });
     startPoll(localId, serverJobId);
-    toast('Бриф ушёл на сервер. Ждём WAV от ' + (catalog.model || 'musicgen-small') + '.');
+    toast(isSong
+      ? 'Бриф ушёл на сервер. Ждём песню от ' + spec.model + ' — это минуты, а не секунды.'
+      : 'Бриф ушёл на сервер. Ждём аудио от ' + (catalog.model || 'musicgen-small') + '.');
   }
 
   function startPoll(trackId, serverJobId) {
@@ -111,7 +157,9 @@
       }
       const patch = { status: data.status, provenance: data.provenance || null };
       if (data.stage) patch.stage = data.stage;
+      if (data.mime) patch.serverMime = data.mime;
       if (data.status === 'ready' && data.result_url) { patch.resultUrl = data.result_url; stopPoll(serverJobId); }
+      else if (data.status === 'ready' && !data.result_url) { patch.error = 'Сервер сообщил о готовности, но не отдал ссылку на файл.'; stopPoll(serverJobId); }
       else if (['error', 'cancelled', 'interrupted', 'expired'].includes(data.status)) { patch.error = data.error || null; stopPoll(serverJobId); }
       const track = api().patchTrack(trackId, patch);
       api().refresh();
@@ -153,7 +201,7 @@
     catch (error) {
       if (error.code === 'gone') { api().patchTrack(track.id, { status: 'expired', resultUrl: null, error: 'Результат истёк: файл удалён с сервера (хранение 24 часа).' }); api().refresh(); toast('Результат истёк — файл удалён с сервера.', 'error'); return null; }
       if (error.code === 'unauthorized') { goMock('Токен отклонён при скачивании — включён локальный мок.'); return null; }
-      toast('Не удалось скачать WAV с сервера.', 'error');
+      toast('Не удалось скачать аудиофайл с сервера.', 'error');
       return null;
     }
     const decoded = await peaksFrom(blob);
@@ -179,7 +227,7 @@
 
   async function resubmit(track) {
     if (!active) { toast('Включите live-режим, чтобы повторить серверную задачу.', 'error'); return; }
-    await submit({ kind: track.kind, prompt: track.prompt, project: track.project, duration: track.duration, genre: track.genre, mood: track.mood, key: track.key, bpm: track.bpm });
+    await submit({ kind: track.kind, prompt: track.prompt, project: track.project, duration: track.duration, genre: track.genre, mood: track.mood, key: track.key, bpm: track.bpm, vocalMode: track.vocalMode || 'flash', lyrics: track.lyrics || '', language: track.language || 'ru' });
   }
 
   function release(id) {
@@ -200,6 +248,8 @@
     toggle, submit, cancel, resubmit, ensureAudio, release, recover,
     catalog: () => catalog,
     vocalStatus: () => vocal.status,
+    vocalModels: () => vocalModels,
+    clearRefusal: () => api()?.setRefusal(null),
     vocalModel: () => vocal.model,
     audioFor: id => audioCache.get(id) || null,
     refreshCatalog,

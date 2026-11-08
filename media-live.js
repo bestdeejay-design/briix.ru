@@ -39,6 +39,7 @@
 
   async function submit({ type, prompt, project, ratio }) {
     if (!token()) { askToken(); return; }
+    api().setRefusal(null);
     banner('');
     let payload;
     try {
@@ -47,6 +48,18 @@
         body: JSON.stringify({ type, prompt, params: ratio && type === 'image' ? { ratio } : {} })
       });
       if (r.status === 401) { api().toast('Сервер отклонил токен. Проверьте bearer-токен в настройках live-режима.', 'error'); askToken(); return; }
+      // 422 — вердикт модерации, а не сбой: карточка с текстом сервера, без мока и без retry.
+      if (r.status === 422 || r.status === 400) {
+        let payload = null;
+        try { payload = await r.json(); } catch { /* пустое тело */ }
+        if (r.status === 422 || payload?.error?.code === 'content_blocked') {
+          api().setRefusal({ message: payload?.error?.message || 'Запрос нарушает политику контента.', prompt, type, at: Date.now() });
+          host.refresh();
+          return;
+        }
+        api().toast(payload?.error?.message || 'Сервер отклонил параметры запроса.', 'error');
+        return;
+      }
       if (r.status === 429) { api().toast('Очередь сервера заполнена. Попробуйте позже.', 'error'); return; }
       if (r.status === 503) { api().toast('Сервер или нужный бэкенд недоступен.', 'error'); return; }
       if (!r.ok) { api().toast('Сервер не принял задачу (' + r.status + ').', 'error'); return; }

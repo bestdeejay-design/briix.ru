@@ -39,6 +39,15 @@
     }
     if (response.status === 401) throw new BusError('unauthorized', 'Сервер отклонил токен.', 401);
     if (response.status === 404) throw new BusError('gone', 'Объект не найден или срок хранения истёк.', 404);
+    // 422 — не сбой, а отказ по политике контента: текст сервера показываем дословно.
+    if (response.status === 422 || response.status === 400) {
+      let payload = null;
+      try { payload = await response.json(); } catch { /* тело может быть пустым */ }
+      const code = payload?.error?.code || (response.status === 422 ? 'content_blocked' : 'bad_params');
+      const message = payload?.error?.message || (response.status === 422
+        ? 'Запрос нарушает политику контента.' : 'Сервер отклонил параметры запроса.');
+      throw new BusError(code, message, response.status);
+    }
     if (response.status === 429) throw new BusError('queue_full', 'Очередь сервера заполнена.', 429);
     if (response.status === 503) throw new BusError('unavailable', 'Сервер или бэкенд недоступен.', 503);
     if (!response.ok) throw new BusError('http', 'Сервер ответил ' + response.status + '.', response.status);
@@ -69,6 +78,14 @@
     const entry = list.find(m => Array.isArray(m.capabilities) && m.capabilities.includes(name));
     if (!entry) return { status: 'unavailable', model: null, entry: null };
     return { status: entry.status === 'ready' ? 'ready' : 'unavailable', model: entry.id, entry };
+  }
+
+  // Каталог отдаёт две модели на одну capability (Flash и Pro) — нужен поиск по id.
+  async function modelById(id, force = false) {
+    const list = await models(force);
+    const entry = list.find(m => m.id === id);
+    if (!entry) return { id, status: 'unavailable', limits: null, latency: null, entry: null };
+    return { id, status: entry.status === 'ready' ? 'ready' : 'unavailable', limits: entry.limits || null, latency: entry.latency || null, entry };
   }
 
   async function submitJob({ type, prompt, params = {}, idempotencyKey }) {
@@ -166,6 +183,9 @@
     } catch (error) {
       if (error?.name === 'AbortError') throw error;
       if (delivered) throw error;                      // partial answer stays partial, never duplicated
+      // Отказ по политике, по параметрам или по токену — вердикт сервера, а не транспорт:
+      // повторять его без стрима бессмысленно и вредно.
+      if (error instanceof BusError && ['content_blocked', 'bad_params', 'unauthorized'].includes(error.code)) throw error;
       streamFailure = error;
     }
     const fallback = await chatNonStream({ messages, signal });
@@ -178,7 +198,7 @@
 
   window.BRIIX_BUS = {
     BusError, server, setServer, token, setToken, hasToken: () => !!token(),
-    health, models, capability, submitJob, getJob, cancelJob, fileBlob, chat,
+    health, models, capability, modelById, submitJob, getJob, cancelJob, fileBlob, chat,
     invalidate: () => { modelsCache = { ts: 0, data: null }; }
   };
 })();

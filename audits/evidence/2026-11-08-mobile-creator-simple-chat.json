@@ -1,0 +1,52 @@
+{
+  "passed": 10,
+  "results": [
+    {
+      "name": "composer shows only assistant and what-to-make",
+      "hint": "none",
+      "example": "none"
+    },
+    {
+      "name": "mode menu offers five plain choices and a way to full settings",
+      "options": [
+        "Ответ",
+        "Картинка",
+        "Видео",
+        "Музыка",
+        "Песня"
+      ]
+    },
+    {
+      "name": "result is brought into view right after sending",
+      "top": 222,
+      "bottom": 598,
+      "vh": 844,
+      "composerTop": 603
+    },
+    {
+      "name": "image lands in the chat feed with an honest source badge",
+      "src": "assets/media/ceramic-still.jpg"
+    },
+    {
+      "name": "music plays inside the feed",
+      "src": "blob:http://127.0.0."
+    },
+    {
+      "name": "song can be requested with one phrase",
+      "cards": 3
+    },
+    {
+      "name": "advanced settings stay one tap away",
+      "href": "#/music"
+    },
+    {
+      "name": "mode and results survive a reload"
+    },
+    {
+      "name": "desktop interface is untouched"
+    },
+    {
+      "name": "no page errors"
+    }
+  ]
+}

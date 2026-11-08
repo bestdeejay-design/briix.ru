@@ -82,7 +82,33 @@
       ]
     },
     {
-      id: 'producer', name: 'Музыкальный продюсер', short: 'Песня, инструментал или джингл',
+      id: 'photographer', name: 'Визуальный дизайнер', short: 'Фото, кадр, свет и стиль', simpleMode: 'image',
+      description: 'Помогает описать изображение без технической анкеты: что в кадре, какой свет, настроение и формат нужны.',
+      icon: 'image', tone: 'green', category: 'creative', label: 'Фото и изображения',
+      skills: ['Предметное фото', 'Свет и композиция', 'Визуальный стиль'],
+      greeting: 'Соберём ясный визуальный бриф',
+      suggestions: ['Описать предметный кадр', 'Подобрать свет и настроение', 'Подготовить обложку'],
+      prompts: [
+        { title: 'Предмет в мягком свете', text: 'Фото керамической чашки на натуральном камне, мягкий боковой свет, спокойные натуральные цвета, свободное место для заголовка.' },
+        { title: 'Атмосфера небольшого бренда', text: 'Утреннее фото небольшой кофейни: чашка на деревянной стойке, свет из окна, живая фактура, без людей и логотипов.' },
+        { title: 'Чистая обложка', text: 'Минималистичное фото стеклянного флакона на светлом камне, мягкие тени листьев, много воздуха и аккуратные отражения.' }
+      ]
+    },
+    {
+      id: 'director', name: 'Видеограф', short: 'Видео, действие и движение камеры', simpleMode: 'video',
+      description: 'Переводит идею в короткий видеобриф: действие в кадре, движение камеры, ритм, формат и длительность.',
+      icon: 'play', tone: 'blue', category: 'creative', label: 'Видео и движение',
+      skills: ['Короткие ролики', 'Движение камеры', 'Вертикальные форматы'],
+      greeting: 'Опишем один понятный видеоплан',
+      suggestions: ['Придумать движение камеры', 'Описать вертикальный ролик', 'Собрать продуктовый тизер'],
+      prompts: [
+        { title: 'Медленное приближение', text: 'Пятисекундное видео: один непрерывный план, камера медленно приближается к керамической чашке, объект и свет неподвижны, без склеек и текста.' },
+        { title: 'Вертикальная история', text: 'Вертикальное видео утренней кофейни, медленный дрейф камеры, мягкий свет из окна, спокойное место для субтитров, без резких движений.' },
+        { title: 'Тизер с одним действием', text: 'Короткий видеотизер уходовой косметики: свет постепенно проходит по стеклянному флакону, камера почти неподвижна, фон чистый, темп спокойный.' }
+      ]
+    },
+    {
+      id: 'producer', name: 'Музыкальный продюсер', short: 'Песня, инструментал или джингл', simpleMode: 'music',
       description: 'Помогает собрать музыкальный бриф: задача, жанр, настроение, темп и структура. Черновик звучания собирается в разделе «Музыка».',
       icon: 'music', tone: 'violet', category: 'creative', label: 'Звук и музыка',
       skills: ['Бриф на трек', 'Структура песни', 'Подбор направления'],
@@ -92,6 +118,19 @@
         { title: 'Песня с вокалом', text: 'Хочу песню с вокалом о маленьком деле, которое вырослось из хобби. Помоги собрать бриф: настроение, жанр, темп и структура куплетов и припева.' },
         { title: 'Инструментал для видео', text: 'Нужен спокойный инструментал для минутного видео о керамической мастерской. Помоги подобрать жанр, темп и настроение подложки.' },
         { title: 'Джингл для подкаста', text: 'Придумай бриф на короткий джингл-заставку для подкаста о городских прогулках: узнаваемый, тёплый, без резких звуков.' }
+      ]
+    },
+    {
+      id: 'songwriter', name: 'Автор песни', short: 'Лирика, куплет и припев из вашей базы', simpleMode: 'song',
+      description: 'Помогает начать песню с одной фразы и подбирает русскую лирику из личной базы DJ1. Исходный текст можно изменить в полном интерфейсе.',
+      icon: 'mic', tone: 'rose', category: 'creative', label: 'Песни и лирика',
+      skills: ['Русская лирика', 'Куплет и припев', 'База DJ1'],
+      greeting: 'Найдём песню в вашей базе',
+      suggestions: ['Найти лирику по настроению', 'Начать с припева', 'Подобрать другой текст'],
+      prompts: [
+        { title: 'Ночной город и дождь', text: 'Песня на русском о ночном городе после дождя, тёплый женский вокал, спокойный куплет и светлый запоминающийся припев.' },
+        { title: 'Песня о своём деле', text: 'Песня о маленьком деле, которое выросло из хобби: искренний куплет, припев с надеждой, тёплая акустическая аранжировка.' },
+        { title: 'Тихий вечер дома', text: 'Лиричная песня о тихом вечере дома и близком человеке, мягкий вокал, простые слова, куплет и короткий припев.' }
       ]
     }
   ];
@@ -115,9 +154,9 @@
     { id: 'interest', category: 'Обучение', assistant: 'mentor', icon: 'book', title: 'Проценты без зубрёжки', description: 'Одна аналогия, один пример и маленькая проверка понимания.', text: assistants[5].prompts[0].text },
     { id: 'learning', category: 'Обучение', assistant: 'mentor', icon: 'graduation', title: 'Две недели по полчаса', description: 'Посильный маршрут обучения с практикой, а не список из ста тем.', text: assistants[5].prompts[1].text },
     { id: 'quiz', category: 'Обучение', assistant: 'mentor', icon: 'help', title: 'Три вопроса себе', description: 'Проверить понимание причинности и корреляции.', text: assistants[5].prompts[2].text },
-    { id: 'song', category: 'Музыка', assistant: 'producer', icon: 'mic', title: 'Песня с вокалом', description: 'Бриф на песню: настроение, жанр, темп и структура.', text: assistants[6].prompts[0].text },
-    { id: 'instrumental', category: 'Музыка', assistant: 'producer', icon: 'music', title: 'Инструментал для видео', description: 'Спокойная подложка под ролик без вокала.', text: assistants[6].prompts[1].text },
-    { id: 'jingle', category: 'Музыка', assistant: 'producer', icon: 'sparkles', title: 'Джингл для подкаста', description: 'Короткая узнаваемая заставка на несколько секунд.', text: assistants[6].prompts[2].text }
+    { id: 'song', category: 'Музыка', assistant: 'producer', icon: 'mic', title: 'Песня с вокалом', description: 'Бриф на песню: настроение, жанр, темп и структура.', text: assistants.find(a => a.id === 'producer').prompts[0].text },
+    { id: 'instrumental', category: 'Музыка', assistant: 'producer', icon: 'music', title: 'Инструментал для видео', description: 'Спокойная подложка под ролик без вокала.', text: assistants.find(a => a.id === 'producer').prompts[1].text },
+    { id: 'jingle', category: 'Музыка', assistant: 'producer', icon: 'sparkles', title: 'Джингл для подкаста', description: 'Короткая узнаваемая заставка на несколько секунд.', text: assistants.find(a => a.id === 'producer').prompts[2].text }
   ];
 
   const scenarios = {
@@ -174,9 +213,9 @@
   function makeResponse(assistantId, prompt, variant = 0) {
     let key = detectScenario(prompt);
     const matchedScenario = key;
-    const fallback = { universal: 'decision', editor: 'edit', analyst: 'compare', developer: 'function', marketer: 'value', mentor: 'interest', producer: 'instrumental' };
+    const fallback = { universal: 'decision', editor: 'edit', analyst: 'compare', developer: 'function', marketer: 'value', mentor: 'interest', photographer: 'content', director: 'content', producer: 'instrumental', songwriter: 'song' };
     if (!key) key = fallback[assistantId] || 'decision';
-    const specialist = { universal: null, editor: ['letter', 'headlines', 'edit'], analyst: ['compare', 'sales', 'meeting', 'decision'], developer: ['function', 'csv', 'tests'], marketer: ['content', 'value', 'hypothesis'], mentor: ['interest', 'learning', 'quiz'], producer: ['song', 'instrumental', 'jingle'] };
+    const specialist = { universal: null, editor: ['letter', 'headlines', 'edit'], analyst: ['compare', 'sales', 'meeting', 'decision'], developer: ['function', 'csv', 'tests'], marketer: ['content', 'value', 'hypothesis'], mentor: ['interest', 'learning', 'quiz'], photographer: ['content', 'value', 'hypothesis'], director: ['content', 'value', 'hypothesis'], producer: ['song', 'instrumental', 'jingle'], songwriter: ['song', 'instrumental', 'jingle'] };
     if (assistantId !== 'universal' && !specialist[assistantId].includes(key)) key = fallback[assistantId];
     let text = scenarios[key];
     if (!matchedScenario || key !== matchedScenario) text = '> В демо нет отдельного сценария для этого запроса. Ниже — пример формата ответа, а не анализ вашего текста.\n\n' + text;

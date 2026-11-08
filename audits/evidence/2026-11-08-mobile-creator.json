@@ -1,0 +1,77 @@
+{
+  "passed": 13,
+  "results": [
+    {
+      "name": "mobile home has only media types, assistant, brief and hints",
+      ".assistant-strip": "missing",
+      ".studio-links": "missing",
+      ".home-bottom": "missing",
+      ".home > .live-mode-banner": "none",
+      ".home .mode-select": "none",
+      ".home [data-action=\"attach\"]": "none"
+    },
+    {
+      "name": "layout and axe: photo",
+      "overflow": 0,
+      "small": []
+    },
+    {
+      "name": "photo selects visual assistant, fills a brief and creates an image"
+    },
+    {
+      "name": "layout and axe: video",
+      "overflow": 0,
+      "small": []
+    },
+    {
+      "name": "video is a real local MP4 and survives reload",
+      "src": "http://127.0.0.1:3000/assets/media/ceramic-still-landscape.mp4",
+      "duration": 5,
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "name": "live video refuses honestly instead of submitting an image",
+      "result": {
+        "error": "Live-видео пока не подключено. Выключите live для локального мока — подменять видео картинкой не будем."
+      },
+      "submissions": 0
+    },
+    {
+      "name": "layout and axe: audio",
+      "overflow": 0,
+      "small": []
+    },
+    {
+      "name": "audio loads three owner-base suggestions lazily",
+      "heading": "DJ1 · 8 202 промпта · 6 133 текста"
+    },
+    {
+      "name": "audio assistant choice separates producer and songwriter",
+      "audioAssistants": [
+        "Музыкальный продюсер\nПесня, инструментал или джингл",
+        "Автор песни\nЛирика, куплет и припев из вашей базы"
+      ]
+    },
+    {
+      "name": "song receives Russian lyrics from the owner base",
+      "lyricsLength": 1364,
+      "generation": {
+        "kind": "song",
+        "targetId": "music-29fbbe54-ff84-4414-8100-b3d1d188ec34",
+        "mode": "mock"
+      }
+    },
+    {
+      "name": "catalog entry opens the matching mobile media mode"
+    },
+    {
+      "name": "desktop home remains unchanged"
+    },
+    {
+      "name": "no page errors or external requests"
+    }
+  ],
+  "errors": [],
+  "external": []
+}

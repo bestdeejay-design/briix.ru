@@ -142,7 +142,7 @@
       <div class="media-mode-note">${icon('flask')}<span><strong>Локальный мок, не нейросеть.</strong> Фото выбраны из готовой коллекции; видео — плавная анимация кадра. Бриф сохраняется, но не управляет пикселями. Без API, кредитов и загрузки файлов.</span></div>
       <div id="media-storage-notice" class="storage-banner" role="status" hidden></div>
       <div id="media-live-banner" class="storage-banner live-mode-banner" role="status" hidden><span data-live-banner-text></span><a class="text-btn" href="#/settings" data-live-settings hidden>${icon('settings')}Ключ в Настройках</a></div>
-      <div class="media-tabs" role="tablist" aria-label="Разделы мастерской изображений">${[['create', 'Создание', 'sparkles'], ['library', 'Медиатека', 'image'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route']].map(([id, label, ic]) => `<button id="media-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="media-panel" tabindex="${tab === id ? 0 : -1}" class="media-tab ${tab === id ? 'active' : ''}" data-media-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="media-count" id="media-library-count">${readyJobs().length}</span>` : id === 'queue' ? `<span class="media-count" id="media-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="media-panel" role="tabpanel" aria-labelledby="media-tab-${tab}" tabindex="0"></section>`;
+      <div class="media-tabs" role="tablist" aria-label="Разделы мастерской изображений">${[['create', 'Создание', 'sparkles'], ['library', 'Медиатека', 'image'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route'], ['showcase', 'Галерея стенда', 'star']].map(([id, label, ic]) => `<button id="media-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="media-panel" tabindex="${tab === id ? 0 : -1}" class="media-tab ${tab === id ? 'active' : ''}" data-media-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="media-count" id="media-library-count">${readyJobs().length}</span>` : id === 'queue' ? `<span class="media-count" id="media-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="media-panel" role="tabpanel" aria-labelledby="media-tab-${tab}" tabindex="0"></section>`;
 
   }
   function render() {
@@ -158,8 +158,9 @@
     const panel = $('#media-panel', root); if (!panel) return;
     panel.setAttribute('aria-labelledby', 'media-tab-' + tab);
     $$('.media-tab', root).forEach(b => { const on = b.dataset.id === tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
-    $('#media-panel-content', root).innerHTML = tab === 'create' ? createMarkup() : tab === 'library' ? libraryMarkup() : tab === 'queue' ? queueMarkup() : modelsMarkup();
+    $('#media-panel-content', root).innerHTML = tab === 'create' ? createMarkup() : tab === 'library' ? libraryMarkup() : tab === 'queue' ? queueMarkup() : tab === 'showcase' ? showcaseMarkup() : modelsMarkup();
     $$('video', root).forEach(v => v.load());
+    if (tab === 'showcase') loadShowcase();
     if (focusKey) { const target = focusKey.action ? $$('#media-panel [data-media-action]', root).find(b => b.dataset.mediaAction === focusKey.action && b.dataset.id === focusKey.id) : document.getElementById(focusKey.id); target?.focus({ preventScroll: true }); }
   }
   function createMarkup() {
@@ -182,6 +183,42 @@
       <div class="media-principle">${icon('shield')}<div><strong>Сначала смысл. Потом генерация.</strong><p>Хороший бриф фиксирует продукт, свет, композицию и ограничения. Реальные модели подключаются позже — через сервер, не через ключ в браузере.</p></div></div>
     </div></div>`;
   }
+  /* ---- Галерея стенда: сохранённые изображения FLUX, не live и не мок ---- */
+  let showcase = { loaded: false, loading: false, error: '', items: [], meta: null };
+
+  function loadShowcase() {
+    if (showcase.loaded || showcase.loading || !window.BRIIX_SHOWCASE) return;
+    showcase.loading = true;
+    window.BRIIX_SHOWCASE.load().then(result => {
+      showcase.loading = false; showcase.loaded = true;
+      showcase.items = (result?.items || []).filter(i => i.kind === 'image');
+      showcase.meta = result?.meta || null;
+      showcase.error = result?.found ? '' : 'Каталог сохранённых результатов не найден.';
+      if (tab === 'showcase') renderPanel();
+    }).catch(() => {
+      showcase.loading = false; showcase.loaded = true;
+      showcase.error = 'Не удалось прочитать каталог галереи.';
+      if (tab === 'showcase') renderPanel();
+    });
+  }
+
+  function showcaseMarkup() {
+    const S = window.BRIIX_SHOWCASE;
+    if (!S) return `<div class="media-queue-empty">${icon('info')}Модуль галереи не загрузился. Обновите страницу.</div>`;
+    if (showcase.loading && !showcase.items.length) return `<div class="media-queue-empty">${icon('clock')}Читаем каталог сохранённых результатов…</div>`;
+    if (!showcase.items.length) return `<div class="showcase-intro"><div><h2>Галерея стенда</h2><p>${esc(S.badge)}.</p></div><span class="badge showcase-badge">${icon('star')}Не live</span></div><div class="media-queue-empty">${icon('image')}<span>${esc(showcase.error || 'Сохранённых изображений стенда пока нет.')} Как только координатор выгрузит результаты FLUX в <code>assets/media/showcase/</code> и добавит их в манифест, они появятся здесь — с моделью, датой и промптом. Подменять их демо-картинками мы не будем.</span></div>`;
+    return `<div class="showcase-intro"><div><h2>Галерея стенда</h2><p>${esc(S.badge)}. Файлы отдаются этим же сайтом, генерация заново не запускается.</p></div><span class="badge showcase-badge">${icon('star')}Не live</span></div><div class="showcase-grid showcase-grid-images">${showcase.items.map(item => `<article class="showcase-card showcase-card-image"><a class="showcase-image" href="${esc(item.url)}" target="_blank" rel="noopener"><img src="${esc(item.url)}" alt="${esc(item.title)}" loading="lazy"></a><div class="showcase-body"><strong>${esc(item.title)}</strong><p class="showcase-meta"><span class="badge">${esc(item.model)}</span><span>${S.fmtDate(item.date)}</span>${item.bytes ? `<span>${S.fmtSize(item.bytes)}</span>` : ''}</p><details class="showcase-prompt"><summary>Промпт и происхождение</summary><p>${esc(item.prompt)}</p><dl><dt>Файл</dt><dd><code>${esc(item.file)}</code></dd>${showcase.meta?.license ? `<dt>Лицензия</dt><dd>${esc(showcase.meta.license)}</dd>` : ''}</dl></details><a class="btn small" href="${esc(item.url)}" download>${icon('download')}Скачать</a></div></article>`).join('')}</div>`;
+  }
+
+  /* Живое ожидание под прогрессом: у серверной задачи — реальная стадия,
+   * у локального мока — честная зона заглушки. Ротацией занимается wait-ui.js. */
+  function waitLine(j) {
+    if (!['queued', 'running'].includes(j.status)) return '';
+    const live = j.mode === 'live';
+    const zone = j.progress < 34 ? 'start' : j.progress < 75 ? 'middle' : 'final';
+    return `<p class="wait-line" data-wait data-wait-type="${j.type === 'video' ? 'video' : 'image'}" data-wait-stage="${live ? esc(j.stage || '') : ''}" data-wait-mock="${live ? '0' : '1'}" data-wait-zone="${zone}" aria-live="off"></p>`;
+  }
+
   function referenceMarkup() { return references.map((f, i) => `<div class="media-reference-chip">${icon('image')}<span>${esc(f.name)}</span><button type="button" class="icon-btn small" data-media-action="remove-reference" data-index="${i}" aria-label="Убрать ${esc(f.name)}">${icon('close')}</button></div>`).join(''); }
   function previewMarkup(j) {
     const a = asset(j?.asset || form.asset);
@@ -189,7 +226,7 @@
   }
   function inlineQueueMarkup() {
     const active = state.jobs.filter(j => ['queued', 'running', 'error'].includes(j.status)).slice(0, 2);
-    return active.length ? active.map(j => `<div class="media-mini-job" data-job-row="${j.id}"><span class="media-job-icon">${icon(j.type === 'video' ? 'play' : 'image')}</span><div><strong>${esc(j.project || recipe(j.recipe).title)}</strong><span data-job-status>${statusLabel(j)}</span>${['queued', 'running'].includes(j.status) ? `<div class="media-progress" role="progressbar" aria-label="Подготовка локального мока" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${j.progress}"><span data-job-progress style="width:${j.progress}%"></span></div>` : ''}</div>${j.status === 'error' ? `<button class="text-btn" data-media-action="retry" data-id="${j.id}">Повторить</button>` : ['running', 'queued'].includes(j.status) ? `<button class="icon-btn small" data-media-action="cancel" data-id="${j.id}" aria-label="Остановить задачу">${icon('stop')}</button>` : ''}</div>`).join('') : `<div class="media-queue-empty">${icon('check')}Очередь свободна. Можно попробовать новый рецепт.</div>`;
+    return active.length ? active.map(j => `<div class="media-mini-job" data-job-row="${j.id}"><span class="media-job-icon">${icon(j.type === 'video' ? 'play' : 'image')}</span><div><strong>${esc(j.project || recipe(j.recipe).title)}</strong><span data-job-status>${statusLabel(j)}</span>${['queued', 'running'].includes(j.status) ? `<div class="media-progress" role="progressbar" aria-label="Подготовка локального мока" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${j.progress}"><span data-job-progress style="width:${j.progress}%"></span></div>${waitLine(j)}` : ''}</div>${j.status === 'error' ? `<button class="text-btn" data-media-action="retry" data-id="${j.id}">Повторить</button>` : ['running', 'queued'].includes(j.status) ? `<button class="icon-btn small" data-media-action="cancel" data-id="${j.id}" aria-label="Остановить задачу">${icon('stop')}</button>` : ''}</div>`).join('') : `<div class="media-queue-empty">${icon('check')}Очередь свободна. Можно попробовать новый рецепт.</div>`;
   }
   function libraryMarkup() {
     return `<div class="media-library-toolbar"><div class="filter-tabs" role="group" aria-label="Тип результата">${[['all', 'Все'], ['image', 'Фото'], ['video', 'Видео'], ['favorite', 'Избранное']].map(([id, label]) => `<button class="filter-tab ${libraryType === id ? 'active' : ''}" aria-pressed="${libraryType === id}" data-media-action="library-filter" data-id="${id}">${label}</button>`).join('')}</div><label class="media-search">${icon('search')}<input type="search" id="media-library-search" placeholder="Найти по проекту или брифу" aria-label="Поиск по медиатеке" value="${esc(libraryQuery)}"></label><button class="btn" data-media-action="export">${icon('download')}Экспорт брифов</button></div><div class="media-library-meta"><span id="media-result-count"></span><button class="text-btn" data-media-action="clear">Очистить медиатеку</button></div><div id="media-library-grid" class="media-library-grid"></div>`;
@@ -203,7 +240,7 @@
   }
   function queueMarkup() {
     const jobs = state.jobs.filter(j => j.status !== 'ready');
-    return `<div class="media-queue-intro"><div><h2>От брифа к результату</h2><p>${liveActive() ? 'Live-задачи выполняются локальными моделями на сервере: фото — минуты, музыка — минуты, текст — секунды. Прогресс обновляется опросом сервера.' : 'Одна задача готовится примерно 4–6 секунд. Это таймер интерфейса, не скорость реальной модели.'}</p></div><button class="btn" data-media-action="new">${icon('plus')}Новая задача</button></div><div class="media-queue-list">${jobs.length ? jobs.map(j => `<article class="media-queue-card" data-job-row="${j.id}"><img src="${asset(j.asset).image}" alt="" width="88" height="72"><div class="media-queue-card-main"><div class="media-queue-card-title"><strong>${esc(j.project || recipe(j.recipe).title)}</strong><span class="badge ${j.status === 'error' ? 'media-status-error' : ''}" data-job-status>${statusLabel(j)}</span></div><p>${j.type === 'video' ? 'Видео' : 'Фото'} · ${j.ratio} · ${date(j.createdAt)}</p>${['running', 'queued'].includes(j.status) ? `<div class="media-progress" role="progressbar" aria-label="Подготовка локального мока" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${j.progress}"><span data-job-progress style="width:${j.progress}%"></span></div>` : j.status === 'error' ? '<p class="media-error-copy">Специально включённая демо-ошибка. Внешний сервис не вызывался.</p>' : '<p>Задача остановлена. Бриф можно использовать повторно.</p>'}</div><div class="media-queue-card-actions">${['queued', 'running'].includes(j.status) ? `<button class="btn" data-media-action="cancel" data-id="${j.id}">${icon('stop')}Остановить</button>` : `<button class="btn" data-media-action="retry" data-id="${j.id}">${icon('refresh')}Повторить</button>`}<button class="icon-btn" data-media-action="delete" data-id="${j.id}" aria-label="Удалить задачу">${icon('trash')}</button></div></article>`).join('') : `<div class="empty-state media-empty">${icon('clock')}<h2>Всё спокойно</h2><p>Активных и остановленных задач нет. Готовые работы находятся в медиатеке.</p><button class="btn primary" data-media-action="new">Попробовать рецепт</button></div>`}</div>`;
+    return `<div class="media-queue-intro"><div><h2>От брифа к результату</h2><p>${liveActive() ? 'Live-задачи выполняются локальными моделями на сервере: фото — минуты, музыка — минуты, текст — секунды. Прогресс обновляется опросом сервера.' : 'Одна задача готовится примерно 4–6 секунд. Это таймер интерфейса, не скорость реальной модели.'}</p></div><button class="btn" data-media-action="new">${icon('plus')}Новая задача</button></div><div class="media-queue-list">${jobs.length ? jobs.map(j => `<article class="media-queue-card" data-job-row="${j.id}"><img src="${asset(j.asset).image}" alt="" width="88" height="72"><div class="media-queue-card-main"><div class="media-queue-card-title"><strong>${esc(j.project || recipe(j.recipe).title)}</strong><span class="badge ${j.status === 'error' ? 'media-status-error' : ''}" data-job-status>${statusLabel(j)}</span></div><p>${j.type === 'video' ? 'Видео' : 'Фото'} · ${j.ratio} · ${date(j.createdAt)}</p>${['running', 'queued'].includes(j.status) ? `<div class="media-progress" role="progressbar" aria-label="Подготовка локального мока" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${j.progress}"><span data-job-progress style="width:${j.progress}%"></span></div>${waitLine(j)}` : j.status === 'error' ? '<p class="media-error-copy">Специально включённая демо-ошибка. Внешний сервис не вызывался.</p>' : '<p>Задача остановлена. Бриф можно использовать повторно.</p>'}</div><div class="media-queue-card-actions">${['queued', 'running'].includes(j.status) ? `<button class="btn" data-media-action="cancel" data-id="${j.id}">${icon('stop')}Остановить</button>` : `<button class="btn" data-media-action="retry" data-id="${j.id}">${icon('refresh')}Повторить</button>`}<button class="icon-btn" data-media-action="delete" data-id="${j.id}" aria-label="Удалить задачу">${icon('trash')}</button></div></article>`).join('') : `<div class="empty-state media-empty">${icon('clock')}<h2>Всё спокойно</h2><p>Активных и остановленных задач нет. Готовые работы находятся в медиатеке.</p><button class="btn primary" data-media-action="new">Попробовать рецепт</button></div>`}</div>`;
   }
   function modelsMarkup() {
     return `<div class="media-model-intro"><div><h2>Модель — инструмент, а не весь продукт</h2><p>Каталог для выбора направления. Ни одна из этих моделей не подключена к демо; названия и условия проверены по документации на 6 ноября 2026 года.</p></div><a class="btn" href="audits/2026-11-06-media-hub-research.md" download>${icon('download')}Исследование</a></div><div class="filter-tabs media-model-filters" role="group" aria-label="Направление моделей">${[['all', 'Все направления'], ['image', 'Фото'], ['video', 'Видео']].map(([id, label]) => `<button class="filter-tab ${modelType === id ? 'active' : ''}" aria-pressed="${modelType === id}" data-media-action="model-filter" data-id="${id}">${label}</button>`).join('')}</div><div class="media-model-grid">${MODELS.filter(m => modelType === 'all' || m.kind === modelType).map(m => `<article class="media-model-card"><div class="media-model-top"><span class="avatar tone-${m.kind === 'image' ? 'green' : 'violet'}">${icon(m.kind === 'image' ? 'image' : 'play')}</span><span class="badge">${m.access}</span></div><span class="eyebrow">${m.maker}</span><h3>${m.name}</h3><p>${m.use}</p><div class="media-model-note">${m.note}</div><a class="text-btn" href="${m.url}" target="_blank" rel="noopener noreferrer">Первичная документация ${icon('arrowRight')}</a></article>`).join('')}</div><div class="media-catalog-note">${icon('info')}<span>Ссылки ведут на внешние сайты только после клика. Цены, лицензии, доступность в вашем регионе и условия обработки данных нужно перепроверить перед production.</span></div>`;
@@ -221,6 +258,12 @@
       const status = $('[data-job-status]', row), progress = $('[data-job-progress]', row);
       if (status) status.textContent = statusLabel(j);
       if (progress) { progress.style.width = j.progress + '%'; progress.parentElement.setAttribute('aria-valuenow', String(j.progress)); }
+      const wait = $('[data-wait]', row);
+      if (wait) {
+        const zone = j.progress < 34 ? 'start' : j.progress < 75 ? 'middle' : 'final';
+        if (wait.dataset.waitZone !== zone) wait.dataset.waitZone = zone;
+        if (j.mode === 'live' && (wait.dataset.waitStage || '') !== (j.stage || '')) wait.dataset.waitStage = j.stage || '';
+      }
     });
   }
   function ensureTimer() { if (!timer && state.jobs.some(j => j.status === 'queued' && j.mode !== 'live')) timer = setInterval(tick, 120); }

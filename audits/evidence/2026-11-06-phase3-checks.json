@@ -1,0 +1,128 @@
+{
+ "task": "issue #34 — фаза 3",
+ "date": "2026-11-06",
+ "branch": "arena/d0f52e27-briix-ru",
+ "baseline": {
+  "commit": "75829c6f96a20f08f62b663dc58f12c419306cc0",
+  "suites": {
+   "music": 23,
+   "demo": 20,
+   "media": 25,
+   "media-live": 11,
+   "music-live": 10,
+   "chat-live": 10
+  },
+  "total_pass": 99,
+  "failed_suites": 0
+ },
+ "environment": {
+  "chromium": "153.0.8010.0 (@sparticuz, ручная распаковка al2023/swiftshader)",
+  "runner": "playwright + @axe-core/playwright",
+  "order": "строго последовательно"
+ },
+ "after": {
+  "suites": {
+   "music": {
+    "pass": 23,
+    "exit": 0,
+    "done_reported": null,
+    "new_checks": null
+   },
+   "demo": {
+    "pass": 20,
+    "exit": 0,
+    "done_reported": null,
+    "new_checks": null
+   },
+   "media": {
+    "pass": 25,
+    "exit": 0,
+    "done_reported": null,
+    "new_checks": null
+   },
+   "media-live": {
+    "pass": 12,
+    "exit": 0,
+    "done_reported": 12,
+    "new_checks": null
+   },
+   "music-live": {
+    "pass": 17,
+    "exit": 0,
+    "done_reported": 17,
+    "new_checks": null
+   },
+   "chat-live": {
+    "pass": 11,
+    "exit": 0,
+    "done_reported": 11,
+    "new_checks": null
+   },
+   "live-default": {
+    "pass": 10,
+    "exit": 0,
+    "done_reported": 10,
+    "new_checks": [
+     "no key: all three sections say \"мок\" and link to Settings",
+     "toggle without a key routes to the Settings field, no prompt()",
+     "Settings: save + check reports ready models",
+     "one key → music, images and chat live with zero toggles",
+     "reload keeps live on without clicks",
+     "manual off survives reload and can be switched back on",
+     "rejected key: explicit mock banner and 401 in Settings",
+     "stand down: mock banner, no fake live",
+     "clear key returns the sections to the scripted mode",
+     "no native dialogs and no page errors"
+    ]
+   },
+   "wait-phrases": {
+    "pass": 10,
+    "exit": 0,
+    "done_reported": 10,
+    "new_checks": [
+     "pools: 40+ unique phrases per type, server stages and mock zones",
+     "stage and mock-zone binding",
+     "no repeat inside the 15-phrase window",
+     "anti-repeat history survives reload",
+     "rotation every 4–6 seconds without repeats",
+     "stage change re-pools the line immediately",
+     "reduced motion: no rotation",
+     "mock music job shows an honest wait line under the progress",
+     "scripted chat has no live wait line",
+     "no page errors"
+    ]
+   },
+   "showcase": {
+    "pass": 11,
+    "exit": 0,
+    "done_reported": 11,
+    "new_checks": [
+     "six saved stand tracks with honest labelling",
+     "prompt and provenance come from the manifest",
+     "saved M4A plays with a moving progress bar",
+     "lyrics and cover are read from the M4A itself",
+     "instrumental reports that it has no lyrics",
+     "leaving the gallery stops playback",
+     "manifest entries are validated",
+     "missing catalogue: honest empty state",
+     "images gallery is honest about having no saved FLUX results yet",
+     "gallery states pass axe on desktop and mobile",
+     "no external requests and no page errors"
+    ]
+   }
+  },
+  "total_pass": 139,
+  "failed_suites": 0
+ },
+ "commit_note": "Хеш коммита не вписан намеренно: файл входит в тот же коммит.",
+ "unverified": [
+  "живой стенд A и реальные модели",
+  "качество вокала",
+  "длинные задачи Pro 150 с",
+  "retention 24 ч и рестарт стенда",
+  "non-Chromium и мобильные движки",
+  "многовкладочный поллинг",
+  "карточка 422 и строка ожидания под axe",
+  "реальные FLUX-изображения в галерее (данных нет)"
+ ]
+}

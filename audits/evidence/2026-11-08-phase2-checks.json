@@ -1,0 +1,281 @@
+{
+  "task": "issue #26 phase 2 — live music and chat on the private bus",
+  "date_utc": "2026-11-08",
+  "branch": "arena/a50c9bcb-briix-ru",
+  "base_commit": "ad865b761f18e09f92ee9b30cdedc29e7942d173",
+  "environment": {
+    "chromium": "@sparticuz/chromium 153",
+    "runner": "playwright",
+    "static_port": 8388,
+    "fake_bff_port": 8300,
+    "note": "fake-bff only; no access to the real stand from the sandbox"
+  },
+  "characterize_first": {
+    "check-music": {
+      "pass_count": 23,
+      "failed": false
+    },
+    "check-demo": {
+      "pass_count": 20,
+      "failed": false
+    },
+    "check-media": {
+      "pass_count": 25,
+      "failed": false
+    },
+    "check-media-live": {
+      "pass_count": 5,
+      "failed": true
+    }
+  },
+  "final_suites": {
+    "check-music": {
+      "pass_count": 23,
+      "checks": [
+        "navigation, images rename and #/images alias",
+        "theme toggle stays on music route",
+        "short brief rejected",
+        "kind defaults and genre/mood BPM suggestion",
+        "instrumental synthesis and escaped project",
+        "playback, seek and pause",
+        "WAV download",
+        "vocal task returns backing track with structure",
+        "jingle duration",
+        "library filters, search, favorite and reuse",
+        "brief export",
+        "delete confirmation",
+        "simulated error and retry",
+        "cancel",
+        "running job recovered after reload",
+        "axe clean in light and dark",
+        "tablist keyboard navigation",
+        "global search music",
+        "music assistant, prompt category and scripted answer",
+        "library capacity guard keeps favorites",
+        "corrupt storage protected until explicit clear",
+        "mobile navigation and layout",
+        "no page errors and no external requests"
+      ],
+      "done_line": null,
+      "fail": [],
+      "sha256_log": "36024dd5562eb89ba74013ee2593edfaa8297dee4a08021fbded080c479d7c66"
+    },
+    "check-demo": {
+      "pass_count": 20,
+      "checks": [
+        "all routes render",
+        "theme route guard and settings focus",
+        "header theme toggle stays on route",
+        "bootstrap theme validation",
+        "draft flush and cross-tab guard",
+        "pending-send guard and scripted response",
+        "stream holder across navigation",
+        "simulated error retry and one-shot reset",
+        "attachment validation and metadata only",
+        "durable export excludes ephemeral",
+        "import normalization",
+        "regenerate variant cap",
+        "corrupt storage protected until explicit clear",
+        "modal version focus guard",
+        "skip link",
+        "markdown escaping and copy-code guard",
+        "global search media",
+        "code header contrast",
+        "reduced motion and axe [{\"theme\":\"light\",\"route\":\"home\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"assistants\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"prompts\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"favorites\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"settings\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"media\",\"violations\":[]},{\"theme\":\"light\",\"route\":\"chat/example-coffee\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"home\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"assistants\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"prompts\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"favorites\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"settings\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"media\",\"violations\":[]},{\"theme\":\"dark\",\"route\":\"chat/example-coffee\",\"violations\":[]}]",
+        "no page errors or external requests"
+      ],
+      "done_line": null,
+      "fail": [],
+      "sha256_log": "c8ff549652b52760e008903c86b7ddc363c5cc921f380e6f57833988a9c20ce6"
+    },
+    "check-media": {
+      "pass_count": 25,
+      "checks": [
+        "short prompt rejected",
+        "reference type/size/count limits",
+        "photo job and escaped project",
+        "image preview/download 1:1",
+        "image preview/download 4:5",
+        "image preview/download 16:9",
+        "image preview/download 9:16",
+        "video playback/download 16:9",
+        "video playback/download 9:16",
+        "WebM fallback playback",
+        "populated image label contrast",
+        "library filters/search/favorite/reuse",
+        "brief export",
+        "delete confirmation",
+        "simulated error and retry",
+        "cancel",
+        "running job recovered after reload",
+        "active limit and protected capacity",
+        "bounded eviction preserves favorites",
+        "retry capacity remains reloadable",
+        "corrupt storage protected and explicit clear recovery",
+        "tab keyboard navigation",
+        "help modal focus/escape",
+        "responsive and axe [{\"width\":390,\"tab\":\"create\",\"violations\":[]},{\"width\":390,\"tab\":\"library\",\"violations\":[]},{\"width\":390,\"tab\":\"queue\",\"violations\":[]},{\"width\":390,\"tab\":\"models\",\"violations\":[]},{\"width\":1440,\"tab\":\"create\",\"violations\":[]},{\"width\":1440,\"tab\":\"library\",\"violations\":[]},{\"width\":1440,\"tab\":\"queue\",\"violations\":[]},{\"width\":1440,\"tab\":\"models\",\"violations\":[]}]",
+        "no page errors or external requests"
+      ],
+      "done_line": null,
+      "fail": [],
+      "sha256_log": "ba3d1fd992003a446e47d431cbdd98a05184de59481a0380de9b2d1452babf6d"
+    },
+    "check-media-live": {
+      "pass_count": 11,
+      "checks": [
+        "Т3 v1→v2 upgrade without loss",
+        "Т3 v2 accepted, live fields preserved",
+        "Т3 garbage → protected banner, no wipe",
+        "Т7 mock labels shown in mock mode",
+        "Т4/Т5 live submit→ready, blob preview, no base64",
+        "Т4 reload during running recovered by polling",
+        "Т4/Т7 server down → interrupted + explicit mock-mode banner",
+        "Т5 expired after server cleanup 404",
+        "C2 failed cancel → interrupted + banner, not cancelled",
+        "C3 retry interrupted → resubmit → ready",
+        "C1 short prompt rejected client-side, no server call"
+      ],
+      "done_line": "DONE 11 checks",
+      "fail": [],
+      "sha256_log": "e6e0c4141ff59fff899c626f875036de6a7283cead2df290798f35c2584445e4"
+    },
+    "check-music-live": {
+      "pass_count": 10,
+      "checks": [
+        "live toggles on and the mode note switches",
+        "song.vocal unavailable in live: disabled button, no POST",
+        "short brief rejected client-side before POST",
+        "instrumental: POST → poll → WAV blob → provenance",
+        "server WAV plays in the studio player",
+        "catalog unavailable keeps the studio in mock",
+        "tunnel death → interrupted + explicit mock banner",
+        "server 404 on file → expired",
+        "cancel is sent to the server",
+        "no page errors"
+      ],
+      "done_line": "DONE 10 checks",
+      "fail": [],
+      "sha256_log": "485eb9b441ee2055f09a1733c0fb869018624b6a29087066f933dcba01a09f5d"
+    },
+    "check-chat-live": {
+      "pass_count": 10,
+      "checks": [
+        "SSE stream renders piece by piece with provenance",
+        "client-side history is sent to the model",
+        "chat storage keeps no token and no server address",
+        "stop aborts the stream and keeps partial text",
+        "mid-stream error keeps partial answer and shows the reason",
+        "SSE without CORS → honest non-stream fallback",
+        "non-SSE answer is labelled as a whole response",
+        "dead tunnel keeps the scripted demo honest",
+        "catalog unavailable keeps chat scripted",
+        "no page errors"
+      ],
+      "done_line": "DONE 10 checks",
+      "fail": [],
+      "sha256_log": "1c28c4ec121ea9fa493826ca22aac1f74fa86ab448458df95880119f0d066286"
+    },
+    "check-media-visual": {
+      "pass_count": 0,
+      "checks": [],
+      "done_line": null,
+      "fail": [],
+      "sha256_log": "3bf02afa9b121be57af9c95df62ef3353f0fb7dd773da08a8ca018a558ad426a"
+    }
+  },
+  "total_named_checks": 99,
+  "files": {
+    "bus-live.js": {
+      "sha256": "04b1bf9410ce5ec890854fbd9fb21c8b0ed77db1ae12afe923a18ecc131b5612",
+      "lines": 184
+    },
+    "music-live.js": {
+      "sha256": "e5b983d477f80a60e6c45226ddf2ed15de7dc62c2761705a16564e184c1aeee5",
+      "lines": 216
+    },
+    "chat-live.js": {
+      "sha256": "9ac3210d65b998460b42e62b70fe245041e69e7e02e7d8d37b0ed97d1f9a429f",
+      "lines": 183
+    },
+    "live.css": {
+      "sha256": "8f8995cf512bd61f31f47162947965bc8bd7733df6419d417fd1c977caeb38b4",
+      "lines": 30
+    },
+    "music.js": {
+      "sha256": "7a8d32ba3b75cfc001adc247e6f4f06e055570b1d8b0d3840d90ddfc67665828",
+      "lines": 661
+    },
+    "demo.js": {
+      "sha256": "9fcf92acaa6683dccd8dbe8f356382c28cb6e5d1eb329b62af977db305ae837c",
+      "lines": 768
+    },
+    "index.html": {
+      "sha256": "37b2060442cc902feb0a77d026270570410bd4182ea58cf71c296d90c31049d9",
+      "lines": 50
+    },
+    "tools/check-music-live.cjs": {
+      "sha256": "8699d259d5531ff7f35e8057c63767a2f37f4f52ecb55d08d9fddca14267b009",
+      "lines": 238
+    },
+    "tools/check-chat-live.cjs": {
+      "sha256": "101cc8339b704c2b6d7ba3bdf791df0beb3bccfa5a8b6c68f973c65ab526b89e",
+      "lines": 243
+    },
+    "tools/check-media-live.cjs": {
+      "sha256": "e22b9b8cb6764d028fc9967f99dd9251cf01753e3e2caaeeca6739537c7392d4",
+      "lines": 213
+    }
+  },
+  "tracked_diff_numstat": [
+    "2\t0\taudits/README.md",
+    "270\t0\taudits/evidence/2026-11-08-phase2-checks.json",
+    "138\t0\taudits/task-26-phase2-live-music-chat.md",
+    "184\t0\tbus-live.js",
+    "183\t0\tchat-live.js",
+    "26\t9\tdemo.js",
+    "4\t0\tindex.html",
+    "30\t0\tlive.css",
+    "216\t0\tmusic-live.js",
+    "99\t20\tmusic.js",
+    "243\t0\ttools/check-chat-live.cjs",
+    "10\t3\ttools/check-media-live.cjs",
+    "238\t0\ttools/check-music-live.cjs"
+  ],
+  "test_only_fixes": [
+    {
+      "file": "tools/check-media-live.cjs",
+      "line": 141,
+      "issue": "waited for status ready, not for the blob URL",
+      "kind": "test race",
+      "deterministic": true
+    },
+    {
+      "file": "tools/check-media-live.cjs",
+      "line": 129,
+      "issue": "pagehide re-persists previous scenario state; find() picked a foreign live job",
+      "kind": "test race",
+      "deterministic": false
+    }
+  ],
+  "known_server_blocker": {
+    "finding": "F-02",
+    "effect": "ACAO set after prepare() — browser SSE blocked",
+    "client_behaviour": "honest fallback to stream:false with visible banner and provenance",
+    "reproduced_in": "tools/check-chat-live.cjs (sse-no-cors mode)"
+  },
+  "not_verified": [
+    "real stand and real models",
+    "true streaming before the F-02 fix",
+    "long jobs (80–356 s)",
+    "real retention and restart",
+    "non-Chromium browsers and mobile",
+    "multi-tab polling",
+    "token threat model",
+    "audio and vocal quality",
+    "429 in the browser",
+    "axe on live states"
+  ],
+  "run_note": "Suites must run sequentially: a parallel Chromium caused one focus-timing flake in check-media (80 ms wait); the isolated run is green.",
+  "commit_note": "Хеш итогового коммита не фиксируется внутри файла: этот файл входит в тот же коммит. Смотрите HEAD PR #31."
+}

@@ -295,9 +295,89 @@ const BRIEF = 'Спокойная подложка для минутного в�
   await p2.waitForSelector('.music-page');
   const overflow = await p2.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 1, 'horizontal overflow ' + overflow);
+
+  // Первый экран телефона: главное действие и задумка видны без прокрутки,
+  // кнопки шапки не обрезаны, все пять вкладок помещаются.
+  const firstScreen = await p2.evaluate(() => {
+    const rect = s => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), left: Math.round(b.left), right: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+    const tabs = [...document.querySelectorAll('.music-tab')].map(e => { const b = e.getBoundingClientRect(); return { id: e.id, w: Math.round(b.width), h: Math.round(b.height), right: Math.round(b.right), name: e.getAttribute('aria-label') }; });
+    return {
+      vh: innerHeight, vw: innerWidth,
+      submit: rect('#music-generate'), prompt: rect('#music-prompt'),
+      headingButtons: [...document.querySelectorAll('.music-heading-actions .btn')].map(e => { const b = e.getBoundingClientRect(); return { w: Math.round(b.width), h: Math.round(b.height), right: Math.round(b.right), name: e.getAttribute('aria-label') }; }),
+      tabs, strip: rect('.music-tabs'),
+      promptFont: getComputedStyle(document.querySelector('#music-prompt')).fontSize,
+      tuningOpen: document.querySelector('#music-tuning')?.open,
+      noteOpen: document.querySelector('#music-mode-note')?.open,
+      noteSummary: document.querySelector('#music-mode-note summary')?.innerText.replace(/\s+/g, ' ').trim()
+    };
+  });
+  assert.ok(firstScreen.submit.bottom > 0 && firstScreen.submit.top < firstScreen.vh, 'кнопка отправки не видна на первом экране: ' + JSON.stringify(firstScreen.submit));
+  assert.ok(firstScreen.submit.h >= 48, 'кнопка отправки мелкая: ' + firstScreen.submit.h);
+  assert.ok(firstScreen.prompt.top < firstScreen.vh - 100, 'задумка слишком низко: ' + JSON.stringify(firstScreen.prompt));
+  assert.equal(firstScreen.promptFont, '16px', 'поле меньше 16 px — iOS приблизит страницу при фокусе');
+  for (const btn of firstScreen.headingButtons) {
+    assert.ok(btn.right <= firstScreen.vw + 1, 'кнопка шапки обрезана: ' + JSON.stringify(btn));
+    assert.ok(btn.w >= 44 && btn.h >= 44, 'кнопка шапки меньше 44 px: ' + JSON.stringify(btn));
+    assert.ok(btn.name, 'у кнопки-иконки нет доступного имени');
+  }
+  assert.equal(firstScreen.tabs.length, 5);
+  for (const t of firstScreen.tabs) {
+    assert.ok(t.right <= firstScreen.vw + 1, 'вкладка за краем экрана: ' + JSON.stringify(t));
+    assert.ok(t.h >= 44 && t.w >= 44, 'вкладка меньше 44 px: ' + JSON.stringify(t));
+    assert.ok(t.name, 'у вкладки-иконки нет доступного имени');
+  }
+  assert.equal(firstScreen.tuningOpen, false, 'вторичные параметры должны быть свёрнуты на телефоне');
+  assert.equal(firstScreen.noteOpen, false, 'подробности режима должны быть свёрнуты на телефоне');
+  assert.match(firstScreen.noteSummary, /Локальный мок, не нейросеть/, 'маркировка обязана быть видна и в свёрнутом виде');
+  ok('mobile first screen: action, prompt, tabs and honest marking all reachable', { submitTop: firstScreen.submit.top, promptTop: firstScreen.prompt.top, tabs: firstScreen.tabs.length });
+
+  // Раскрытия работают пальцем и переживают перерисовку панели.
+  await p2.locator('#music-mode-note summary').click();
+  assert.match(await p2.locator('#music-mode-note .music-mode-body').innerText(), /Вокал в демо не синтезируется/);
+  await p2.locator('#music-tuning summary').click();
+  await p2.waitForSelector('#music-genre', { state: 'visible' });
+  await p2.locator('#music-genre').selectOption('ambient');
+  await p2.locator('#music-tuning summary').click();
+  ok('mobile disclosures expose secondary controls and keep the full mode text');
+
+  // Тач-таргеты внутри раздела и отсутствие горизонтального скролла на всех вкладках.
+  const mobileTabs = [];
+  for (const id of ['create', 'library', 'queue', 'models', 'showcase']) {
+    await p2.locator('#music-tab-' + id).click();
+    await p2.waitForTimeout(250);
+    const state = await p2.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      small: [...document.querySelectorAll('.music-page button, .music-page a[href], .music-page summary, .music-page [role="tab"]')]
+        .filter(e => e.getClientRects().length)
+        .map(e => ({ cls: e.className.toString().slice(0, 32), w: Math.round(e.getBoundingClientRect().width), h: Math.round(e.getBoundingClientRect().height) }))
+        .filter(x => x.w > 0 && (x.w < 40 || x.h < 40))
+    }));
+    assert.ok(state.overflow <= 1, 'горизонтальный скролл на вкладке ' + id + ': ' + state.overflow);
+    assert.deepEqual(state.small, [], 'мелкие тач-таргеты на вкладке ' + id + ': ' + JSON.stringify(state.small));
+    mobileTabs.push(id);
+  }
+  ok('mobile: every tab fits the phone and every control is at least 40px', { tabs: mobileTabs });
+  await p2.locator('#music-tab-create').click();
+
   await p2.locator('#music-prompt').fill(BRIEF);
   await p2.locator('#music-generate').click();
+  // Результат обязан оказаться в кадре над формой, а не под ней.
+  await p2.waitForSelector('.music-create-layout.has-output', { timeout: 10000 });
+  await p2.waitForFunction(() => { const b = document.querySelector('#music-preview')?.getBoundingClientRect(); return b && b.top >= 0 && b.top < 240; }, {}, { timeout: 10000 });
+  ok('mobile: submitted job is revealed above the brief');
   await p2.waitForFunction(() => JSON.parse(localStorage.getItem('briix-music-v1')).tracks[0].status === 'ready', {}, { timeout: 30000 });
+  const player = await p2.evaluate(() => {
+    const play = document.querySelector('.music-play')?.getBoundingClientRect();
+    const seek = document.querySelector('.music-seek input')?.getBoundingClientRect();
+    return { play: play ? { w: Math.round(play.width), h: Math.round(play.height) } : null, seekH: seek ? Math.round(seek.height) : null };
+  });
+  assert.ok(player.play && player.play.w >= 48 && player.play.h >= 48, 'кнопка плеера мелкая: ' + JSON.stringify(player));
+  assert.ok(player.seekH >= 40, 'перемотка мелкая: ' + player.seekH);
+  ok('mobile player controls are thumb-sized', player);
+  const axeMobile = await new AxeBuilder({ page: p2 }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  assert.deepEqual(axeMobile.violations.map(v => v.id), [], 'axe @390: ' + JSON.stringify(axeMobile.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))));
+  ok('mobile music page passes axe');
   await p2.screenshot({ path: path.join(OUT, 'briix-music-mobile.png'), fullPage: true });
   ok('mobile navigation and layout', { overflow });
   await c2.close();

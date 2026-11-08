@@ -68,6 +68,12 @@
   let liveBannerText = '';
   let liveRefusal = null;   // отказ политики контента: карточка, а не тост
   let tab = 'create';
+  // На телефоне вторичные параметры (задача, название, жанр, настроение, тональность,
+  // темп) свёрнуты: первый экран отдаётся задумке и кнопке. На десктопе блок открыт.
+  const isPhone = () => matchMedia('(max-width: 650px)').matches;
+  let tuningOpen = !isPhone();
+  // Пояснение о режиме: заголовок-маркировка виден всегда, подробности — по тапу.
+  let modeNoteOpen = !isPhone();
   let libraryFilter = 'all';
   let libraryQuery = '';
   let modelKind = 'all';
@@ -324,6 +330,13 @@
       if (t.mode === 'live' && (wait.dataset.waitStage || '') !== (t.stage || '')) wait.dataset.waitStage = t.stage || '';
     }
   }
+  // На телефоне результат лежит под формой: без прокрутки кажется, что кнопка ничего
+  // не сделала. Показываем прогресс сразу, липкие вкладки не перекрывают заголовок.
+  function revealOutput() {
+    if (!isPhone()) return;
+    const target = $('#music-preview', root);
+    target?.scrollIntoView({ behavior: host?.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
+  }
   function submit() {
     syncForm();
     const error = $('#music-form-error', root);
@@ -345,6 +358,7 @@
           const area = $('#music-lyrics', root); area?.setAttribute('aria-invalid', 'true'); area?.focus(); return;
         }
       }
+      revealOutput();
       live().submit({ kind: form.kind, prompt: form.prompt.trim(), project: form.project.trim(), duration: form.duration, genre: form.genre, mood: form.mood, key: form.key, bpm: form.bpm,
         vocalMode: form.vocalMode, lyrics: form.lyrics.trim(), language: form.language });
       return;
@@ -358,6 +372,7 @@
     form.failNext = false;
     const failBox = $('#music-fail', root); if (failBox) failBox.checked = false;
     persist(); renderPanel(); updateCounts(); ensureTimer();
+    revealOutput();
     host?.toast('Задача в очереди. Собираем локальную заглушку.');
   }
   function statusLabel(t) {
@@ -379,13 +394,13 @@
     });
   }
   function heading() {
-    return `<div class="page-header music-heading"><div><div class="eyebrow">Звуковая мастерская</div><h1>Музыка</h1><p>От идеи до чернового звучания. Спокойно, наглядно, в одном месте.</p></div><div class="music-heading-actions"><button class="btn music-live-toggle ${liveActive() ? 'active' : ''}" data-music-action="live" aria-pressed="${liveActive()}">${icon('route')}<span>${liveActive() ? 'Приватный live включён' : 'Приватный live (эксперимент)'}</span></button><button class="btn music-help" data-music-action="help">${icon('help')}<span>Как это работает</span></button></div></div>
-      <div id="music-live-banner" class="storage-banner live-mode-banner" role="status" ${liveBannerText ? '' : 'hidden'}><span data-live-banner-text>${esc(liveBannerText)}</span><a class="text-btn" href="#/settings" data-live-settings ${/Настройках/.test(liveBannerText) ? '' : 'hidden'}>${icon('settings')}Ключ в Настройках</a></div>
-      <div class="music-mode-note">${icon(liveActive() ? 'route' : 'flask')}<span>${liveActive()
-        ? `<strong>Приватный live: считает ваш сервер.</strong> Три режима: инструментал и джингл (MusicGen), песня <strong>Flash</strong> (ACE-Step LM 1.7B, до 30 с) и песня <strong>Pro</strong> (LM 4B, до 150 с, полная структура). Вокалу нужна лирика — она уходит в <code>params.lyrics</code>. Результат приходит <strong>M4A (AAC 192k) с обложкой и встроенным текстом</strong>. Длительность инструментала задаёт модель: MusicGen даёт около 15 секунд, параметр отправляется, но бэкендом пока не учитывается. Доступность режимов и тайминги — из каталога шины.`
-        : `<strong>Локальный мок, не нейросеть.</strong> Звук собирается в браузере из простых тонов и шума по жанру, темпу и настроению. Текст брифа влияет только на вариант заглушки. <strong>Вокал в демо не синтезируется:</strong> для песни вы получите минусовку и структуру трека. Без API, кредитов и загрузки файлов.`}</span></div>
+    return `<div class="page-header music-heading"><div><div class="eyebrow">Звуковая мастерская</div><h1>Музыка</h1><p>От идеи до чернового звучания. Спокойно, наглядно, в одном месте.</p></div><div class="music-heading-actions"><button class="btn music-live-toggle ${liveActive() ? 'active' : ''}" data-music-action="live" aria-pressed="${liveActive()}" aria-label="${liveActive() ? 'Приватный live включён' : 'Приватный live (эксперимент)'}" title="${liveActive() ? 'Приватный live включён' : 'Приватный live (эксперимент)'}">${icon('route')}<span>${liveActive() ? 'Приватный live включён' : 'Приватный live (эксперимент)'}</span></button><button class="btn music-help" data-music-action="help" aria-label="Как это работает" title="Как это работает">${icon('help')}<span>Как это работает</span></button></div></div>
+      <div id="music-live-banner" class="storage-banner live-mode-banner" role="status" ${liveBannerText ? '' : 'hidden'}><span data-live-banner-text>${esc(liveBannerText)}</span><a class="text-btn" href="#/settings" data-live-settings aria-label="Ключ в Настройках" title="Ключ в Настройках" ${/Настройках/.test(liveBannerText) ? '' : 'hidden'}>${icon('settings')}<span>Ключ в Настройках</span></a></div>
+      <details class="music-mode-note" id="music-mode-note" ${modeNoteOpen ? 'open' : ''}><summary>${icon(liveActive() ? 'route' : 'flask')}<strong>${liveActive() ? 'Приватный live: считает ваш сервер.' : 'Локальный мок, не нейросеть.'}</strong><span class="music-mode-more">Подробнее</span></summary><div class="music-mode-body">${liveActive()
+        ? `Три режима: инструментал и джингл (MusicGen), песня <strong>Flash</strong> (ACE-Step LM 1.7B, до 30 с) и песня <strong>Pro</strong> (LM 4B, до 150 с, полная структура). Вокалу нужна лирика — она уходит в <code>params.lyrics</code>. Результат приходит <strong>M4A (AAC 192k) с обложкой и встроенным текстом</strong>. Длительность инструментала задаёт модель: MusicGen даёт около 15 секунд, параметр отправляется, но бэкендом пока не учитывается. Доступность режимов и тайминги — из каталога шины.`
+        : `Звук собирается в браузере из простых тонов и шума по жанру, темпу и настроению. Текст брифа влияет только на вариант заглушки. <strong>Вокал в демо не синтезируется:</strong> для песни вы получите минусовку и структуру трека. Без API, кредитов и загрузки файлов.`}</div></details>
       <div id="music-storage-notice" class="storage-banner" role="status" hidden></div>
-      <div class="music-tabs" role="tablist" aria-label="Разделы музыкальной мастерской">${[['create', 'Создание', 'sparkles'], ['library', 'Треки', 'music'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route'], ['showcase', 'Галерея стенда', 'star']].map(([id, label, ic]) => `<button id="music-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="music-panel" tabindex="${tab === id ? 0 : -1}" class="music-tab ${tab === id ? 'active' : ''}" data-music-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="music-count" id="music-library-count">${readyTracks().length}</span>` : id === 'queue' ? `<span class="music-count" id="music-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="music-panel" role="tabpanel" aria-labelledby="music-tab-${tab}" tabindex="0"><div id="music-panel-content"></div></section>`;
+      <div class="music-tabs" role="tablist" aria-label="Разделы музыкальной мастерской">${[['create', 'Создание', 'sparkles'], ['library', 'Треки', 'music'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route'], ['showcase', 'Галерея стенда', 'star']].map(([id, label, ic]) => `<button id="music-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="music-panel" tabindex="${tab === id ? 0 : -1}" aria-label="${label}" title="${label}" class="music-tab ${tab === id ? 'active' : ''}" data-music-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="music-count" id="music-library-count">${readyTracks().length}</span>` : id === 'queue' ? `<span class="music-count" id="music-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="music-panel" role="tabpanel" aria-labelledby="music-tab-${tab}" tabindex="0"><div id="music-panel-content"></div></section>`;
   }
   function render() {
     if (!root || !host) return;
@@ -412,7 +427,8 @@
     const vocalBlocked = isVocalForm() && vocalEntry?.status !== 'ready';
     const current = track(selectedId) || readyTracks()[0] || null;
     if (current && current.status === 'ready') selectedId = current.id;
-    return `<div class="music-create-layout"><form id="music-brief-form" class="music-brief" novalidate>
+    const hasOutput = !!current || state.tracks.some(t => ['queued', 'running'].includes(t.status));
+    return `<div class="music-create-layout ${hasOutput ? 'has-output' : ''}"><form id="music-brief-form" class="music-brief" novalidate>
       <div class="music-section-title"><span class="eyebrow">01 / Бриф</span><span class="badge">Сохраняется локально</span></div>
       <div class="music-kind-switch" role="group" aria-label="Что нужно сделать">${KINDS.map(item => `<button type="button" class="${form.kind === item.id ? 'active' : ''}" aria-pressed="${form.kind === item.id}" data-music-action="kind" data-id="${item.id}">${icon(item.icon)}<span>${item.title}</span></button>`).join('')}</div>
       <p class="music-kind-hint" id="music-kind-hint">${icon('info')}<span>${esc(isVocalForm() ? 'ACE-Step поёт по вашей лирике. Flash — быстрый черновик до 30 секунд, Pro — полная структура до 150 секунд.' : k.hint)}</span></p>
@@ -422,21 +438,25 @@
         const seconds = Number.isFinite(entry?.latency?.seconds) ? entry.latency.seconds : m.fallbackSeconds;
         return `<button type="button" class="music-vocal-mode ${form.vocalMode === m.id ? 'active' : ''} ${ready ? '' : 'unavailable'}" data-music-action="vocal-mode" data-id="${m.id}" aria-pressed="${form.vocalMode === m.id}"><strong>${m.title}</strong><span>${esc(m.sub)}</span><small>до ${m.max} с · ≈${Math.round(seconds / 60 * 10) / 10} мин${ready ? '' : ' · недоступен'}</small></button>`;
       }).join('')}</div><p class="music-mode-timing">${icon('clock')}Тайминги — замер стенда из каталога шины, не обещание: очередь и холодный старт добавляют время.</p></div>` : ''}
-      <label class="music-field">Задача<select id="music-goal">${GOALS.map(([id, name]) => `<option value="${id}" ${form.goal === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
-      <label class="music-field">Название проекта <span class="muted">· необязательно</span><input id="music-project" maxlength="80" value="${esc(form.project)}" placeholder="Например, заставка для подкаста" autocomplete="off"></label>
       <label class="music-field" for="music-prompt">Опишите задумку</label><textarea id="music-prompt" class="music-prompt" rows="4" maxlength="${MAX_PROMPT}" aria-describedby="music-prompt-hint music-form-error" placeholder="Какое настроение, для чего звук, что должно происходить в треке?">${esc(form.prompt)}</textarea><div class="music-field-hint" id="music-prompt-hint"><span>Бриф для будущей модели и вариант заглушки</span><span id="music-prompt-count">${form.prompt.length} / ${MAX_PROMPT}</span></div>
-      <div class="music-grid-2"><label class="music-field">Жанр<select id="music-genre">${GENRES.map(g => `<option value="${g.id}" ${form.genre === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}</select></label><label class="music-field">Настроение<select id="music-mood">${MOODS.map(m => `<option value="${m.id}" ${form.mood === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label></div>
-      <div class="music-grid-2"><label class="music-field">Тональность<select id="music-key">${KEYS.map(item => `<option value="${item.id}" ${form.key === item.id ? 'selected' : ''}>${item.name}</option>`).join('')}</select></label><label class="music-field" for="music-bpm">Темп <span class="muted">· BPM</span><span class="music-bpm-row"><input id="music-bpm" type="range" min="60" max="160" step="1" value="${form.bpm}"><output id="music-bpm-value" for="music-bpm">${form.bpm}</output></span></label></div>
       ${isVocalForm() ? `<label class="music-field" for="music-lyrics">Лирика <span class="muted">· обязательна для вокала</span><textarea id="music-lyrics" class="music-lyrics" rows="6" maxlength="${MAX_LYRICS}" placeholder="[verse]\nТёплый вечер за окном\n[chorus]\nМы ещё успеем домой">${esc(form.lyrics)}</textarea></label>
       <div class="music-lyric-tools"><span class="muted">Вставить тег:</span>${LYRIC_TAGS.map(t => `<button type="button" class="music-tag-btn" data-music-action="lyric-tag" data-id="${t}">[${t}]</button>`).join('')}<span class="music-lyrics-count" id="music-lyrics-count">${form.lyrics.length} / ${MAX_LYRICS}</span></div>
       <label class="music-field">Язык вокала<select id="music-language"><option value="ru" ${form.language === 'ru' ? 'selected' : ''}>Русский</option><option value="en" ${form.language === 'en' ? 'selected' : ''}>English</option></select></label>` : ''}
       <div class="music-field"><span id="music-duration-label">${isVocalForm() ? 'Длительность трека' : 'Длительность черновика'}</span><div class="music-durations" role="group" aria-labelledby="music-duration-label">${durationsFor().map(d => `<button type="button" class="${form.duration === d ? 'active' : ''}" aria-pressed="${form.duration === d}" data-music-action="duration" data-id="${d}">${d} с</button>`).join('')}</div></div>
+      <details class="music-tuning" id="music-tuning" ${tuningOpen ? 'open' : ''}><summary>${icon('settings')}<span>Тон и темп</span><small>жанр, настроение, тональность, BPM</small></summary><div class="music-tuning-body">
+      <label class="music-field">Задача<select id="music-goal">${GOALS.map(([id, name]) => `<option value="${id}" ${form.goal === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
+      <label class="music-field">Название проекта <span class="muted">· необязательно</span><input id="music-project" maxlength="80" value="${esc(form.project)}" placeholder="Например, заставка для подкаста" autocomplete="off"></label>
+      <div class="music-grid-2"><label class="music-field">Жанр<select id="music-genre">${GENRES.map(g => `<option value="${g.id}" ${form.genre === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}</select></label><label class="music-field">Настроение<select id="music-mood">${MOODS.map(m => `<option value="${m.id}" ${form.mood === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label></div>
+      <div class="music-grid-2"><label class="music-field">Тональность<select id="music-key">${KEYS.map(item => `<option value="${item.id}" ${form.key === item.id ? 'selected' : ''}>${item.name}</option>`).join('')}</select></label><label class="music-field" for="music-bpm">Темп <span class="muted">· BPM</span><span class="music-bpm-row"><input id="music-bpm" type="range" min="60" max="160" step="1" value="${form.bpm}"><output id="music-bpm-value" for="music-bpm">${form.bpm}</output></span></label></div>
+      </div></details>
       <details class="music-extra"><summary>Дополнительно</summary><label class="music-check"><input type="checkbox" id="music-fail" ${form.failNext ? 'checked' : ''}><span>Смоделировать ошибку очереди — чтобы проверить повтор</span></label><p class="music-extra-note">Заглушка собирается локально и занимает несколько секунд. Одновременно — до четырёх задач, в библиотеке — до 24 черновиков.</p></details>
       <div id="music-form-error" class="music-form-error" role="alert" hidden></div>
       ${liveRefusal ? `<div class="music-refusal" id="music-refusal" role="status">${icon('shield')}<div><strong>Не пройдена проверка контента</strong><p>${esc(liveRefusal.message || 'Запрос нарушает политику контента.')} Художественная нагота допустима, порнография — нет.</p><button type="button" class="btn small" data-music-action="edit-blocked">${icon('edit')}Изменить промпт</button></div></div>` : ''}
       ${vocalBlocked ? `<div class="music-unavailable" id="music-vocal-unavailable">${icon('mic')}<div><strong>Режим ${esc(vm.title)} сейчас недоступен</strong><p>Каталог шины отдаёт <code>${esc(vm.model)}: unavailable</code>. Инструментальные модели вокал не заменяют, поэтому задача не отправляется и подменять её минусовкой мы не будем. ${vocalCatalog && Object.values(vocalCatalog).some(v => v.status === 'ready') ? 'Другой режим вокала доступен — переключитесь выше.' : 'Инструментал работает.'}</p></div></div>` : ''}
+      <div class="music-submit-bar">
       <button type="submit" class="btn primary music-submit" id="music-generate" ${vocalBlocked ? 'disabled aria-disabled="true"' : ''}>${icon(vocalBlocked ? 'mic' : 'sparkles')}${vocalBlocked ? 'Режим недоступен' : liveActive() ? (form.kind === 'song' ? 'Отправить песню на сервер' : 'Отправить на сервер') : 'Собрать черновик'}</button>
       <p class="music-submit-note">${icon('lock')}${liveActive() ? 'На ваш сервер уходит только бриф. Токен живёт в этом браузере.' : 'Ничего не отправляется наружу: ни текст, ни звук.'}</p>
+      </div>
     </form>
     <div class="music-output" id="music-preview">${previewMarkup(current)}</div></div>`;
   }
@@ -791,6 +811,11 @@
     event.preventDefault();
     action(el);
   });
+  // toggle не всплывает — слушаем в capture, чтобы пережить перерисовку панели.
+  document.addEventListener('toggle', event => {
+    if (event.target?.id === 'music-tuning') tuningOpen = event.target.open;
+    if (event.target?.id === 'music-mode-note') modeNoteOpen = event.target.open;
+  }, true);
   document.addEventListener('input', event => {
     if (!root || !host) return;
     const id = event.target.id;

@@ -135,4 +135,7 @@
   .text-btn { min-height: 40px; }
   .showcase-actions .btn { min-height: 40px; }
   .stand-key-controls .btn, .stand-key-actions .btn { min-height: 44px; }
+  .stand-key-controls input, #stand-server { min-width: 0; width: 100%; font-size: 16px; min-height: 48px; }
+  .stand-key-controls { width: 100%; }
+  .stand-key-row { flex-direction: column; align-items: stretch; }
 }

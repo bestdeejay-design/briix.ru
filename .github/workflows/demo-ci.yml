@@ -92,6 +92,16 @@ jobs:
           done
           } 2>&1 | tee /tmp/briix-ci-tests.log
 
+      # Сквозной мобильный контракт по всем разделам. Был наблюдательным, пока
+      # разделы чинились по одному; все экраны прошли — теперь это гейт.
+      # Разбор находок: audits/mobile-ui-390x844.md.
+      - name: Mobile UI contract (all sections)
+        env:
+          NODE_PATH: /home/badai/briix-ci-deps/node_modules
+        run: |
+          set -o pipefail
+          node tools/check-mobile-ui.cjs 2>&1 | tee /tmp/briix-ci-mobile.log
+
       # Сюиты фазы 3 и опубликованного режима. Были в режиме наблюдения из-за страха
       # конфликтов портов на общем раннере; прогон 42474516496 прошёл их целиком,
       # поэтому теперь они в гейте наравне с остальными.
@@ -142,6 +152,14 @@ jobs:
             echo
             echo '```'
             tail -n 120 /tmp/briix-ci-tests.log 2>/dev/null || echo 'нет лога тестов'
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '<details><summary>Mobile UI contract (находки)</summary>'
+            echo
+            echo '```'
+            grep -E '^(SCREEN|FINDINGS| -)' /tmp/briix-ci-mobile.log 2>/dev/null | tail -n 60 || echo 'нет лога мобильного аудита'
             echo '```'
             echo
             echo '</details>'

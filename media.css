@@ -5,8 +5,13 @@
 .media-heading p { color: var(--muted); font-size: 12px; margin: 0; }
 .media-heading .eyebrow { margin-bottom: 8px; }
 .media-help { flex-shrink: 0; font-size: 11px; }
-.media-mode-note { display: flex; align-items: flex-start; gap: 10px; padding: 13px 16px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 11px; color: var(--muted); font-size: 11px; line-height: 1.8; }
-.media-mode-note > .icon { color: var(--accent); margin-top: 2px; width: 17px; height: 17px; }
+.media-mode-note { display: block; padding: 13px 16px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 11px; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.media-mode-note > summary { display: inline; cursor: pointer; list-style: none; }
+.media-mode-note > summary::-webkit-details-marker { display: none; }
+.media-mode-note > summary .icon { display: inline-block; vertical-align: -3px; margin-right: 9px; color: var(--accent); width: 17px; height: 17px; }
+.media-mode-note .media-mode-more { display: none; }
+.media-mode-note .media-mode-body { display: inline; }
+.media-mode-note:not([open]) .media-mode-body { display: none; }
 .media-mode-note strong { color: var(--ink); font-weight: 600; }
 .media-tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin: 24px 0; overflow-x: auto; scrollbar-width: none; }
 .media-tab { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 0 0 13px; color: var(--muted); font-size: 12px; white-space: nowrap; flex-shrink: 0; transition: color var(--motion-fast) var(--ease-standard); }
@@ -226,3 +231,85 @@
 @media (hover: none) { .media-recipe:hover, .media-library-image:hover img { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .media-page *, .media-modal * { animation: none !important; transition: none !important; } }
 @media print { .media-tabs, .media-brief, .media-help, .media-preview-actions, .media-library-toolbar, .media-library-card-actions, .media-queue-card-actions { display: none !important; } .media-create-layout { display: block; } .media-preview { break-inside: avoid; } }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Телефон (<= 650 px). Тот же принцип, что в музыке: экран отдан творчеству,
+   служебное свёрнуто, главное действие под большим пальцем. Десктоп не тронут.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Группа вторичных деталей брифа: на десктопе открыта и читается как раньше. */
+.media-tuning { border-top: 1px solid var(--line); padding-top: 14px; margin-bottom: 16px; }
+.media-tuning > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 11px; color: var(--muted); list-style: none; }
+.media-tuning > summary::-webkit-details-marker { display: none; }
+.media-tuning > summary .icon { width: 15px; height: 15px; color: var(--accent); }
+.media-tuning > summary small { color: var(--faint); font-size: 9px; margin-left: auto; }
+.media-tuning[open] > summary { margin-bottom: 14px; }
+.media-tuning-body > :last-child { margin-bottom: 0; }
+
+@media (max-width: 650px) {
+  /* Шапка: заголовок и две кнопки-иконки в одну строку, ничего за краем. */
+  .media-page .media-heading { flex-direction: row; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+  .media-page .media-heading > div:first-child { min-width: 0; flex: 1; }
+  .media-page .media-heading h1 { font-size: 24px; margin: 4px 0 0; }
+  .media-page .media-heading p { display: none; }
+  .media-page .media-heading .btn { margin-top: 0; width: 44px; height: 44px; min-height: 44px; padding: 0; justify-content: center; flex: 0 0 auto; }
+  .media-page .media-heading .btn > span { display: none; }
+  .media-page .media-heading .btn .icon { width: 18px; height: 18px; }
+
+  /* Пояснения: маркировка видна, подробности по тапу. */
+  .media-page .media-mode-note { padding: 10px 13px; font-size: 11px; line-height: 1.65; }
+  .media-page .media-mode-note > summary { display: flex; align-items: center; gap: 9px; min-height: 44px; }
+  .media-page .media-mode-note > summary .icon { margin-right: 0; vertical-align: 0; flex: 0 0 auto; }
+  .media-page .media-mode-note > summary strong { flex: 1; min-width: 0; }
+  .media-page .media-mode-note .media-mode-more { display: inline; flex: 0 0 auto; color: var(--accent-ink); font-size: 11px; text-decoration: underline; }
+  .media-page .media-mode-note[open] .media-mode-body { display: block; margin-top: 8px; }
+  .media-page .storage-banner { padding: 10px 13px; font-size: 11px; line-height: 1.55; }
+  .media-page .live-mode-banner { display: flex; align-items: center; gap: 10px; }
+  .media-page .live-mode-banner [data-live-banner-text] { flex: 1; min-width: 0; }
+  .media-page .live-mode-banner [data-live-settings] { flex: 0 0 auto; min-width: 44px; min-height: 44px; justify-content: center; }
+
+  /* Все пять вкладок в кадре: подпись у активной, иконка у остальных. */
+  .media-page .media-tabs { position: sticky; top: 0; z-index: 5; gap: 6px; margin: 14px -17px 16px; padding: 0 17px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .media-page .media-tab { justify-content: center; flex: 1 1 0; min-width: 48px; min-height: 48px; padding: 0 8px; gap: 6px; font-size: 13px; border-radius: 9px 9px 0 0; }
+  .media-page .media-tab > span:not(.media-count) { display: none; }
+  .media-page .media-tab.active { flex: 2.4 1 0; }
+  .media-page .media-tab.active > span:not(.media-count) { display: inline; }
+  .media-page .media-count { min-width: 20px; height: 20px; font-size: 10px; }
+
+  /* Форма: тип медиа и задумка сразу, детали свёрнуты. */
+  .media-page .media-brief { padding: 15px; border-radius: 13px; }
+  .media-page .media-section-title { margin-bottom: 12px; }
+  .media-page .media-type-switch { margin-bottom: 12px; }
+  .media-page .media-type-switch button { min-height: 48px; font-size: 14px; }
+  .media-page .media-field { font-size: 13px; margin-bottom: 14px; }
+  .media-page .media-field > .muted { font-size: 11px; }
+  .media-page .media-field input, .media-page .media-field select, .media-page .media-prompt { font-size: 16px; min-height: 48px; padding: 12px 13px; border-radius: 10px; }
+  .media-page .media-prompt { min-height: 132px; line-height: 1.6; }
+  .media-page .media-field-hint { font-size: 11px; }
+  .media-page .media-ratios { gap: 8px; }
+  .media-page .media-ratios button { min-height: 48px; font-size: 14px; }
+  .media-page .media-tuning > summary, .media-page .media-extra summary { min-height: 44px; display: flex; align-items: center; font-size: 13px; }
+  .media-page .media-tuning > summary small { display: none; }
+  .media-page .media-error-test { min-height: 44px; align-items: center; font-size: 13px; }
+  .media-page .media-error-test input { width: 22px; height: 22px; flex: 0 0 auto; }
+  .media-page .media-extra .btn { min-height: 44px; font-size: 13px; }
+
+  /* Главное действие всегда под пальцем. */
+  .media-page .media-submit-bar { position: sticky; bottom: 0; z-index: 6; margin: 0 -15px -15px; padding: 12px 15px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); border-radius: 0 0 13px 13px; }
+  .media-page .media-generate { min-height: 52px; font-size: 15px; border-radius: 11px; }
+  .media-page .media-safe-note { font-size: 10px; margin-top: 8px; }
+
+  /* Результат сверху, служебная заметка — свёрнута в конец. */
+  .media-page .media-create-layout.has-output { display: flex; flex-direction: column; }
+  .media-page .media-create-layout.has-output .media-workspace { order: -1; margin-bottom: 18px; }
+  .media-page #media-preview { scroll-margin-top: 62px; }
+  .media-page .media-principle { display: none; }
+  .media-page .media-recipes { gap: 8px; }
+  .media-page .media-recipe { min-height: 44px; }
+
+  /* Медиатека, очередь, модели: фильтры и кнопки под палец. */
+  .media-page .filter-tab { min-height: 44px; padding: 0 12px; font-size: 13px; }
+  .media-page .filter-tabs { gap: 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .media-page .media-library-toolbar .btn, .media-page .media-preview-actions .btn, .media-page .media-queue-card-actions .btn { min-height: 44px; font-size: 13px; }
+  .media-page .inline-search input { font-size: 16px; min-height: 48px; }
+}

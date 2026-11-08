@@ -41,6 +41,10 @@
   let host = null;
   let root = null;
   let tab = 'create';
+  // Телефон: первый экран — задумке, служебное свёрнуто. Десктоп открыт как раньше.
+  const isPhone = () => matchMedia('(max-width: 650px)').matches;
+  let tuningOpen = !isPhone();
+  let modeNoteOpen = !isPhone();
   let libraryType = 'all';
   let libraryQuery = '';
   let modelType = 'all';
@@ -138,11 +142,11 @@
   }
   function heading() {
 
-    return `<div class="page-header media-heading"><div><div class="eyebrow">Визуальная мастерская</div><h1>Изображения</h1><p>От идеи до визуального черновика: фото и видео. Спокойно, наглядно, в одном месте.</p></div><span><button class="btn media-help" data-media-action="help">${icon('help')}<span>Как это работает</span></button></span> <button class="btn ${liveActive() ? 'primary' : ''} media-live-toggle" data-media-action="live" aria-pressed="${liveActive()}">${icon('terminal')}${liveActive() ? '<span>Live включён</span>' : '<span>Приватный live (эксперимент)</span>'}</button></div>
-      <div class="media-mode-note">${icon('flask')}<span><strong>Локальный мок, не нейросеть.</strong> Фото выбраны из готовой коллекции; видео — плавная анимация кадра. Бриф сохраняется, но не управляет пикселями. Без API, кредитов и загрузки файлов.</span></div>
+    return `<div class="page-header media-heading"><div><div class="eyebrow">Визуальная мастерская</div><h1>Изображения</h1><p>От идеи до визуального черновика: фото и видео. Спокойно, наглядно, в одном месте.</p></div><span><button class="btn media-help" data-media-action="help" aria-label="Как это работает" title="Как это работает">${icon('help')}<span>Как это работает</span></button></span> <button class="btn ${liveActive() ? 'primary' : ''} media-live-toggle" data-media-action="live" aria-pressed="${liveActive()}" aria-label="${liveActive() ? 'Live включён' : 'Приватный live (эксперимент)'}" title="${liveActive() ? 'Live включён' : 'Приватный live (эксперимент)'}">${icon('terminal')}${liveActive() ? '<span>Live включён</span>' : '<span>Приватный live (эксперимент)</span>'}</button></div>
+      <details class="media-mode-note" id="media-mode-note" ${modeNoteOpen ? 'open' : ''}><summary>${icon('flask')}<strong>Локальный мок, не нейросеть.</strong><span class="media-mode-more">Подробнее</span></summary><div class="media-mode-body">Фото выбраны из готовой коллекции; видео — плавная анимация кадра. Бриф сохраняется, но не управляет пикселями. Без API, кредитов и загрузки файлов.</div></details>
       <div id="media-storage-notice" class="storage-banner" role="status" hidden></div>
       <div id="media-live-banner" class="storage-banner live-mode-banner" role="status" hidden><span data-live-banner-text></span><a class="text-btn" href="#/settings" data-live-settings hidden>${icon('settings')}Ключ в Настройках</a></div>
-      <div class="media-tabs" role="tablist" aria-label="Разделы мастерской изображений">${[['create', 'Создание', 'sparkles'], ['library', 'Медиатека', 'image'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route'], ['showcase', 'Галерея стенда', 'star']].map(([id, label, ic]) => `<button id="media-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="media-panel" tabindex="${tab === id ? 0 : -1}" class="media-tab ${tab === id ? 'active' : ''}" data-media-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="media-count" id="media-library-count">${readyJobs().length}</span>` : id === 'queue' ? `<span class="media-count" id="media-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="media-panel" role="tabpanel" aria-labelledby="media-tab-${tab}" tabindex="0"></section>`;
+      <div class="media-tabs" role="tablist" aria-label="Разделы мастерской изображений">${[['create', 'Создание', 'sparkles'], ['library', 'Медиатека', 'image'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route'], ['showcase', 'Галерея стенда', 'star']].map(([id, label, ic]) => `<button id="media-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="media-panel" tabindex="${tab === id ? 0 : -1}" aria-label="${label}" title="${label}" class="media-tab ${tab === id ? 'active' : ''}" data-media-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="media-count" id="media-library-count">${readyJobs().length}</span>` : id === 'queue' ? `<span class="media-count" id="media-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="media-panel" role="tabpanel" aria-labelledby="media-tab-${tab}" tabindex="0"></section>`;
 
   }
   function render() {
@@ -165,18 +169,21 @@
   }
   function createMarkup() {
     const latest = readyJobs()[0];
-    return `<div class="media-create-layout"><form id="media-brief-form" class="media-brief" novalidate>
+    const hasOutput = !!latest || state.jobs.some(j => ['queued', 'running'].includes(j.status));
+    return `<div class="media-create-layout ${hasOutput ? 'has-output' : ''}"><form id="media-brief-form" class="media-brief" novalidate>
       <div class="media-section-title"><span class="eyebrow">01 / Бриф</span><span class="badge">Сохраняется локально</span></div>
       <div class="media-type-switch" role="group" aria-label="Тип медиа"><button type="button" aria-pressed="${form.type === 'image'}" class="${form.type === 'image' ? 'active' : ''}" data-media-action="type" data-id="image">${icon('image')}Фото</button><button type="button" aria-pressed="${form.type === 'video'}" class="${form.type === 'video' ? 'active' : ''}" data-media-action="type" data-id="video">${icon('play')}Видео</button></div>
-      <label class="media-field">Задача<select id="media-goal" name="goal">${[['product', 'Карточка продукта'], ['social', 'Пост / Reels / Stories'], ['hero', 'Обложка / hero-баннер']].map(([id, name]) => `<option value="${id}" ${form.goal === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
-      <label class="media-field">Название проекта <span class="muted">· необязательно</span><input id="media-project" name="project" maxlength="80" value="${esc(form.project)}" placeholder="Например, осенняя коллекция" autocomplete="off"></label>
       <label class="media-field" for="media-prompt">Опишите задумку</label><textarea id="media-prompt" class="media-prompt" name="prompt" rows="5" maxlength="${MAX_PROMPT}" aria-describedby="media-prompt-hint media-form-error" placeholder="Что в кадре, какой свет, какое настроение?">${esc(form.prompt)}</textarea><div class="media-field-hint" id="media-prompt-hint"><span>Текст для следующего подключения модели</span><span id="media-prompt-count">${form.prompt.length} / ${MAX_PROMPT}</span></div>
       <div class="media-field"><span id="media-ratio-label">Формат кадра</span><div class="media-ratios" role="group" aria-labelledby="media-ratio-label">${(form.type === 'image' ? ['1:1', '4:5', '16:9', '9:16'] : ['16:9', '9:16']).map(r => `<button type="button" class="${form.ratio === r ? 'active' : ''}" aria-pressed="${form.ratio === r}" data-media-action="ratio" data-id="${r}"><span class="media-ratio-shape" style="--ratio:${r.replace(':', '/')}"></span>${r}</button>`).join('')}</div></div>
+      <details class="media-tuning" id="media-tuning" ${tuningOpen ? 'open' : ''}><summary>${icon('settings')}<span>Детали брифа</span><small>задача, проект, референс</small></summary><div class="media-tuning-body">
+      <label class="media-field">Задача<select id="media-goal" name="goal">${[['product', 'Карточка продукта'], ['social', 'Пост / Reels / Stories'], ['hero', 'Обложка / hero-баннер']].map(([id, name]) => `<option value="${id}" ${form.goal === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
+      <label class="media-field">Название проекта <span class="muted">· необязательно</span><input id="media-project" name="project" maxlength="80" value="${esc(form.project)}" placeholder="Например, осенняя коллекция" autocomplete="off"></label>
       <label class="media-field">Референс<select id="media-asset">${Object.entries(ASSETS).map(([id, a]) => `<option value="${id}" ${form.asset === id ? 'selected' : ''}>${a.name}</option>`).join('')}</select></label>
       <div class="media-reference-note">${icon('info')}<span>Видео в демо: 5 секунд, без звука. Выбранный референс задаёт готовый локальный исходник.</span></div>
+      </div></details>
       <details class="media-extra"><summary>Референсы с устройства <span>необязательно</span></summary><p>Как и в диалогах, сохраняются только имя и размер. Содержимое не читается и не влияет на мок.</p><button type="button" class="btn" data-media-action="reference">${icon('paperclip')}Выбрать изображения</button><input type="file" id="media-reference-input" accept="image/png,image/jpeg,image/webp" multiple hidden><div id="media-reference-list" class="media-reference-list">${referenceMarkup()}</div></details>
       <label class="media-error-test"><input type="checkbox" id="media-fail" ${form.failNext ? 'checked' : ''}><span>Проверить ошибку на следующей задаче</span></label>
-      <p id="media-form-error" class="media-form-error" role="alert" hidden></p>${liveRefusal ? `<div class="media-refusal" id="media-refusal" role="status">${icon('shield')}<div><strong>Не пройдена проверка контента</strong><p>${esc(liveRefusal.message || 'Запрос нарушает политику контента.')} Художественная нагота допустима, порнография — нет.</p><button type="button" class="btn small" data-media-action="edit-blocked">${icon('edit')}Изменить промпт</button></div></div>` : ''}<button type="submit" class="btn primary media-generate" id="media-generate" ${activeCount() >= MAX_ACTIVE ? 'disabled' : ''}>${icon('sparkles')}<span>${form.type === 'image' ? 'Создать фото-мок' : 'Создать видео-мок'}</span>${icon('arrowRight')}</button><div class="media-safe-note">${icon('lock')}Без регистрации и расходов · до 6 задач в очереди</div>
+      <p id="media-form-error" class="media-form-error" role="alert" hidden></p>${liveRefusal ? `<div class="media-refusal" id="media-refusal" role="status">${icon('shield')}<div><strong>Не пройдена проверка контента</strong><p>${esc(liveRefusal.message || 'Запрос нарушает политику контента.')} Художественная нагота допустима, порнография — нет.</p><button type="button" class="btn small" data-media-action="edit-blocked">${icon('edit')}Изменить промпт</button></div></div>` : ''}<div class="media-submit-bar"><button type="submit" class="btn primary media-generate" id="media-generate" ${activeCount() >= MAX_ACTIVE ? 'disabled' : ''}>${icon('sparkles')}<span>${form.type === 'image' ? 'Создать фото-мок' : 'Создать видео-мок'}</span>${icon('arrowRight')}</button><div class="media-safe-note">${icon('lock')}Без регистрации и расходов · до 6 задач в очереди</div></div>
     </form><div class="media-workspace"><div class="media-section-title"><span class="eyebrow">02 / Визуальное направление</span><span class="media-local-label"><span></span>${originLabel()}</span></div>
       <div class="media-recipes" role="group" aria-label="Готовые рецепты">${RECIPES.filter(r => r.type === form.type).map(r => `<button class="media-recipe ${form.recipe === r.id ? 'active' : ''}" aria-pressed="${form.recipe === r.id}" data-media-action="recipe" data-id="${r.id}"><img src="${asset(r.asset).image}" alt="" loading="lazy" width="160" height="110"><span class="media-recipe-copy"><strong>${r.title}</strong><small>${r.subtitle}</small></span><span class="media-recipe-check">${icon('check')}</span></button>`).join('')}</div>
       <div id="media-preview" class="media-preview">${previewMarkup(latest)}</div><div id="media-inline-queue" class="media-inline-queue">${inlineQueueMarkup()}</div>
@@ -428,6 +435,11 @@
     if (event.target.id === 'media-fail') form.failNext = event.target.checked;
     if (event.target.id === 'media-reference-input') { addReferences(event.target.files); event.target.value = ''; }
   });
+  // toggle не всплывает — слушаем в capture, чтобы состояние пережило перерисовку.
+  document.addEventListener('toggle', event => {
+    if (event.target?.id === 'media-tuning') tuningOpen = event.target.open;
+    if (event.target?.id === 'media-mode-note') modeNoteOpen = event.target.open;
+  }, true);
   document.addEventListener('submit', event => { if (event.target.id === 'media-brief-form') { event.preventDefault(); submit(); } });
   document.addEventListener('keydown', event => {
     if (!event.target.closest('.media-tabs') || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;

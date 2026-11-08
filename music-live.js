@@ -19,12 +19,14 @@
   const audioCache = new Map(); // track id -> {url, blob, peaks, duration}
   let active = false;
   let autoCheckedAt = 0;    // не дёргаем /health на каждый рендер раздела
+  let autoStarting = null;
+  let bannerText = '';
   let catalog = { status: 'unavailable', model: null };
   let vocal = { status: 'unavailable', model: null };
   let vocalModels = { flash: { status: 'unavailable' }, pro: { status: 'unavailable' } };
   const api = () => window.BRIIX_MUSIC && window.BRIIX_MUSIC._api;
   const bus = () => window.BRIIX_BUS;
-  const banner = text => api()?.setLiveBanner(text || '');
+  const banner = text => { bannerText = text || ''; api()?.setLiveBanner(bannerText); };
   const toast = (text, kind) => api()?.toast(text, kind);
 
   // Ключ вводится один раз в Настройках — здесь только маршрут туда.
@@ -89,7 +91,7 @@
   }
 
   /* Live по умолчанию: ключ есть и стенд здоров — музыка считает на стенде без кликов. */
-  async function autoStart({ force = false } = {}) {
+  async function performAutoStart({ force = false } = {}) {
     if (!force && Date.now() - autoCheckedAt < 10000) { api()?.refresh(); return active; }
     autoCheckedAt = Date.now();
     if (bus().isLiveOff('music') && !force) { active = false; banner(bus().mockBanner('manual_off')); api()?.refresh(); return false; }
@@ -111,6 +113,11 @@
     api()?.refresh();
     recover();
     return true;
+  }
+  function autoStart(options = {}) {
+    if (autoStarting) return autoStarting;
+    autoStarting = performAutoStart(options).finally(() => { autoStarting = null; });
+    return autoStarting;
   }
 
   async function submit({ kind, prompt, project, duration, genre, mood, key, bpm, vocalMode = 'flash', lyrics = '', language = 'ru' }) {
@@ -274,6 +281,7 @@
     audioFor: id => audioCache.get(id) || null,
     refreshCatalog,
     onHostReady() {
+      banner(bannerText || (!bus().hasToken() ? bus().mockBanner('no_token') : ''));
       const pending = api().readTracks().some(t => t.mode === 'live' && ['queued', 'running'].includes(t.status));
       autoStart().then(ok => {
         if (!ok && pending) goMock('Мок-режим (live недоступен): стенд не подтвердил режим после перезагрузки страницы.');

@@ -503,8 +503,8 @@
         if (root) { updateJobRows(); if (tab === 'create') { $('#media-inline-queue', root).innerHTML = inlineQueueMarkup(); } if (tab === 'queue') renderPanel(); if (tab === 'library') updateLibrary(); }
         return j;
       },
-      refresh: () => { if (root) { renderPanel(); if (tab === 'library') updateLibrary(); } updateCounts(); },
-      toast: (message, kind) => host && host.toast(message, kind)
+      refresh: () => { window.BRIIX_UI?.refreshLiveChrome?.(); if (root) { renderPanel(); if (tab === 'library') updateLibrary(); } updateCounts(); },
+      toast: (message, kind) => host ? host.toast(message, kind) : window.BRIIX_UI?.toast(message, kind)
     }
   };
 })();

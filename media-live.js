@@ -13,8 +13,12 @@
   const inflight = new Set();   // media job ids being fetched
   const polls = new Map();      // serverJobId -> timer
   let active = false;
-  let host = null;
+  // media.js загружен раньше: live может стартовать с мобильной главной,
+  // до первого открытия полной студии.
+  let host = window.BRIIX_MEDIA?._api || null;
   let autoCheckedAt = 0;
+  let autoStarting = null;
+  let bannerText = '';
   const OFF_KEY = 'briix-live-off-v1';
   // Тот же ключ, что у bus-live.js, но модуль остаётся самостоятельным.
   function isOff() { try { return !!JSON.parse(localStorage.getItem(OFF_KEY) || '{}').media; } catch { return false; } }
@@ -53,7 +57,7 @@
     } catch { return null; }
   }
 
-  function banner(text) { host && host.setLiveBanner(text || ''); }
+  function banner(text) { bannerText = text || ''; host && host.setLiveBanner(bannerText); }
 
   function goSettings() {
     banner(MOCK.no_token);
@@ -248,7 +252,7 @@
   }
 
   /* Live по умолчанию: ключ есть и стенд здоров — раздел живёт сам, без кликов. */
-  async function autoStart({ force = false } = {}) {
+  async function performAutoStart({ force = false } = {}) {
     if (!force && Date.now() - autoCheckedAt < 10000) { host?.refresh(); return active; }
     autoCheckedAt = Date.now();
     if (isOff() && !force) { active = false; banner(MOCK.manual_off); host?.refresh(); return false; }
@@ -260,6 +264,11 @@
     host?.refresh();
     recover();
     return true;
+  }
+  function autoStart(options = {}) {
+    if (autoStarting) return autoStarting;
+    autoStarting = performAutoStart(options).finally(() => { autoStarting = null; });
+    return autoStarting;
   }
 
   function recover() {
@@ -290,6 +299,7 @@
     goSettings,
     onHostReady() {
       host = window.BRIIX_MEDIA._api;
+      banner(bannerText || (!token() ? MOCK.no_token : ''));
       const hadLive = readJobs().some(j => j.mode === 'live' && ['queued', 'running'].includes(j.status));
       autoStart().then(ok => {
         if (!ok && hadLive) goMock('Мок-режим (live недоступен): стенд не подтвердил режим после перезагрузки страницы.');

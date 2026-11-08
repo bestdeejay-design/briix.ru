@@ -740,3 +740,12 @@ dialog { color: var(--ink); }
   .home .quick-card strong { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .home .quick-card span { display: none; }
 }
+
+/* Один компактный вход в существующий media-bff, без возврата служебных панелей. */
+@media (max-width: 650px) {
+  .home .composer-context { flex-wrap: wrap; gap: 4px 8px; }
+  .home .mobile-model-status { flex: 1 1 190px; min-width: 0; display: inline-flex; align-items: center; gap: 5px; }
+  .home .mobile-model-status.active { color: var(--accent-ink); }
+  .home .composer-context .mobile-live-button { flex: 0 0 auto; min-height: 40px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 0 4px 8px; white-space: nowrap; font-size: 11px; }
+  .home .mobile-live-button.active { color: var(--accent-ink); }
+}

@@ -124,5 +124,54 @@
   "многовкладочный поллинг",
   "карточка 422 и строка ожидания под axe",
   "реальные FLUX-изображения в галерее (данных нет)"
- ]
+ ],
+ "after_merge_with_main": {
+  "merged_main": "cf09727 (PR #38 и #39)",
+  "suites": {
+   "music": {
+    "pass": 23,
+    "exit": 0
+   },
+   "demo": {
+    "pass": 20,
+    "exit": 0
+   },
+   "media": {
+    "pass": 25,
+    "exit": 0
+   },
+   "media-live": {
+    "pass": 12,
+    "exit": 0
+   },
+   "music-live": {
+    "pass": 17,
+    "exit": 0
+   },
+   "chat-live": {
+    "pass": 11,
+    "exit": 0
+   },
+   "live-default": {
+    "pass": 10,
+    "exit": 0
+   },
+   "wait-phrases": {
+    "pass": 10,
+    "exit": 0
+   },
+   "showcase": {
+    "pass": 11,
+    "exit": 0
+   }
+  },
+  "total_pass": 139,
+  "failed_suites": 0
+ },
+ "flake_resolved": {
+  "suite": "check-media",
+  "cause": "120-мс таймер локальной очереди перезаписывал посев повреждённого хранилища",
+  "fix": "suspend() до посева, затем подмена suspend пустой функцией",
+  "verification": "два прогона подряд 25 PASS"
+ }
 }

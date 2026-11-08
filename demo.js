@@ -9,8 +9,17 @@
   const MAX_CHARS = 12000;
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
   const MAX_FILES = 4;
+  // Простой выбор под полем ввода: человек решает ЧТО получить, а не заполняет анкету.
+  const SIMPLE_MODES = [
+    { id: 'text', title: 'Ответ', short: 'Ответ', icon: 'chat', hint: 'Помощник отвечает текстом' },
+    { id: 'image', title: 'Картинка', short: 'Картинка', icon: 'image', hint: 'Одна фраза — изображение в ленте' },
+    { id: 'music', title: 'Музыка', short: 'Музыка', icon: 'music', hint: 'Инструментал без вокала' },
+    { id: 'song', title: 'Песня', short: 'Песня', icon: 'mic', hint: 'Песня с вокалом, лирика подберётся сама' }
+  ];
+  const simpleMode = () => SIMPLE_MODES.find(m => m.id === state.settings.simpleMode) || SIMPLE_MODES[0];
+  const isPhone = () => matchMedia('(max-width: 650px)').matches;
   const DEFAULT_SETTINGS = {
-    theme: 'light', name: '', defaultAssistant: 'universal', enterToSend: true,
+    theme: 'light', name: '', defaultAssistant: 'universal', enterToSend: true, simpleMode: 'text',
     showSuggestions: true, density: 'comfortable', fontSize: 'normal',
     simulateErrors: false, saveHistory: true, streaming: true
   };
@@ -125,7 +134,7 @@
     closeSidebar(false);
     if (location.hash === '#/' + path) render(); else location.hash = '/' + path;
   }
-  function freshState() { return { version: 2, settings: { ...DEFAULT_SETTINGS }, chats: seedChats(), saved: [], favoritePrompts: [], drafts: {}, selectedAssistant: 'universal' }; }
+  function freshState() { return { version: 2, settings: { ...DEFAULT_SETTINGS }, chats: seedChats(), saved: [], favoritePrompts: [], drafts: {}, generations: {}, selectedAssistant: 'universal' }; }
   function validateState(raw) {
     if (!raw || raw.version !== 2 || !Array.isArray(raw.chats) || !Array.isArray(raw.saved) || !Array.isArray(raw.favoritePrompts) || raw.favoritePrompts.length > 1000) throw new Error('Это не резервная копия BRIIX v2.');
     if (raw.chats.length > 500 || raw.saved.length > 1000) throw new Error('Слишком много записей для локального демо.');
@@ -144,7 +153,7 @@
     const settings = { ...DEFAULT_SETTINGS };
     const incoming = raw.settings && typeof raw.settings === 'object' && !Array.isArray(raw.settings) ? raw.settings : {};
     for (const key of ['enterToSend', 'showSuggestions', 'simulateErrors', 'saveHistory', 'streaming']) if (typeof incoming[key] === 'boolean') settings[key] = incoming[key];
-    for (const [key, values] of Object.entries({ theme: ['light', 'dark', 'system'], defaultAssistant: assistants.map(a => a.id), density: ['comfortable', 'compact'], fontSize: ['normal', 'large'] })) if (values.includes(incoming[key])) settings[key] = incoming[key];
+    for (const [key, values] of Object.entries({ theme: ['light', 'dark', 'system'], defaultAssistant: assistants.map(a => a.id), density: ['comfortable', 'compact'], fontSize: ['normal', 'large'], simpleMode: ['text', 'image', 'music', 'song'] })) if (values.includes(incoming[key])) settings[key] = incoming[key];
     if (typeof incoming.name === 'string') settings.name = incoming.name.slice(0, 40);
     const saved = raw.saved.filter(s => s && typeof s.id === 'string' && /^[\w-]{1,100}$/.test(s.id) && typeof s.content === 'string' && typeof s.title === 'string').slice(0, 1000).map(s => ({ id: s.id.slice(0, 100), chatId: String(s.chatId || '').slice(0, 100), messageId: String(s.messageId || '').slice(0, 100), title: s.title.slice(0, 100), content: s.content.slice(0, 100000), assistantId: assistant(s.assistantId).id, createdAt: safeDate(s.createdAt) }));
     const savedIds = new Set();
@@ -152,7 +161,16 @@
     const drafts = {};
     const incomingDrafts = raw.drafts && typeof raw.drafts === 'object' && !Array.isArray(raw.drafts) ? raw.drafts : {};
     for (const [key, value] of Object.entries(incomingDrafts).slice(0, 510)) if (/^[\w-]{1,100}$/.test(key) && typeof value === 'string') drafts[key] = value.slice(0, MAX_CHARS);
-    return { version: 2, settings, chats, saved: uniqueSaved, drafts, favoritePrompts: [...new Set(raw.favoritePrompts.filter(id => promptLibrary.some(p => p.id === id)))], selectedAssistant: assistant(raw.selectedAssistant).id };
+    // Ссылки на результаты генерации из простого чата. Сам статус не храним:
+    // он всегда читается у генератора, чтобы не показывать устаревшее.
+    const generations = {};
+    const incomingGen = raw.generations && typeof raw.generations === 'object' && !Array.isArray(raw.generations) ? raw.generations : {};
+    for (const [key, value] of Object.entries(incomingGen).slice(0, 400)) {
+      if (!/^[\w-]{1,100}$/.test(key) || !value || typeof value !== 'object') continue;
+      if (!['image', 'music', 'song'].includes(value.kind) || typeof value.targetId !== 'string' || !/^[\w-]{1,100}$/.test(value.targetId)) continue;
+      generations[key] = { kind: value.kind, targetId: value.targetId, mode: value.mode === 'live' ? 'live' : 'mock' };
+    }
+    return { version: 2, settings, chats, saved: uniqueSaved, drafts, generations, favoritePrompts: [...new Set(raw.favoritePrompts.filter(id => promptLibrary.some(p => p.id === id)))], selectedAssistant: assistant(raw.selectedAssistant).id };
   }
   function loadState() {
     try {
@@ -260,7 +278,7 @@
   function composerMarkup(chat = null) {
     const a = assistant(chat?.assistantId || state.selectedAssistant);
     const value = getDraft(); const streaming = activeStream && activeStream.chatId === chat?.id;
-    return `<div class="composer" id="composer"><div class="attachment-list" id="attachment-list"></div><label class="sr-only" for="prompt-input">Ваше сообщение помощнику ${esc(a.name)}</label><textarea id="prompt-input" rows="2" maxlength="${MAX_CHARS}" placeholder="${chat ? 'Продолжим мысль или зададим новый вопрос…' : 'О чём вы думаете? Спросите, напишите, придумайте…'}">${esc(value)}</textarea><div class="composer-toolbar"><div class="composer-left"><button class="icon-btn" data-action="attach" aria-label="Прикрепить файл-заглушку" title="Прикрепить файл-заглушку (до 4 файлов, до 10 МБ)" ${streaming ? 'disabled' : ''}>${icon('paperclip')}</button><button class="icon-btn" data-action="attach-example" aria-label="Добавить пример вложения" title="Добавить пример вложения" ${streaming ? 'disabled' : ''}>${icon('file')}</button><span class="composer-divider"></span><button class="assistant-select tone-${a.tone}" data-action="choose-assistant" aria-label="Выбрать помощника: ${esc(a.name)}"><span class="assistant-dot"></span><span class="select-name">${esc(a.name)}</span>${icon('chevronDown')}</button></div><button class="send-btn" id="send-button" data-action="${streaming ? 'stop' : 'send'}" aria-label="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" title="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" ${!streaming && !value.trim() && !pendingAttachments.length ? 'disabled' : ''}>${icon(streaming ? 'stop' : 'arrowUp')}</button></div></div><div class="composer-context"><span>${icon(chatLiveActive() ? 'route' : 'lock')}${chatLiveActive() ? 'Приватный live · отвечает ваш сервер' : 'Только в вашем браузере · сценарные ответы'}</span><button class="text-btn chat-live-toggle ${chatLiveActive() ? 'active' : ''}" data-action="toggle-chat-live" aria-pressed="${chatLiveActive()}" title="Ответы с вашего сервера через приватный туннель">${chatLiveActive() ? 'Выключить live' : 'Приватный live'}</button><span class="char-limit ${value.length > MAX_CHARS * .9 ? 'near' : ''}" id="char-count">${value.length > MAX_CHARS * .8 ? value.length.toLocaleString('ru-RU') + ' / 12 000' : ''}</span><span class="keyboard-hint">${state.settings.enterToSend ? 'Enter — отправить' : 'Ctrl Enter — отправить'}</span></div>`;
+    return `<div class="composer" id="composer"><div class="attachment-list" id="attachment-list"></div><label class="sr-only" for="prompt-input">Ваше сообщение помощнику ${esc(a.name)}</label><textarea id="prompt-input" rows="2" maxlength="${MAX_CHARS}" placeholder="${esc(isPhone() && state.settings.simpleMode !== 'text' ? ({ image: 'Опишите, что показать на картинке…', music: 'Опишите настроение музыки…', song: 'О чём песня? Лирику подберу из вашей базы…' })[state.settings.simpleMode] : chat ? 'Продолжим мысль или зададим новый вопрос…' : 'О чём вы думаете? Спросите, напишите, придумайте…')}">${esc(value)}</textarea><div class="composer-toolbar"><div class="composer-left"><button class="icon-btn" data-action="attach" aria-label="Прикрепить файл-заглушку" title="Прикрепить файл-заглушку (до 4 файлов, до 10 МБ)" ${streaming ? 'disabled' : ''}>${icon('paperclip')}</button><button class="icon-btn" data-action="attach-example" aria-label="Добавить пример вложения" title="Добавить пример вложения" ${streaming ? 'disabled' : ''}>${icon('file')}</button><span class="composer-divider"></span><button class="assistant-select tone-${a.tone}" data-action="choose-assistant" aria-label="Выбрать помощника: ${esc(a.name)}"><span class="assistant-dot"></span><span class="select-name">${esc(a.name)}</span>${icon('chevronDown')}</button><button class="mode-select" data-action="choose-mode" aria-label="Что делаем: ${esc(simpleMode().title)}" aria-expanded="false">${icon(simpleMode().icon)}<span class="select-name">${esc(simpleMode().short)}</span>${icon('chevronDown')}</button></div><div class="mode-menu" id="mode-menu" role="menu" aria-label="Что делаем" hidden>${SIMPLE_MODES.map(m => `<button role="menuitemradio" aria-checked="${m.id === state.settings.simpleMode}" class="mode-option ${m.id === state.settings.simpleMode ? 'active' : ''}" data-action="set-mode" data-id="${m.id}">${icon(m.icon)}<span><strong>${esc(m.title)}</strong><small>${esc(m.hint)}</small></span>${m.id === state.settings.simpleMode ? icon('check') : ''}</button>`).join('')}<a class="mode-advanced" href="#/${state.settings.simpleMode === 'image' ? 'media' : state.settings.simpleMode === 'text' ? 'settings' : 'music'}">${icon('settings')}<span>Все настройки подробно</span></a></div><button class="send-btn" id="send-button" data-action="${streaming ? 'stop' : 'send'}" aria-label="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" title="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" ${!streaming && !value.trim() && !pendingAttachments.length ? 'disabled' : ''}>${icon(streaming ? 'stop' : 'arrowUp')}</button></div></div><div class="composer-context"><span>${icon(chatLiveActive() ? 'route' : 'lock')}${chatLiveActive() ? 'Приватный live · отвечает ваш сервер' : 'Только в вашем браузере · сценарные ответы'}</span><button class="text-btn chat-live-toggle ${chatLiveActive() ? 'active' : ''}" data-action="toggle-chat-live" aria-pressed="${chatLiveActive()}" title="Ответы с вашего сервера через приватный туннель">${chatLiveActive() ? 'Выключить live' : 'Приватный live'}</button><span class="char-limit ${value.length > MAX_CHARS * .9 ? 'near' : ''}" id="char-count">${value.length > MAX_CHARS * .8 ? value.length.toLocaleString('ru-RU') + ' / 12 000' : ''}</span><span class="keyboard-hint">${state.settings.enterToSend ? 'Enter — отправить' : 'Ctrl Enter — отправить'}</span></div>`;
   }
   function updateComposerState() {
     const input = $('#prompt-input'); const send = $('#send-button'); if (!input || !send) return;
@@ -325,12 +343,115 @@
   }
   function emptyMarkup(ic, title, text, button, action) { return `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">${icon(ic)}</div><h2>${title}</h2><p>${text}</p>${button ? `<button class="btn primary" data-action="${action}">${button}${icon('arrowRight')}</button>` : ''}</div>`; }
   /* Conversations */
+  function captureComposer() {
+    const el = $('#prompt-input'); if (!el) return null;
+    return { value: el.value, start: el.selectionStart, end: el.selectionEnd, focused: document.activeElement === el, scrollTop: el.scrollTop, pageScroll: main.scrollTop };
+  }
+  function restoreComposer(draft) {
+    if (!draft) return;
+    const el = $('#prompt-input'); if (!el) return;
+    if (draft.value && !el.value) el.value = draft.value;
+    el.scrollTop = draft.scrollTop;
+    if (draft.focused) {
+      el.focus({ preventScroll: true });
+      try { el.setSelectionRange(draft.start, draft.end); } catch {}
+    }
+    main.scrollTop = draft.pageScroll;
+    updateComposerState();
+  }
   function renderChat() {
+    const draft = captureComposer();
     const chat = currentChat();
     if (!chat) { main.innerHTML = `<section class="page">${emptyMarkup('chat', 'Этот диалог не сохранён', 'Возможно, он был удалён, история отключена или ссылка открыта в другом браузере.', 'Начать новый диалог', 'new-chat')}</section>`; return; }
     const a = assistant(chat.assistantId);
     main.innerHTML = `<section class="chat-page" aria-label="${esc(chat.title)}"><div id="chat-live-banner" class="storage-banner live-mode-banner" role="status" hidden><span data-live-banner-text></span><a class="text-btn" href="#/settings" data-live-settings aria-label="Ключ в Настройках" title="Ключ в Настройках" hidden>${icon('settings')}<span>Ключ в Настройках</span></a></div><div class="chat-meta"><div class="chat-meta-left">${avatar(a, 'small')}<span>${esc(a.name)}</span><span class="badge">${chat.isExample ? 'Пример диалога' : 'Локальный диалог'}</span></div><div class="chat-meta-actions"><button class="icon-btn ${chat.favorite ? 'active' : ''}" data-action="favorite-chat" data-id="${esc(chat.id)}" aria-label="${chat.favorite ? 'Убрать диалог из избранного' : 'Диалог в избранное'}" aria-pressed="${chat.favorite}" title="Избранное">${icon('star')}</button><button class="icon-btn" data-action="rename-chat" data-id="${esc(chat.id)}" aria-label="Переименовать диалог" title="Переименовать">${icon('edit')}</button><button class="icon-btn" data-action="export-chat" data-id="${esc(chat.id)}" aria-label="Экспортировать диалог" title="Скачать Markdown">${icon('download')}</button><button class="icon-btn" data-action="delete-chat" data-id="${esc(chat.id)}" aria-label="Удалить диалог" title="Удалить">${icon('trash')}</button></div></div><div class="messages" id="messages" role="log" aria-label="Сообщения" aria-live="off">${chat.messages.map(m => messageMarkup(m, chat)).join('')}</div>${followupMarkup(chat)}<div class="chat-composer-wrap">${composerMarkup(chat)}<div class="chat-disclaimer">${chatLiveActive() ? 'Отвечает ваша модель через приватный туннель. Проверяйте важные факты.' : 'Сценарные ответы для проверки интерфейса. Не используйте демо для важных решений.'}</div></div></section>`;
-    renderAttachments(); updateComposerState();
+    renderAttachments(); updateComposerState(); restoreComposer(draft); ensureGenerationTimer();
+  }
+  function generationSource(gen) {
+    return gen.kind === 'image' ? window.BRIIX_MEDIA?.job(gen.targetId) : window.BRIIX_MUSIC?.track(gen.targetId);
+  }
+  function generationCard(m, gen) {
+    const item = generationSource(gen);
+    const title = ({ image: 'Картинка', music: 'Музыка', song: 'Песня' })[gen.kind];
+    const label = gen.mode === 'live' ? 'Ваш сервер' : 'Локальный мок, не нейросеть';
+    const href = gen.kind === 'image' ? '#/media' : '#/music';
+    if (!item) return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon('alert')}<strong>${title}</strong><span class="badge">${label}</span></div><p class="gen-note">Результат больше не хранится в этом браузере. Бриф остался — можно повторить.</p><a class="text-btn" href="${href}">${icon('arrowRight')}Открыть раздел</a></div>`;
+    if (['queued', 'running'].includes(item.status)) {
+      return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon('clock')}<strong>${title} собирается</strong><span class="badge">${label}</span></div><div class="media-progress" role="progressbar" aria-label="Готовность" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${item.progress || 0}"><span style="width:${item.progress || 0}%"></span></div><p class="gen-note">${gen.mode === 'live' ? 'Считает ваш сервер. Это минуты, а не секунды.' : 'Заглушка собирается прямо в браузере.'}</p></div>`;
+    }
+    if (item.status !== 'ready') {
+      return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon('alert')}<strong>${title} не собралась</strong><span class="badge">${label}</span></div><p class="gen-note">${esc(item.error || 'Задача остановлена или завершилась с ошибкой.')}</p><a class="text-btn" href="${href}">${icon('arrowRight')}Открыть раздел</a></div>`;
+    }
+    const media = gen.kind === 'image'
+      ? `<img class="gen-image" src="${esc(window.BRIIX_MEDIA.resultUrl(gen.targetId) || '')}" alt="Результат по вашему описанию">`
+      : (genUrls[m.id] ? `<audio class="gen-audio" controls preload="metadata" src="${esc(genUrls[m.id])}"></audio>` : `<p class="gen-note">Готово, загружаю звук…</p>`);
+    return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon(gen.kind === 'image' ? 'image' : gen.kind === 'song' ? 'mic' : 'music')}<strong>${title} готова</strong><span class="badge">${label}</span></div>${media}<div class="gen-foot"><span>${esc((m.content || '').slice(0, 90))}</span><a class="text-btn" href="${href}">${icon('settings')}Настроить подробно</a></div></div>`;
+  }
+  const genUrls = {};
+  let genTimer = null;
+  function paintGenerationCard(messageId) {
+    const chat = currentChat();
+    const m = chat?.messages.find(x => x.id === messageId);
+    const gen = state.generations?.[messageId];
+    const holder = $(`[data-message-id="${messageId}"] .message-content`);
+    if (!m || !gen || !holder) return;
+    const html = generationCard(m, gen);
+    if (holder.innerHTML !== html) holder.innerHTML = html;
+  }
+  function ensureGenerationTimer() {
+    const pending = () => Object.entries(state.generations || {}).filter(([, g]) => {
+      const item = generationSource(g);
+      return !item || ['queued', 'running'].includes(item.status) || (item.status === 'ready' && g.kind !== 'image' && !genUrls[Object.keys(state.generations).find(k => state.generations[k] === g)]);
+    });
+    if (genTimer || !pending().length) return;
+    genTimer = setInterval(async () => {
+      let active = false;
+      for (const [messageId, gen] of Object.entries(state.generations || {})) {
+        const item = generationSource(gen);
+        if (!item) continue;
+        if (['queued', 'running'].includes(item.status)) { active = true; paintGenerationCard(messageId); continue; }
+        if (item.status === 'ready' && gen.kind !== 'image' && !genUrls[messageId]) {
+          active = true;
+          const url = await window.BRIIX_MUSIC.audioUrl(gen.targetId);
+          if (url) {
+            const follow = readerAtBottom() && !composerBusy();
+            genUrls[messageId] = url; paintGenerationCard(messageId);
+            if (follow) scrollToBottom(true);
+          }
+          continue;
+        }
+        paintGenerationCard(messageId);
+      }
+      if (!active) { clearInterval(genTimer); genTimer = null; }
+    }, 700);
+  }
+  async function startGeneration(chat, content, mode) {
+    const message = { id: uid('msg'), role: 'assistant', content, createdAt: Date.now(), assistantId: chat.assistantId, status: 'complete', variant: 0, feedback: null, attachments: [] };
+    chat.messages.push(message); chat.updatedAt = Date.now();
+    state.generations = state.generations || {};
+    let result;
+    if (mode === 'image') result = await window.BRIIX_MEDIA.generate({ prompt: content });
+    else {
+      let lyrics = '';
+      if (mode === 'song') {
+        // Лирику берём из своей базы — человек не должен заполнять ещё одно поле.
+        try {
+          const b = window.BRIIX_MUSIC_BASE;
+          if (b) { await b.load(); const entry = b.pick(content, { limit: 1, withLyrics: true, lang: 'ru' })[0]; if (entry) lyrics = await b.lyrics(entry); }
+        } catch {}
+      }
+      result = await window.BRIIX_MUSIC.generate({ prompt: content, kind: mode === 'song' ? 'song' : 'instrumental', lyrics, language: 'ru' });
+    }
+    if (!result || result.error) {
+      message.content = result?.error || 'Не удалось поставить задачу.';
+      message.status = 'error';
+      persist(); refreshMessages(); announce('Задача не создана.'); return;
+    }
+    state.generations[message.id] = { kind: mode, targetId: result.id, mode: result.mode === 'live' ? 'live' : 'mock' };
+    persist(); refreshMessages(); ensureGenerationTimer();
+    // Прокрутка на действие человека — можно. На каждый чанк готовности — нельзя.
+    scrollToBottom(true);
+    announce('Задача поставлена, результат появится в ленте.');
   }
   function messageMarkup(m, chat) {
     if (m.role === 'user') return `<article class="message user" data-message-id="${esc(m.id)}" aria-label="Ваше сообщение"><div><div class="user-bubble">${esc(m.content)}</div>${m.attachments?.length ? `<div class="attachment-list" style="margin-top:8px;justify-content:flex-end">${m.attachments.map(f => `<span class="attachment-chip" title="Демо-вложение, содержимое не читается">${icon('file')}<span class="attachment-name">${esc(f.name)}</span><span class="faint">${fileSize(f.size)}</span></span>`).join('')}</div>` : ''}</div></article>`;
@@ -338,7 +459,7 @@
     const last = chat.messages.at(-1)?.id === m.id;
     const streaming = activeStream?.messageId === m.id;
     const saved = state.saved.some(s => s.messageId === m.id && s.chatId === chat.id);
-    const body = m.status === 'error' ? `<div class="message-error"><strong>${icon('alert')}Не удалось получить ответ</strong>${window.BRIIX_CHAT_LIVE?.errorNote(m) || '<p>Это демонстрационная ошибка. Сообщение сохранено — можно повторить запрос, ничего не вводя заново.</p>'}<button class="btn small" data-action="retry" data-id="${esc(m.id)}" ${last ? '' : 'disabled'}>${icon('refresh')}Попробовать снова</button></div>` : `${m.content ? `<div class="prose" data-prose-id="${esc(m.id)}">${markdown(m.content)}${streaming ? '<span class="streaming-caret" aria-hidden="true"></span>' : ''}</div>` : `<div class="typing"><span class="typing-dots"><i></i><i></i><i></i></span>Собираем мысль…</div>${chatLiveActive() ? '<p class="wait-line" data-wait data-wait-type="chat" aria-live="off"></p>' : ''}`}${m.status === 'stopped' ? `<div class="stopped-note">${icon('stop')}Вы остановили ответ. Можно продолжить вопросом или попробовать другой вариант.</div>` : ''}`;
+    const body = state.generations?.[m.id] ? generationCard(m, state.generations[m.id]) : m.status === 'error' ? `<div class="message-error"><strong>${icon('alert')}Не удалось получить ответ</strong>${window.BRIIX_CHAT_LIVE?.errorNote(m) || '<p>Это демонстрационная ошибка. Сообщение сохранено — можно повторить запрос, ничего не вводя заново.</p>'}<button class="btn small" data-action="retry" data-id="${esc(m.id)}" ${last ? '' : 'disabled'}>${icon('refresh')}Попробовать снова</button></div>` : `${m.content ? `<div class="prose" data-prose-id="${esc(m.id)}">${markdown(m.content)}${streaming ? '<span class="streaming-caret" aria-hidden="true"></span>' : ''}</div>` : `<div class="typing"><span class="typing-dots"><i></i><i></i><i></i></span>Собираем мысль…</div>${chatLiveActive() ? '<p class="wait-line" data-wait data-wait-type="chat" aria-live="off"></p>' : ''}`}${m.status === 'stopped' ? `<div class="stopped-note">${icon('stop')}Вы остановили ответ. Можно продолжить вопросом или попробовать другой вариант.</div>` : ''}`;
     return `<article class="message assistant" data-message-id="${esc(m.id)}" aria-label="Ответ: ${esc(a.name)}">${avatar(a, 'small')}<div class="message-body"><div class="message-heading"><strong>${esc(a.name)}</strong>${window.BRIIX_CHAT_LIVE?.badge(m) || '<span class="badge">Демо-ответ</span>'}<time datetime="${new Date(m.createdAt).toISOString()}">${timeLabel(m.createdAt)}</time></div><div class="message-content">${body}</div>${window.BRIIX_CHAT_LIVE?.provenanceMarkup(m) || ''}${!streaming ? `<div class="message-actions"><button class="icon-btn" data-action="copy-message" data-id="${esc(m.id)}" aria-label="Скопировать ответ" title="Скопировать" ${m.status === 'error' ? 'disabled' : ''}>${icon('copy')}</button><button class="icon-btn ${saved ? 'active' : ''}" data-action="save-message" data-id="${esc(m.id)}" aria-label="${saved ? 'Убрать ответ из избранного' : 'Сохранить ответ'}" aria-pressed="${saved}" title="${saved ? 'Сохранено' : 'Сохранить ответ'}" ${m.status === 'error' ? 'disabled' : ''}>${icon('bookmark')}</button><span class="action-divider"></span><button class="icon-btn ${m.feedback === 'up' ? 'active' : ''}" data-action="feedback" data-id="${esc(m.id)}" data-value="up" aria-label="Хороший ответ" aria-pressed="${m.feedback === 'up'}" title="Хороший ответ" ${m.status === 'error' ? 'disabled' : ''}>${icon('thumbsUp')}</button><button class="icon-btn ${m.feedback === 'down' ? 'active' : ''}" data-action="feedback" data-id="${esc(m.id)}" data-value="down" aria-label="Ответ нужно улучшить" aria-pressed="${m.feedback === 'down'}" title="Нужно улучшить" ${m.status === 'error' ? 'disabled' : ''}>${icon('thumbsDown')}</button>${m.feedback ? '<span class="feedback-note">Отметка сохранена локально</span>' : ''}${last && !window.BRIIX_CHAT_LIVE?.provenanceFor(m.id)?.contentBlocked ? `<button class="text-btn" data-action="regenerate" data-id="${esc(m.id)}">${icon('refresh')}Другой вариант</button>` : ''}</div>` : `<div class="message-actions"><button class="text-btn" data-action="stop">${icon('stop')}Остановить</button></div>`}</div></article>`;
   }
   function followupMarkup(chat) {
@@ -355,6 +476,22 @@
     const old = $('.followups'); if (old) old.remove();
     const wrap = $('.chat-composer-wrap'); if (wrap) wrap.insertAdjacentHTML('beforebegin', followupMarkup(chat));
     if (scroll) scrollToBottom();
+  }
+  // Пока человек печатает следующий вопрос, ответ не имеет права трогать его вид.
+  function composerBusy() {
+    const el = document.activeElement;
+    return !!el && (el.id === 'prompt-input' || !!el.closest?.('.chat-composer-wrap'));
+  }
+  function readerAtBottom() {
+    return main.scrollHeight - main.scrollTop - main.clientHeight < 60;
+  }
+  // Рисуем только тело текущего ответа. Раньше на каждый кусок SSE пересобирались
+  // все сообщения и заново вставлялся блок подсказок — от этого экран и трясло.
+  function paintStreamingMessage(message) {
+    const holder = $(`[data-message-id="${message.id}"] .message-content`);
+    if (!holder) { refreshMessages(); return; }
+    const html = `<div class="prose" data-prose-id="${message.id}">${markdown(message.content)}<span class="streaming-caret" aria-hidden="true"></span></div>`;
+    if (holder.innerHTML !== html) holder.innerHTML = html;
   }
   function scrollToBottom(force = false) {
     if (route().page !== 'chat') return;
@@ -386,7 +523,14 @@
     chat.messages.push(user); chat.updatedAt = Date.now();
     pendingAttachments = []; state.drafts[draftKey()] = ''; clearTimeout(draftTimer); draftTimer = null;
     input.value = ''; pendingSend = true; persist(); navigate('chat/' + chat.id);
-    requestAnimationFrame(() => { pendingSend = false; if (state.chats.includes(chat) && !activeStream) startResponse(chat, content, 0); });
+    requestAnimationFrame(() => {
+      pendingSend = false;
+      if (!state.chats.includes(chat) || activeStream) return;
+      // На телефоне человек выбирает «что делаем» под полем — и получает результат
+      // прямо в ленте, без похода в раздел с анкетой.
+      if (isPhone() && state.settings.simpleMode !== 'text') { startGeneration(chat, content, state.settings.simpleMode); return; }
+      startResponse(chat, content, 0);
+    });
   }
   function startResponse(chat, prompt, variant = 0, existing = null) {
     if (activeStream) return;
@@ -413,7 +557,12 @@
     if (chatLiveActive()) {
       stream.abort = window.BRIIX_CHAT_LIVE.respond({
         chat, message, prompt,
-        onChunk: () => { if (route().page === 'chat' && route().id === chat.id) { refreshMessages(); scrollToBottom(); } },
+        onChunk: () => {
+          if (route().page !== 'chat' || route().id !== chat.id) return;
+          const follow = readerAtBottom() && !composerBusy();
+          paintStreamingMessage(message);
+          if (follow) main.scrollTop = main.scrollHeight;
+        },
         onFinish: status => finish(status),
         persist: () => persist()
       });
@@ -428,12 +577,12 @@
         if (stream.cancelled) return;
         stream.index = Math.min(fullText.length, stream.index + 18 + Math.floor(Math.random() * 14));
         message.content = fullText.slice(0, stream.index);
-        const nearBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 220;
+        const follow = readerAtBottom() && !composerBusy();
         const visibleContent = message.status === 'error' ? '' : message.content;
         if (route().page === 'chat' && route().id === chat.id) {
           const holder = $(`[data-message-id="${message.id}"] .message-content`);
           if (holder) holder.innerHTML = `<div class="prose" data-prose-id="${message.id}">${markdown(visibleContent)}<span class="streaming-caret" aria-hidden="true"></span></div>`;
-          if (nearBottom) scrollToBottom(true);
+          if (follow) main.scrollTop = main.scrollHeight;
         }
         if (stream.index >= fullText.length) finish('complete'); else stream.timer = setTimeout(tick, 28);
       }; tick();
@@ -686,6 +835,24 @@
   const actions = {
     'new-chat': () => { pendingAttachments = []; state.selectedAssistant = state.settings.defaultAssistant; navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); },
     'send': sendMessage, 'stop': stopResponse,
+    'choose-mode': () => {
+      const menu = $('#mode-menu'); if (!menu) return;
+      const open = menu.hidden;
+      menu.hidden = !open;
+      $('[data-action="choose-mode"]')?.setAttribute('aria-expanded', String(open));
+      if (open) menu.querySelector('.mode-option.active, .mode-option')?.focus();
+    },
+    'set-mode': el => {
+      state.settings.simpleMode = el.dataset.id;
+      persist();
+      const menu = $('#mode-menu'); if (menu) menu.hidden = true;
+      const chip = $('[data-action="choose-mode"]');
+      if (chip) { chip.setAttribute('aria-expanded', 'false'); chip.setAttribute('aria-label', 'Что делаем: ' + simpleMode().title); chip.innerHTML = icon(simpleMode().icon) + '<span class="select-name">' + esc(simpleMode().short) + '</span>' + icon('chevronDown'); chip.focus(); }
+      $$('.mode-option').forEach(b => { const on = b.dataset.id === state.settings.simpleMode; b.classList.toggle('active', on); b.setAttribute('aria-checked', String(on)); });
+      const input = $('#prompt-input');
+      if (input) { input.placeholder = state.settings.simpleMode === 'text' ? 'О чём вы думаете? Спросите, напишите, придумайте…' : ({ image: 'Опишите, что показать на картинке…', music: 'Опишите настроение музыки…', song: 'О чём песня? Лирику подберу из вашей базы…' })[state.settings.simpleMode]; input.focus(); }
+      const advanced = $('.mode-advanced'); if (advanced) advanced.setAttribute('href', '#/' + (state.settings.simpleMode === 'image' ? 'media' : state.settings.simpleMode === 'text' ? 'settings' : 'music'));
+    },
     'attach': () => $('#file-input').click(),
     'attach-example': () => { addAttachments([{ name: 'brief-kofeynya.pdf', size: 248320, type: 'application/pdf' }]); },
     'remove-attachment': el => { pendingAttachments = pendingAttachments.filter(f => f.id !== el.dataset.id); renderAttachments(); },
@@ -751,6 +918,11 @@
   function resetDemo(notify) { if (activeStream) stopResponse(); state = freshState(); pendingAttachments = []; pendingSend = false; storageAvailable = true; storageProtected = false; storageWarning = ''; persist(); applySettings(); closeModal(); navigate('home'); if (notify) toast('Начальное демо восстановлено'); }
   document.addEventListener('click', event => {
     if (event.target.closest('.media-page, .media-modal, .music-page, .music-modal')) return;
+    // Меню «что делаем» закрывается тапом мимо — как обычное мобильное меню.
+    const menu = $('#mode-menu');
+    if (menu && !menu.hidden && !event.target.closest('#mode-menu, [data-action="choose-mode"]')) {
+      menu.hidden = true; $('[data-action="choose-mode"]')?.setAttribute('aria-expanded', 'false');
+    }
     const el = event.target.closest('[data-action]'); if (!el || el.disabled) return;
     const action = actions[el.dataset.action]; if (action) { event.preventDefault(); action(el); }
   });
@@ -769,6 +941,10 @@
     if (el.id === 'import-input') { importAll(el.files[0]); el.value = ''; }
   });
   document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      const menu = $('#mode-menu');
+      if (menu && !menu.hidden) { menu.hidden = true; const chip = $('[data-action="choose-mode"]'); chip?.setAttribute('aria-expanded', 'false'); chip?.focus(); return; }
+    }
     const command = event.metaKey || event.ctrlKey;
     if (command && event.key.toLowerCase() === 'k') { event.preventDefault(); if (searchModal.open) closeSearch(); else openSearch(); return; }
     if (command && event.shiftKey && event.key.toLowerCase() === 'o') { event.preventDefault(); if (modal.open) closeModal(); if (searchModal.open) closeSearch(); actions['new-chat'](); return; }

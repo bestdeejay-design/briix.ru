@@ -312,7 +312,7 @@
     if (changed) {
       persist(); renderPanel();
       // On stacked layouts the player sits under a long form: bring the finished draft into view.
-      if (tab === 'create' && !typingField() && matchMedia('(max-width: 1150px)').matches) $('#music-preview', root)?.scrollIntoView({ behavior: host.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
+      if (root && tab === 'create' && !typingField() && matchMedia('(max-width: 1150px)').matches) $('#music-preview', root)?.scrollIntoView({ behavior: host.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
     }
     updateCounts();
     if (!state.tracks.some(t => t.mode !== 'live' && ['queued', 'running'].includes(t.status))) { clearInterval(timer); timer = null; }
@@ -1061,7 +1061,50 @@
     state.tracks.forEach(t => { if (t.mode !== 'live' && t.status === 'running') { t.status = 'queued'; t.progress = 0; } });
     persist();
   }
+  /* Запуск без формы: тот же путь и те же проверки, что у брифа, но без чтения DOM.
+     Нужен простому чату, где человек пишет одну фразу и получает результат в ленте. */
+  async function generateFromBrief(params = {}) {
+    const prompt = String(params.prompt || '').trim();
+    if (prompt.length < MIN_PROMPT) return { error: `Опишите задумку хотя бы ${MIN_PROMPT} символами.` };
+    if (state.tracks.length >= MAX_TRACKS) return { error: 'В библиотеке уже 24 черновика. Удалите лишние.' };
+    if (activeCount() >= MAX_ACTIVE) return { error: 'Одновременно собирается до четырёх задач. Дождитесь очереди.' };
+    const kindId = ['song', 'instrumental', 'jingle'].includes(params.kind) ? params.kind : 'instrumental';
+    const genre = GENRES.some(g => g.id === params.genre) ? params.genre : form.genre;
+    const mood = MOODS.some(m => m.id === params.mood) ? params.mood : form.mood;
+    const brief = {
+      kind: kindId, prompt: prompt.slice(0, MAX_PROMPT), project: String(params.project || '').slice(0, 80),
+      genre, mood, key: KEYS.some(k => k.id === params.key) ? params.key : form.key,
+      goal: GOALS.some(g => g[0] === params.goal) ? params.goal : form.goal,
+      bpm: clampBpm(params.bpm ?? suggestedBpm(genre, mood)),
+      duration: Number(params.duration) || (kindId === 'song' ? 30 : kind(kindId).defaultDuration),
+      vocalMode: params.vocalMode === 'pro' ? 'pro' : 'flash',
+      lyrics: String(params.lyrics || '').slice(0, MAX_LYRICS),
+      language: params.language === 'en' ? 'en' : 'ru'
+    };
+    if (liveActive()) {
+      if (brief.kind === 'song' && !brief.lyrics.trim()) return { error: 'Для песни нужна лирика.' };
+      const before = state.tracks[0]?.id;
+      await live().submit(brief);
+      const created = state.tracks[0];
+      return created && created.id !== before ? { id: created.id, mode: 'live' } : { error: 'Задача не принята сервером.' };
+    }
+    const t = {
+      id: uid(), kind: brief.kind, genre: brief.genre, mood: brief.mood, key: brief.key, goal: brief.goal,
+      duration: brief.duration, bpm: brief.bpm, project: brief.project, prompt: brief.prompt,
+      status: 'queued', progress: 0, favorite: false, fail: false,
+      seed: seedFrom(brief.prompt + brief.genre + brief.mood + brief.key + brief.bpm + brief.duration), createdAt: Date.now()
+    };
+    state.tracks.unshift(t); persist(); updateCounts();
+    if (root && $('#music-panel-content', root)) renderPanel();
+    ensureTimer();
+    return { id: t.id, mode: 'mock' };
+  }
+
   window.BRIIX_MUSIC = {
+    // Простой вход для чата: одна фраза -> задача. Ничего заполнять не нужно.
+    generate: generateFromBrief,
+    track(id) { const t = track(id); return t ? { ...t } : null; },
+    async audioUrl(id) { const t = track(id); if (!t || t.status !== 'ready') return null; const entry = await ensureAudio(t); return entry?.url || null; },
     render(main, services) { host = services; root = main; render(); ensureTimer(); live()?.onHostReady(); },
     pause: stopPlayback,
     suspend,

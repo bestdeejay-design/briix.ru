@@ -322,15 +322,47 @@ function fakeBus() {
     TOKEN = found.token;
     console.log('Шина:', BUS, '· токен:', found.token ? 'найден через ' + found.via : 'НЕ НАЙДЕН');
     if (!TOKEN) {
-      // Молча падать нельзя: отчёт нужен даже когда аудит не смог начаться.
-      const where = ['env BRIIX_BUS_TOKEN / MEDIA_BFF_TOKEN', 'systemctl --user show media-bff',
-        '~/.config/systemd/user/media-bff.service и его drop-in (*.conf)', '/home/badai/.config/systemd/user/...', '/etc/systemd/user/...', '/proc/<pid>/environ'];
-      record('J0 доступ к шине', 'fail', { reason: 'токен шины не найден', tried: where, bus: BUS });
-      finding('L-TOKEN', 'Аудит не смог начать: токен шины не найден ни в окружении, ни в юните. Задайте BRIIX_BUS_TOKEN в окружении раннера или запустите на стенде A.', 'блокер аудита');
+      // Без токена аудит не пустой: проверяем то, что открыто, и точно говорим,
+      // чего не хватает. Значение токена не печатается нигде.
+      const diag = { user: process.env.USER || process.env.USERNAME || '?', home: os.homedir(), bus: BUS };
+      try {
+        const res = await fetch(BUS + '/health', { signal: AbortSignal.timeout(8000) });
+        diag.busReachable = res.status === 200;
+        diag.busHealth = (await res.json())?.backends || null;
+      } catch (e) { diag.busReachable = false; diag.busError = String(e.message || e).slice(0, 80); }
+      diag.unitFilesPresent = ['/home/badai/.config/systemd/user/media-bff.service',
+        path.join(os.homedir(), '.config/systemd/user/media-bff.service'),
+        '/etc/systemd/user/media-bff.service'].filter(f => fs.existsSync(f));
+      try { diag.bffProcesses = execFileSync('pgrep', ['-f', 'bff.py'], { encoding: 'utf8', timeout: 5000 }).trim().split('\n').filter(Boolean).length; }
+      catch { diag.bffProcesses = 0; }
+      record('J0 здоровье шины без токена', diag.busReachable ? 'pass' : 'fail', diag);
+      const auth = await api('/v1/models').catch(() => ({ status: 0 }));
+      record('J10 каталог закрыт без токена', auth.status === 401 ? 'pass' : 'warn', { status: auth.status });
+      finding('L-TOKEN', diag.busReachable
+        ? 'Шина на этом раннере доступна, но токен недоступен процессу раннера. Нужен секрет репозитория BRIIX_BUS_TOKEN (Settings → Secrets and variables → Actions) — workflow уже умеет его брать.'
+        : 'Шина ' + BUS + ' с этого раннера не отвечает: либо раннер не на стенде A, либо адрес другой. Нужен BRIIX_BUS_URL и секрет BRIIX_BUS_TOKEN.', 'блокер аудита');
+      for (const j of ['J1 картинка', 'J3 инструментал', 'J4 песня Flash', 'J6 отмена', 'J7 модерация', 'J9 чат']) {
+        record(j, 'skip', { reason: 'нет токена шины' });
+      }
       fs.mkdirSync(OUT, { recursive: true });
-      fs.writeFileSync(path.join(OUT, 'live-audit.json'), JSON.stringify({ rows, findings, failed: 1, bus: BUS }, null, 2));
-      fs.writeFileSync(path.join(OUT, 'live-audit.md'), ['# Живой аудит стенда', '', '**Аудит не начался:** токен шины не найден.', '', 'Проверено: ' + where.join(', ') + '.', '', 'Шина: `' + BUS + '`. Токен в отчёт не попадает.'].join('\n'));
-      console.error('Нет токена шины: аудит невозможен. Задайте BRIIX_BUS_TOKEN или запустите на стенде A.');
+      fs.writeFileSync(path.join(OUT, 'live-audit.json'), JSON.stringify({ rows, findings, failed: 1, diagnostic: diag }, null, 2));
+      fs.writeFileSync(path.join(OUT, 'live-audit.md'), [
+        '# Живой аудит стенда', '',
+        '**Аудит не состоялся:** генерации не проверены — нет токена шины.', '',
+        '| Что известно | Значение |', '|---|---|',
+        '| Шина отвечает без токена | ' + (diag.busReachable ? 'да' : 'нет') + ' |',
+        '| Бэкенды | `' + JSON.stringify(diag.busHealth) + '` |',
+        '| Пользователь раннера | `' + diag.user + '` |',
+        '| HOME раннера | `' + diag.home + '` |',
+        '| Файлы юнита найдены | ' + (diag.unitFilesPresent.length ? diag.unitFilesPresent.map(x => '`' + x + '`').join(', ') : 'нет') + ' |',
+        '| Процессов bff.py видно | ' + diag.bffProcesses + ' |', '',
+        '## Что нужно сделать', '',
+        diag.busReachable
+          ? 'Добавить секрет репозитория **`BRIIX_BUS_TOKEN`**: Settings → Secrets and variables → Actions → New repository secret. Значение — тот же `MEDIA_BFF_TOKEN`, что в юните `media-bff`. Workflow уже передаёт его инструменту.'
+          : 'Уточнить адрес шины (`BRIIX_BUS_URL`) и добавить секрет **`BRIIX_BUS_TOKEN`**.', '',
+        'Токен в отчётах и логах не появляется.'
+      ].join('\n'));
+      console.error('Нет токена шины. Диагностика:', JSON.stringify(diag));
       process.exit(2);
     }
   }

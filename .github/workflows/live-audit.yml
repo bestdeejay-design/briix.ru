@@ -50,7 +50,10 @@ jobs:
         id: audit
         continue-on-error: true
         env:
-          BRIIX_BUS_URL: ${{ github.event.inputs.bus_url || 'http://127.0.0.1:8390' }}
+          BRIIX_BUS_URL: ${{ github.event.inputs.bus_url || vars.BRIIX_BUS_URL || 'http://127.0.0.1:8390' }}
+          # Секрет репозитория. Если не задан — инструмент честно отчитается,
+          # что проверил и чего не хватает, вместо молчаливого падения.
+          BRIIX_BUS_TOKEN: ${{ secrets.BRIIX_BUS_TOKEN }}
           BRIIX_LIVE_PHASES: ${{ github.event.inputs.phases || 'catalog,image,instrumental,song-flash,moderation,cancel,chat' }}
           BRIIX_TEST_OUT: ${{ github.workspace }}/live-audit-out
         run: |

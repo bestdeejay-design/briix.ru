@@ -9,59 +9,67 @@
  },
  "data": [
   {
-   "file": "room7.mp3",
+   "file": "room7.m4a",
    "title": "Room 7, No Knock",
    "model": "ace-step-pro",
    "prompt": "hypnotic psychedelic soul, brutal male baritone starting with a whisper, 72 BPM, slow tight drum groove with ride cymbal, liquid and punchy Fender bass, atmospheric wah-wah guitar texture, vintage Hammond organ with slow Leslie speaker, tape saturation, analog warmth, vinyl crackle, surreal desert motel lyrics, cold sensuality, no climax, stream-of-consciousness, recorded in a 1977 Los Angeles basement studio, tape echo only",
    "lyrics_source": "chats-audit репо владельца (автор DeepSeek-чат владельца), трек 1 «Room 7, No Knock»",
    "date": "2026-11-08",
    "duration_seconds": 150,
-   "size_bytes": 4312231
+   "size_bytes": 4276044,
+   "lyrics_embedded": "да (полная лирика chats-audit)"
   },
   {
-   "file": "ballad60.mp3",
+   "file": "ballad60.m4a",
    "title": "Тихий вечер",
    "model": "ace-step-pro",
    "prompt": "Тёплая акустическая баллада с мягкой гитарой и спокойным мужским вокалом (LM 4B, 60с)",
    "date": "2026-11-08",
    "duration_seconds": 60,
-   "size_bytes": 1886871
+   "size_bytes": 1803104,
+   "lyrics_embedded": "да (лирика ACE-Step-запроса)"
   },
   {
-   "file": "ballad30.mp3",
+   "file": "ballad30.m4a",
    "title": "Тихий вечер (фрагмент 30с)",
    "model": "ace-step-flash",
    "prompt": "Тёплая акустическая баллада с мягкой гитарой и спокойным мужским вокалом (LM 1.7B, 30с)",
    "date": "2026-11-08",
    "duration_seconds": 30,
-   "size_bytes": 1212096
+   "size_bytes": 1061466,
+   "lyrics_embedded": "да (лирика ACE-Step-запроса)"
   },
   {
-   "file": "lofi.mp3",
+   "file": "lofi.m4a",
    "title": "Lo-fi Night",
    "model": "musicgen-small",
    "prompt": "lo-fi hip hop beat with warm piano and soft vinyl crackle, relaxed, 90 bpm",
    "date": "2026-11-07",
    "duration_seconds": 30,
-   "size_bytes": 981299
+   "size_bytes": 692105,
+   "lyrics_embedded": "нет (инструментал)"
   },
   {
-   "file": "ambient.mp3",
+   "file": "ambient.m4a",
    "title": "Ambient Drift",
    "model": "musicgen-small",
    "prompt": "calm ambient pad, slow evolving textures, meditation background",
    "date": "2026-11-07",
    "duration_seconds": 30,
-   "size_bytes": 808057
+   "size_bytes": 502411,
+   "lyrics_embedded": "нет (инструментал)"
   },
   {
-   "file": "jingle.mp3",
+   "file": "jingle.m4a",
    "title": "Bright Jingle",
    "model": "musicgen-small",
    "prompt": "upbeat short jingle, bright bells, playful, corporate ident",
    "date": "2026-11-07",
    "duration_seconds": 30,
-   "size_bytes": 484664
+   "size_bytes": 393939,
+   "lyrics_embedded": "нет (инструментал)"
   }
- ]
+ ],
+ "format": "m4a (AAC 192k, обложка attached_pic, встроенный текст песни в теге lyrics — ©lyr)",
+ "note_url_tag": "mp4-муксер ffmpeg не пишет тег url (а при -movflags use_metadata_tags теряется attached_pic) — адрес вшит в comment"
 }

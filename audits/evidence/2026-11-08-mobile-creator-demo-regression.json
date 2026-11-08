@@ -1,0 +1,132 @@
+[
+  {
+    "name": "all routes render"
+  },
+  {
+    "name": "theme route guard and settings focus"
+  },
+  {
+    "name": "header theme toggle stays on route"
+  },
+  {
+    "name": "bootstrap theme validation"
+  },
+  {
+    "name": "draft flush and cross-tab guard"
+  },
+  {
+    "name": "pending-send guard and scripted response"
+  },
+  {
+    "name": "stream holder across navigation"
+  },
+  {
+    "name": "simulated error retry and one-shot reset"
+  },
+  {
+    "name": "attachment validation and metadata only"
+  },
+  {
+    "name": "durable export excludes ephemeral"
+  },
+  {
+    "name": "import normalization"
+  },
+  {
+    "name": "regenerate variant cap"
+  },
+  {
+    "name": "corrupt storage protected until explicit clear"
+  },
+  {
+    "name": "modal version focus guard"
+  },
+  {
+    "name": "skip link"
+  },
+  {
+    "name": "markdown escaping and copy-code guard"
+  },
+  {
+    "name": "global search media"
+  },
+  {
+    "name": "code header contrast"
+  },
+  {
+    "0": {
+      "theme": "light",
+      "route": "home",
+      "violations": []
+    },
+    "1": {
+      "theme": "light",
+      "route": "assistants",
+      "violations": []
+    },
+    "2": {
+      "theme": "light",
+      "route": "prompts",
+      "violations": []
+    },
+    "3": {
+      "theme": "light",
+      "route": "favorites",
+      "violations": []
+    },
+    "4": {
+      "theme": "light",
+      "route": "settings",
+      "violations": []
+    },
+    "5": {
+      "theme": "light",
+      "route": "media",
+      "violations": []
+    },
+    "6": {
+      "theme": "light",
+      "route": "chat/example-coffee",
+      "violations": []
+    },
+    "7": {
+      "theme": "dark",
+      "route": "home",
+      "violations": []
+    },
+    "8": {
+      "theme": "dark",
+      "route": "assistants",
+      "violations": []
+    },
+    "9": {
+      "theme": "dark",
+      "route": "prompts",
+      "violations": []
+    },
+    "10": {
+      "theme": "dark",
+      "route": "favorites",
+      "violations": []
+    },
+    "11": {
+      "theme": "dark",
+      "route": "settings",
+      "violations": []
+    },
+    "12": {
+      "theme": "dark",
+      "route": "media",
+      "violations": []
+    },
+    "13": {
+      "theme": "dark",
+      "route": "chat/example-coffee",
+      "violations": []
+    },
+    "name": "reduced motion and axe"
+  },
+  {
+    "name": "no page errors or external requests"
+  }
+]

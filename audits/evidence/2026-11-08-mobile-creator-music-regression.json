@@ -1,0 +1,124 @@
+{
+  "passed": 29,
+  "results": [
+    {
+      "name": "navigation, images rename and #/images alias",
+      "nav": [
+        "Помощники",
+        "Библиотека промптов",
+        "Изображения",
+        "Музыка",
+        "Избранное"
+      ]
+    },
+    {
+      "name": "theme toggle stays on music route"
+    },
+    {
+      "name": "short brief rejected"
+    },
+    {
+      "name": "kind defaults and genre/mood BPM suggestion"
+    },
+    {
+      "name": "instrumental synthesis and escaped project",
+      "id": "music-5c11f015-2474-4a72-99ca-888606faca9e",
+      "seed": 123979023
+    },
+    {
+      "name": "playback, seek and pause",
+      "time": 0.40555,
+      "duration": 20,
+      "paused": false
+    },
+    {
+      "name": "briix-music-masterskaya-b-gliny-b-74bpm.wav",
+      "bytes": 1280044
+    },
+    {
+      "name": "vocal task returns backing track with structure",
+      "id": "music-aac7efad-eaeb-4f3d-852e-35abde8a7a4c"
+    },
+    {
+      "name": "jingle duration",
+      "id": "music-b03088a1-e877-4d64-bc15-9b3fd879ee08"
+    },
+    {
+      "name": "library filters, search, favorite and reuse"
+    },
+    {
+      "name": "brief export"
+    },
+    {
+      "name": "delete confirmation"
+    },
+    {
+      "name": "simulated error and retry"
+    },
+    {
+      "name": "cancel"
+    },
+    {
+      "name": "running job recovered after reload"
+    },
+    {
+      "name": "axe clean in light and dark"
+    },
+    {
+      "name": "tablist keyboard navigation"
+    },
+    {
+      "name": "global search music"
+    },
+    {
+      "name": "music assistant, prompt category and scripted answer"
+    },
+    {
+      "name": "library capacity guard keeps favorites",
+      "tracks": 24
+    },
+    {
+      "name": "corrupt storage protected until explicit clear"
+    },
+    {
+      "name": "mobile first screen: action, prompt, tabs and honest marking all reachable",
+      "submitTop": 757,
+      "promptTop": 583,
+      "tabs": 5
+    },
+    {
+      "name": "mobile disclosures expose secondary controls and keep the full mode text"
+    },
+    {
+      "name": "mobile: every tab fits the phone and every control is at least 40px",
+      "tabs": [
+        "create",
+        "library",
+        "queue",
+        "models",
+        "showcase"
+      ]
+    },
+    {
+      "name": "mobile: submitted job is revealed above the brief"
+    },
+    {
+      "name": "mobile player controls are thumb-sized",
+      "play": {
+        "w": 56,
+        "h": 56
+      },
+      "seekH": 44
+    },
+    {
+      "name": "mobile music page passes axe"
+    },
+    {
+      "name": "mobile navigation and layout",
+      "overflow": 0
+    },
+    {
+      "name": "no page errors and no external requests"
+    }
+  ]
+}

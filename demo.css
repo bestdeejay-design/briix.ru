@@ -551,3 +551,55 @@ dialog { color: var(--ink); }
   .sidebar, .topbar, .chat-composer-wrap, .message-actions, .chat-meta-actions, .followups, .toast-region, .sidebar-scrim { display: none !important; }
   .chat-page { max-width: none; padding: 0; } .message { break-inside: avoid; } .code-head button { display: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Телефон (<= 650 px): главная и диалог. Экран отдан задумке и переписке,
+   приветствие и служебные подписи ужаты, органы управления — под большой палец.
+   Десктопная раскладка не меняется.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 650px) {
+  .home { padding-top: 22px; }
+  .home-intro { margin-bottom: 16px; }
+  .greeting-mark { display: none; }
+  .home h1 { font-size: 23px; letter-spacing: -.6px; }
+  .home-intro p { display: none; }
+  .home .live-mode-banner { display: flex; align-items: center; gap: 10px; padding: 10px 13px; font-size: 11px; line-height: 1.55; }
+  .home .live-mode-banner [data-live-banner-text] { flex: 1; min-width: 0; }
+  .home .live-mode-banner [data-live-settings] { flex: 0 0 auto; width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .home .live-mode-banner [data-live-settings] > span { display: none; }
+  .home .live-mode-banner [data-live-settings] .icon { width: 18px; height: 18px; }
+  .chat-page .live-mode-banner { display: flex; align-items: center; gap: 10px; padding: 10px 13px; font-size: 11px; line-height: 1.55; }
+  .chat-page .live-mode-banner [data-live-banner-text] { flex: 1; min-width: 0; }
+  .chat-page .live-mode-banner [data-live-settings] { flex: 0 0 auto; width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .chat-page .live-mode-banner [data-live-settings] > span { display: none; }
+  .chat-page .live-mode-banner [data-live-settings] .icon { width: 18px; height: 18px; }
+
+  .assistant-strip { gap: 8px; padding-bottom: 8px; }
+  .assistant-chip { min-height: 44px; padding: 0 14px; font-size: 13px; }
+  .assistant-chip .icon { width: 16px; height: 16px; }
+  .assistant-chip.more { min-width: 44px; padding: 0 10px; }
+
+  .composer { padding: 14px 13px 11px; }
+  .composer-toolbar { gap: 6px; }
+  .composer-toolbar .icon-btn { width: 44px; height: 44px; }
+  .composer-toolbar .icon-btn .icon { width: 19px; height: 19px; }
+  .assistant-select { min-height: 44px; padding: 0 9px; font-size: 13px; }
+  .assistant-select .icon { width: 15px; height: 15px; }
+  .send-btn { width: 48px; height: 48px; border-radius: 13px; }
+  .send-btn .icon { width: 21px; height: 21px; }
+  .composer-context { font-size: 11px; gap: 8px; }
+  .composer-context .text-btn { min-height: 40px; }
+
+  .home-bottom { font-size: 11px; gap: 8px; flex-wrap: wrap; }
+  .home-bottom button { min-height: 40px; padding: 0 8px; }
+  .suggestion-card { padding: 14px; }
+  .suggestion-card strong { font-size: 14px; }
+  .studio-link { min-height: 56px; }
+
+  .followups { margin-left: 0; gap: 8px; }
+  .followup { display: inline-flex; align-items: center; min-height: 44px; padding: 0 13px; font-size: 13px; }
+  .chat-disclaimer { font-size: 10px; line-height: 1.6; }
+  .message-actions .icon-btn, .chat-meta-actions .icon-btn { width: 44px; height: 44px; }
+  .message-actions .icon-btn.small { width: 40px; height: 40px; }
+  .chat-page .message { font-size: 14px; line-height: 1.75; }
+}

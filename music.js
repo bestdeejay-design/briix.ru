@@ -312,7 +312,7 @@
     if (changed) {
       persist(); renderPanel();
       // On stacked layouts the player sits under a long form: bring the finished draft into view.
-      if (tab === 'create' && matchMedia('(max-width: 1150px)').matches) $('#music-preview', root)?.scrollIntoView({ behavior: host.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
+      if (tab === 'create' && !typingField() && matchMedia('(max-width: 1150px)').matches) $('#music-preview', root)?.scrollIntoView({ behavior: host.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
     }
     updateCounts();
     if (!state.tracks.some(t => t.mode !== 'live' && ['queued', 'running'].includes(t.status))) { clearInterval(timer); timer = null; }
@@ -333,7 +333,7 @@
   // На телефоне результат лежит под формой: без прокрутки кажется, что кнопка ничего
   // не сделала. Показываем прогресс сразу, липкие вкладки не перекрывают заголовок.
   function revealOutput() {
-    if (!isPhone()) return;
+    if (!isPhone() || typingField()) return;
     const target = $('#music-preview', root);
     target?.scrollIntoView({ behavior: host?.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
   }
@@ -407,8 +407,63 @@
     root.innerHTML = `<div class="page music-page">${heading()}</div>`;
     renderPanel(); updateNotice(); updateCounts();
   }
+  // Поле, в котором сейчас печатают. Ни опрос сервера, ни готовность соседней задачи
+  // не имеют права вырывать фокус, сбрасывать каретку или дёргать прокрутку.
+  function typingField() {
+    const el = document.activeElement;
+    if (!el || !root?.contains(el)) return null;
+    if (el.tagName === 'TEXTAREA') return el;
+    if (el.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button', 'submit'].includes(el.type)) return el;
+    return null;
+  }
+  function typingState() {
+    const el = typingField(); if (!el) return null;
+    const scroller = document.getElementById('main-content');
+    const state = { id: el.id, scrollTop: el.scrollTop, pageScroll: scroller ? scroller.scrollTop : window.scrollY };
+    if (typeof el.selectionStart === 'number') { state.start = el.selectionStart; state.end = el.selectionEnd; }
+    return state;
+  }
+  function restoreTyping(state) {
+    if (!state?.id) return;
+    const el = document.getElementById(state.id); if (!el) return;
+    el.focus({ preventScroll: true });
+    if (typeof state.start === 'number' && el.setSelectionRange) { try { el.setSelectionRange(state.start, state.end); } catch {} }
+    el.scrollTop = state.scrollTop;
+    const scroller = document.getElementById('main-content');
+    if (scroller) scroller.scrollTop = state.pageScroll; else window.scrollTo(0, state.pageScroll);
+  }
+  function currentOutput() {
+    const current = track(selectedId) || readyTracks()[0] || null;
+    if (current && current.status === 'ready') selectedId = current.id;
+    return current;
+  }
+  // Перед пересборкой забираем только свободный текст: селекты и BPM ведут себя
+  // через свои обработчики, и трогать их здесь значит затирать свежий расчёт.
+  function captureDraft() {
+    if (!root) return;
+    const prompt = $('#music-prompt', root); if (prompt) form.prompt = prompt.value;
+    const lyrics = $('#music-lyrics', root); if (lyrics) form.lyrics = lyrics.value.slice(0, MAX_LYRICS);
+    const project = $('#music-project', root); if (project) form.project = project.value;
+  }
+  // Шапка знает про live-режим, но пересобирать её целиком нельзя: внутри лежит
+  // контейнер панели с формой. Меняем только три узла, которые зависят от стенда.
+  function paintLiveChrome() {
+    if (!root) return;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = heading();
+    for (const selector of ['.music-live-toggle', '#music-live-banner', '#music-mode-note']) {
+      const fresh = tpl.content.querySelector(selector);
+      const current = $(selector, root);
+      if (!fresh || !current || current.outerHTML === fresh.outerHTML) continue;
+      const hadFocus = current.contains(document.activeElement);
+      current.replaceWith(fresh);
+      if (hadFocus) fresh.querySelector('summary, button, a')?.focus({ preventScroll: true });
+    }
+  }
   function renderPanel() {
     const container = $('#music-panel-content', root || document); if (!container) return;
+    captureDraft();
+    const typing = typingState();
     const focused = document.activeElement;
     const focusKey = focused?.closest('#music-panel [data-music-action]') ? { action: focused.dataset.musicAction, id: focused.dataset.id } : focused?.id ? { id: focused.id } : null;
     const panel = $('#music-panel', root); panel?.setAttribute('aria-labelledby', 'music-tab-' + tab);
@@ -417,7 +472,8 @@
     if (tab === 'library') updateLibrary();
     if (tab === 'create') paintPlayer();
     if (tab === 'showcase') { paintShowcase(); loadShowcase(); }
-    if (focusKey) { const target = focusKey.action ? $$('#music-panel [data-music-action]', root).find(b => b.dataset.musicAction === focusKey.action && b.dataset.id === focusKey.id) : document.getElementById(focusKey.id); target?.focus({ preventScroll: true }); }
+    if (typing) restoreTyping(typing);
+    else if (focusKey) { const target = focusKey.action ? $$('#music-panel [data-music-action]', root).find(b => b.dataset.musicAction === focusKey.action && b.dataset.id === focusKey.id) : document.getElementById(focusKey.id); target?.focus({ preventScroll: true }); }
   }
   function createMarkup() {
     const k = kind(form.kind);
@@ -425,8 +481,7 @@
     const vm = vocalMode(form.vocalMode);
     const vocalEntry = vocalCatalog ? vocalCatalog[vm.id] : null;
     const vocalBlocked = isVocalForm() && vocalEntry?.status !== 'ready';
-    const current = track(selectedId) || readyTracks()[0] || null;
-    if (current && current.status === 'ready') selectedId = current.id;
+    const current = currentOutput();
     const hasOutput = !!current || state.tracks.some(t => ['queued', 'running'].includes(t.status));
     return `<div class="music-create-layout ${hasOutput ? 'has-output' : ''}"><form id="music-brief-form" class="music-brief" novalidate>
       <div class="music-section-title"><span class="eyebrow">01 / Бриф</span><span class="badge">Сохраняется локально</span></div>
@@ -451,8 +506,8 @@
       </div></details>
       <details class="music-extra"><summary>Дополнительно</summary><label class="music-check"><input type="checkbox" id="music-fail" ${form.failNext ? 'checked' : ''}><span>Смоделировать ошибку очереди — чтобы проверить повтор</span></label><p class="music-extra-note">Заглушка собирается локально и занимает несколько секунд. Одновременно — до четырёх задач, в библиотеке — до 24 черновиков.</p></details>
       <div id="music-form-error" class="music-form-error" role="alert" hidden></div>
-      ${liveRefusal ? `<div class="music-refusal" id="music-refusal" role="status">${icon('shield')}<div><strong>Не пройдена проверка контента</strong><p>${esc(liveRefusal.message || 'Запрос нарушает политику контента.')} Художественная нагота допустима, порнография — нет.</p><button type="button" class="btn small" data-music-action="edit-blocked">${icon('edit')}Изменить промпт</button></div></div>` : ''}
-      ${vocalBlocked ? `<div class="music-unavailable" id="music-vocal-unavailable">${icon('mic')}<div><strong>Режим ${esc(vm.title)} сейчас недоступен</strong><p>Каталог шины отдаёт <code>${esc(vm.model)}: unavailable</code>. Инструментальные модели вокал не заменяют, поэтому задача не отправляется и подменять её минусовкой мы не будем. ${vocalCatalog && Object.values(vocalCatalog).some(v => v.status === 'ready') ? 'Другой режим вокала доступен — переключитесь выше.' : 'Инструментал работает.'}</p></div></div>` : ''}
+      <div id="music-form-notices">${liveRefusal ? `<div class="music-refusal" id="music-refusal" role="status">${icon('shield')}<div><strong>Не пройдена проверка контента</strong><p>${esc(liveRefusal.message || 'Запрос нарушает политику контента.')} Художественная нагота допустима, порнография — нет.</p><button type="button" class="btn small" data-music-action="edit-blocked">${icon('edit')}Изменить промпт</button></div></div>` : ''}
+      ${vocalBlocked ? `<div class="music-unavailable" id="music-vocal-unavailable">${icon('mic')}<div><strong>Режим ${esc(vm.title)} сейчас недоступен</strong><p>Каталог шины отдаёт <code>${esc(vm.model)}: unavailable</code>. Инструментальные модели вокал не заменяют, поэтому задача не отправляется и подменять её минусовкой мы не будем. ${vocalCatalog && Object.values(vocalCatalog).some(v => v.status === 'ready') ? 'Другой режим вокала доступен — переключитесь выше.' : 'Инструментал работает.'}</p></div></div>` : ''}</div>
       <div class="music-submit-bar">
       <button type="submit" class="btn primary music-submit" id="music-generate" ${vocalBlocked ? 'disabled aria-disabled="true"' : ''}>${icon(vocalBlocked ? 'mic' : 'sparkles')}${vocalBlocked ? 'Режим недоступен' : liveActive() ? (form.kind === 'song' ? 'Отправить песню на сервер' : 'Отправить на сервер') : 'Собрать черновик'}</button>
       <p class="music-submit-note">${icon('lock')}${liveActive() ? 'На ваш сервер уходит только бриф. Токен живёт в этом браузере.' : 'Ничего не отправляется наружу: ни текст, ни звук.'}</p>
@@ -820,16 +875,32 @@
     if (!root || !host) return;
     const id = event.target.id;
     if (id === 'music-prompt') { form.prompt = event.target.value; const count = $('#music-prompt-count', root); if (count) count.textContent = form.prompt.length + ' / ' + MAX_PROMPT; const error = $('#music-form-error', root); if (error) error.hidden = true; event.target.removeAttribute('aria-invalid'); }
+    if (id === 'music-lyrics') {
+      form.lyrics = event.target.value.slice(0, MAX_LYRICS);
+      const count = $('#music-lyrics-count', root); if (count) count.textContent = form.lyrics.length + ' / ' + MAX_LYRICS;
+      const error = $('#music-form-error', root); if (error) error.hidden = true;
+      event.target.removeAttribute('aria-invalid');
+    }
     if (id === 'music-project') form.project = event.target.value;
     if (id === 'music-bpm') { form.bpm = clampBpm(event.target.value); const out = $('#music-bpm-value', root); if (out) out.textContent = String(form.bpm); }
     if (id === 'music-library-search') { libraryQuery = event.target.value; updateLibrary(); }
     if (id === 'music-seek') { const t = track(selectedId); if (t && audio && audio.src) { audio.currentTime = Math.min(Number(event.target.value), t.duration); syncTransport(); } }
   });
+  // Класс живёт на странице, а не в form: пересборка панели его не сбрасывает.
+  function updateTypingClass() {
+    const page = $('.music-page', root || document); if (!page) return;
+    // Пока фокус внутри брифа, раскладка не меняется — иначе тап по кнопке отправки
+    // терялся бы на середине жеста, когда липкая панель возвращалась на место.
+    const active = document.activeElement;
+    page.classList.toggle('music-typing', !!active && !!root?.contains(active) && !!active.closest('#music-brief-form'));
+  }
+  document.addEventListener('focusin', () => { if (root && host) updateTypingClass(); });
+  document.addEventListener('focusout', () => { if (root && host) setTimeout(updateTypingClass, 0); });
   document.addEventListener('change', event => {
     if (!root || !host) return;
     const id = event.target.id;
     if (['music-genre', 'music-mood'].includes(id)) { syncForm(); form.bpm = suggestedBpm(form.genre, form.mood); renderPanel(); }
-    if (['music-goal', 'music-key'].includes(id)) syncForm();
+    if (['music-goal', 'music-key', 'music-language'].includes(id)) syncForm();
     if (id === 'music-fail') form.failNext = event.target.checked;
   });
   document.addEventListener('submit', event => { if (event.target.id === 'music-brief-form') { event.preventDefault(); submit(); } });
@@ -883,7 +954,28 @@
       openPlayer(id) { selectedId = id; tab = 'create'; renderPanel(); },
       // Живём только на своём маршруте: автопроверка стенда из Настроек не должна
       // перерисовывать чужую страницу поверх формы ключа.
-      refresh() { if (root && location.hash.split('?')[0].replace(/\/$/, '') === '#/music') { render(); updateCounts(); updateNotice(); } }
+      // Опрос сервера идёт каждые 2.5 секунды. Полная пересборка страницы стирала
+      // набираемую лирику и дёргала экран, поэтому обновляем только зону результата.
+      refresh() {
+        if (!root || location.hash.split('?')[0].replace(/\/$/, '') !== '#/music') return;
+        updateCounts(); updateNotice(); paintLiveChrome();
+        if (tab !== 'create' || !$('#music-preview', root)) { renderPanel(); return; }
+        captureDraft();
+        const tpl = document.createElement('template');
+        tpl.innerHTML = createMarkup();
+        const notices = $('#music-form-notices', root), freshNotices = tpl.content.querySelector('#music-form-notices');
+        if (notices && freshNotices && notices.innerHTML !== freshNotices.innerHTML) notices.innerHTML = freshNotices.innerHTML;
+        const bar = $('.music-submit-bar', root), freshBar = tpl.content.querySelector('.music-submit-bar');
+        if (bar && freshBar && bar.outerHTML !== freshBar.outerHTML) {
+          const hadFocus = bar.contains(document.activeElement);
+          bar.replaceWith(freshBar);
+          if (hadFocus) $('#music-generate', root)?.focus({ preventScroll: true });
+        }
+        const layout = $('.music-create-layout', root), freshLayout = tpl.content.querySelector('.music-create-layout');
+        if (layout && freshLayout) layout.classList.toggle('has-output', freshLayout.classList.contains('has-output'));
+        const preview = $('#music-preview', root), freshPreview = tpl.content.querySelector('#music-preview');
+        if (preview && freshPreview && preview.innerHTML !== freshPreview.innerHTML) { preview.innerHTML = freshPreview.innerHTML; paintPlayer(); }
+      }
     }
   };
 })();

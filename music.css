@@ -1,4 +1,5 @@
 /* Music Studio: scoped extension; inherits BRIIX tokens, never changes the workspace palette. */
+.music-form-notices { display: contents; }
 .music-page { max-width: 1180px; }
 .music-heading { align-items: flex-start; }
 .music-heading h1 { margin-bottom: 9px; }
@@ -269,6 +270,11 @@
   /* Главное действие всегда под большим пальцем, пока форма на экране. */
   .music-page .music-submit-bar { position: sticky; bottom: 0; z-index: 6; margin: 0 -15px -15px; padding: 12px 15px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); border-radius: 0 0 13px 13px; }
   .music-page .music-submit { min-height: 52px; font-size: 15px; border-radius: 11px; }
+  /* Пока человек печатает, липкая кнопка уходит в поток: она не должна накрывать
+     лирику и теги, а клавиатура и без того съедает половину экрана. */
+  .music-page.music-typing .music-submit-bar { position: static; margin-top: 4px; }
+  .music-page .music-brief textarea, .music-page .music-brief input, .music-page .music-brief select { scroll-margin-bottom: 96px; scroll-margin-top: 76px; }
+  .music-page .music-lyrics { min-height: 168px; resize: vertical; }
   .music-page .music-submit-note { font-size: 10px; margin-top: 8px; }
   .music-page .music-form-error, .music-page .music-refusal, .music-page .music-unavailable { font-size: 12px; }
 

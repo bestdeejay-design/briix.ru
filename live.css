@@ -124,3 +124,15 @@
   .showcase-intro { flex-direction: column; }
   .showcase-grid { grid-template-columns: 1fr; }
 }
+
+/* Телефон: тач-таргеты. На 390 px иконки были 28–34 px, вкладки 31 px — мимо пальца.
+   sizes растут только на узких экранах, палитра и десктоп не тронуты. */
+@media (max-width: 650px) {
+  .icon-btn { min-width: 44px; min-height: 44px; }
+  .icon-btn.small { min-width: 40px; min-height: 40px; }
+  .media-tab, .music-tab { min-height: 44px; }
+  .btn.small { min-height: 40px; }
+  .text-btn { min-height: 40px; }
+  .showcase-actions .btn { min-height: 40px; }
+  .stand-key-controls .btn, .stand-key-actions .btn { min-height: 44px; }
+}

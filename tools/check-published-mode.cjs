@@ -96,14 +96,16 @@ function api(req, res, urlPath, body) {
     const j = state.jobs.get(job[1]);
     if (!j) { send(404, { error: { code: 'gone', message: 'нет задачи' } }); return; }
     if (j.cancelled) { send(200, { id: job[1], type: j.type, status: 'cancelled' }); return; }
-    const step = Math.floor((Date.now() - j.started) / 400);
+    // bff отдаёт корневой result_url (/files/{id}) — клиент добавляет префикс шины /api.
+    // Шаг стадии длиннее интервала опроса (2.5 с), чтобы клиент успевал увидеть каждую.
+    const step = Math.floor((Date.now() - j.started) / 2600);
     const vocal = !!j.params.model;
     const stages = j.type === 'music' ? (vocal ? ['writing-lyrics', 'synthesizing', 'album-cover'] : ['model-warmup', 'generating', 'album-cover']) : ['model-warmup', 'generating'];
     if (step < stages.length) {
       send(200, { id: job[1], type: j.type, status: 'running', stage: stages[step], provenance: { model: j.params.model || (j.type === 'music' ? 'musicgen-small' : 'flux-2-klein-4b'), params: j.params } });
       return;
     }
-    send(200, { id: job[1], type: j.type, status: 'ready', result_url: '/api/files/' + job[1], mime: j.type === 'music' ? 'audio/mp4' : 'image/png',
+    send(200, { id: job[1], type: j.type, status: 'ready', result_url: '/files/' + job[1], mime: j.type === 'music' ? 'audio/mp4' : 'image/png',
       provenance: { model: j.params.model || (j.type === 'music' ? 'musicgen-small' : 'flux-2-klein-4b'), capability: j.type === 'music' ? (vocal ? 'song.vocal' : 'instrumental') : 'image.generate', wall_clock_ms: Date.now() - j.started, queued_ms: 12, params: j.params } });
     return;
   }
@@ -202,8 +204,10 @@ function server(port) {
   assert.match(await p.locator('.chat-live-provenance').last().innerText(), /qwen3/);
   await p.locator('#prompt-input').fill('Расскажи длинную историю про сервер и туман.');
   await p.locator('#send-button').click();
-  await p.waitForSelector('[data-action="stop"]', { timeout: 10000 });
-  await p.locator('[data-action="stop"]').click();
+  // Кнопка «Стоп» внутри сообщения пересоздаётся на каждом чанке потока, поэтому жмём
+  // устойчивую кнопку композера — ту же, что видит пользователь рядом с полем ввода.
+  await p.waitForSelector('#send-button[data-action="stop"]', { timeout: 10000 });
+  await p.locator('#send-button').click();
   await p.waitForFunction(() => !!document.querySelector('.stopped-note'), {}, { timeout: 10000 });
   ok('SSE answer, provenance and stop work through the proxy', { aborted: state.aborted });
 
@@ -265,14 +269,26 @@ function server(port) {
   await p.locator('#media-prompt').fill('Керамическая чашка на камне, мягкий утренний свет, крупный план.');
   await p.locator('#media-generate').click();
   await p.waitForFunction(() => (JSON.parse(localStorage.getItem('briix-media-v1'))?.jobs || []).some(j => j.mode === 'live' && j.status === 'ready'), {}, { timeout: 30000 });
-  await p.waitForFunction(() => !!document.querySelector('.media-preview-frame img[src^="blob:"]'), {}, { timeout: 20000 });
+  await p.waitForFunction(() => !!document.querySelector('.media-preview-frame img[src^="blob:"]'), {}, { timeout: 20000 })
+    .catch(async () => { throw new Error('нет blob-предпросмотра: ' + JSON.stringify(await p.evaluate(() => ({
+      jobs: (JSON.parse(localStorage.getItem('briix-media-v1'))?.jobs || []).slice(0, 2).map(j => ({ id: j.id, mode: j.mode, status: j.status, resultUrl: j.resultUrl })),
+      img: document.querySelector('.media-preview-frame img')?.getAttribute('src')?.slice(0, 80),
+      label: document.querySelector('.media-image-label')?.textContent
+    })))); });
   assert.match(await p.locator('.media-image-label').innerText(), /live|Live|сервер/i);
-  const imgDl = p.waitForEvent('download', { timeout: 15000 });
-  await p.locator('[data-media-action="download"]').first().click();
-  assert.match((await imgDl).suggestedFilename(), /\.(png|jpg)$/);
+  // Скачивание живёт в карточке медиатеки — открываем её и жмём кнопку конкретного джоба.
+  const liveJob = await p.evaluate(() => (JSON.parse(localStorage.getItem('briix-media-v1'))?.jobs || []).find(j => j.mode === 'live'));
+  await p.locator('[data-media-action="tab"][data-id="library"]').click();
+  await p.waitForSelector(`[data-media-action="download"][data-id="${liveJob.id}"]`, { timeout: 15000 });
+  const [imgDownload] = await Promise.all([
+    p.waitForEvent('download', { timeout: 20000 }),
+    p.locator(`[data-media-action="download"][data-id="${liveJob.id}"]`).click()
+  ]);
+  assert.match(imgDownload.suggestedFilename(), /\.(png|jpg|jpeg)$/);
   ok('image job: full cycle through the proxy, preview and download', {});
 
   // 10. Изображения: 422 — та же карточка.
+  await p.locator('[data-media-action="tab"][data-id="create"]').click();
   await p.locator('#media-prompt').fill('Откровенная порно-сцена для обложки.');
   await p.locator('#media-generate').click();
   await p.waitForSelector('#media-refusal', { timeout: 15000 });
@@ -335,21 +351,29 @@ function server(port) {
     const small = nodes.map(el => { const r = el.getBoundingClientRect(); return { cls: el.className, w: Math.round(r.width), h: Math.round(r.height) }; }).filter(x => x.h < 40);
     return { checked: nodes.length, small: small.slice(0, 6) };
   });
-  ok('mobile 390x844: no horizontal scroll on any screen or tab', { routes: mobile.length, smallTargets: targets.small.length, examples: targets.small });
+  assert.deepEqual(targets.small, [], 'тач-таргеты меньше 40 px: ' + JSON.stringify(targets.small));
+  ok('mobile 390x844: no horizontal scroll, touch targets >= 40px', { routes: mobile.length, checked: targets.checked });
 
-  // 14. axe на телефоне по ключевым экранам.
+  // 14. axe на телефоне по ключевым экранам. Аудит делаем в устоявшемся интерфейсе:
+  // .reveal держит блоки за пределами экрана на opacity 0, и axe считает контраст по
+  // смеси с фоном. Отключаем анимацию на время аудита — как это делают остальные сюиты.
+  await p.emulateMedia({ reducedMotion: 'reduce' });
   const axe = [];
   for (const [hash, selector] of [['#/', '#prompt-input'], ['#/music', '.music-page'], ['#/media', '.media-page'], ['#/settings', '#stand-token']]) {
     await go(p, hash, selector);
     const r = await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-    axe.push({ hash, violations: r.violations.map(v => v.id) });
+    axe.push({ hash, violations: r.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: (n.failureSummary || '').split('\n').slice(0, 3).join(' | ') })) })) });
   }
-  for (const run of axe) assert.deepEqual(run.violations, [], 'axe @390 ' + run.hash);
+  for (const run of axe) assert.deepEqual(run.violations, [], 'axe @390 ' + run.hash + ': ' + JSON.stringify(run.violations));
   ok('axe passes on the phone viewport', { runs: axe });
 
   assert.deepEqual(errors, [], 'page errors');
-  assert.deepEqual(consoleErrors.filter(e => !/favicon|404/.test(e)), [], 'console errors');
-  ok('no page errors and no console errors across the whole pass', { failedRequests: failed.length });
+  // Браузер сам пишет в консоль строку про каждый 4xx. Три 422 мы вызвали намеренно
+  // (проверка карточки отказа) — это ожидаемо; всё остальное считаем дефектом.
+  const deliberate = consoleErrors.filter(e => /status of 422/.test(e));
+  const unexpected = consoleErrors.filter(e => !/favicon|404|status of 422/.test(e));
+  assert.deepEqual(unexpected, [], 'неожиданные ошибки консоли');
+  ok('no page errors; console clean apart from the deliberate 422 refusals', { deliberate422: deliberate.length, failedRequests: failed.length });
   console.log('DONE', results.length, 'checks');
   for (const c of contexts) await c.close();
   await browser.close();

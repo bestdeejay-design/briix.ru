@@ -58,7 +58,24 @@ const waitReady=(p,id)=>p.waitForFunction(({k,id})=>JSON.parse(localStorage.getI
  // Corrupt storage protected, clear resets protection.
  await p.evaluate(k=>{window.BRIIX_MEDIA.suspend();window.BRIIX_MEDIA.suspend=()=>{};localStorage.setItem(k,'{broken')},KEY);await p.reload();await p.waitForSelector('.media-page');await p.locator('#media-storage-notice').waitFor({state:'visible',timeout:10000});assert.equal(await p.locator('#media-storage-notice').isVisible(),true);assert.equal(await p.evaluate(k=>localStorage.getItem(k),KEY),'{broken');await p.locator('#media-generate').click();assert.equal(await p.evaluate(k=>localStorage.getItem(k),KEY),'{broken');await p.locator('[data-media-action="tab"][data-id="library"]').click();await p.locator('[data-media-action="clear"]').click();await p.locator('#modal [data-modal-action="2"]').click();assert.deepEqual((await read(p)).jobs,[]);ok('corrupt storage protected and explicit clear recovery');
  // Keyboard tabs and modal focus.
- await p.locator('#media-tab-create').focus();await p.keyboard.press('ArrowRight');assert.equal(await p.locator('#media-tab-library').getAttribute('aria-selected'),'true');await p.keyboard.press('End');assert.equal(await p.locator('#media-tab-showcase').getAttribute('aria-selected'),'true');await p.keyboard.press('ArrowLeft');assert.equal(await p.locator('#media-tab-models').getAttribute('aria-selected'),'true');await p.keyboard.press('Home');assert.equal(await p.locator('#media-tab-create').getAttribute('aria-selected'),'true');ok('tab keyboard navigation');
+ // Клавиатурная навигация. Порядок вкладок берём из DOM, а не из хардкода: если окружение
+ // отдало другой набор, тест обязан сказать, какой именно, а не висеть 30 секунд на локаторе.
+ const tabState=async()=>p.evaluate(()=>({href:location.href,ids:[...document.querySelectorAll('.media-tab')].map(t=>t.id),selected:document.querySelector('.media-tab[aria-selected="true"]')?.id||null,active:document.activeElement?.id||null,modal:!!document.querySelector('#modal[open]'),showcaseModule:!!window.BRIIX_SHOWCASE}));
+ await p.waitForSelector('.media-tabs',{timeout:10000});
+ let tabs=await tabState();
+ assert.ok(tabs.ids.includes('media-tab-showcase'),`вкладка галереи отсутствует в DOM: ${JSON.stringify(tabs)}`);
+ assert.equal(tabs.modal,false,`клавиатурная навигация при открытом модальном окне: ${JSON.stringify(tabs)}`);
+ const selectedAfter=async(key,expected,ticket)=>{
+   await p.locator('#'+ticket).focus();
+   await p.keyboard.press(key);
+   try{await p.waitForFunction(id=>document.querySelector('.media-tab[aria-selected="true"]')?.id===id,expected,{timeout:5000});}
+   catch{throw new Error(`клавиша ${key} не выбрала ${expected}: ${JSON.stringify(await tabState())}`);}
+ };
+ await selectedAfter('ArrowRight','media-tab-library','media-tab-create');
+ await selectedAfter('End',tabs.ids.at(-1),'media-tab-library');
+ await selectedAfter('ArrowLeft','media-tab-models',tabs.ids.at(-1));
+ await selectedAfter('Home','media-tab-create','media-tab-models');
+ ok('tab keyboard navigation',{tabs:tabs.ids});
  await p.locator('[data-media-action="help"]').click();await p.waitForTimeout(80);assert.equal(await p.evaluate(()=>document.activeElement.getAttribute('data-action')),'close-modal');await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>document.activeElement.dataset.mediaAction),'help');ok('help modal focus/escape');
  // Responsive/axe across tabs and themes.
  const axe=[];for(const width of [390,768,1024,1440]){await p.setViewportSize({width,height:900});for(const tab of ['create','library','queue','models','showcase']){await p.locator(`[data-media-action="tab"][data-id="${tab}"]`).click();const overflow=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert.equal(overflow,false,`overflow ${width} ${tab}`);if(width===390||width===1440){const r=await new AxeBuilder({page:p}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();axe.push({width,tab,violations:r.violations.map(v=>v.id)});}}}

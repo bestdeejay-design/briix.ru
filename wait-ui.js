@@ -33,9 +33,19 @@
       return out;
     } catch { return {}; }
   }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(recent)); } catch { /* приватный режим браузера */ }
+  let saveTimer = null;
+  // Синхронная запись в localStorage на каждую фразу — лишний I/O на нагруженной машине.
+  // Копим в памяти и пишем не чаще раза в секунду; на уходе со страницы — сразу.
+  function save(now = false) {
+    if (now) {
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      try { localStorage.setItem(KEY, JSON.stringify(recent)); } catch { /* приватный режим браузера */ }
+      return;
+    }
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => { saveTimer = null; save(true); }, 1000);
   }
+  window.addEventListener('pagehide', () => save(true));
   const data = () => window.BRIIX_WAIT_PHRASES || {};
 
   /* Пул для узла: реальная стадия, честная зона мока или общие фразы типа. */

@@ -27,6 +27,26 @@ jobs:
           sleep 1
           curl -sf -o /dev/null http://127.0.0.1:8320/index.html
 
+      # Диагностика окружения: печатает то, что реально отдает статический сервер.
+      # Без этого падение локатора на раннере приходится угадывать по номеру строки.
+      - name: Environment diagnostics
+        env:
+          BRIIX_URL: http://127.0.0.1:8320
+          NODE_PATH: /home/badai/briix-ci-deps/node_modules
+        run: |
+          node --version
+          python3 --version
+          echo "commit: $(git rev-parse --short HEAD)"
+          for f in index.html media.js music.js showcase.js wait-ui.js wait-phrases.js; do
+            printf '%s ' "$f"; md5 -q "$f" 2>/dev/null || md5sum "$f" | cut -d' ' -f1
+          done
+          echo "tabs in served media.js:"
+          curl -sf "$BRIIX_URL/media.js" | grep -o "media-tab-\${id}" | head -1 || echo "media.js не отдан"
+          curl -sf "$BRIIX_URL/media.js" | grep -c "showcase" || true
+          echo "manifest:"
+          curl -sf -o /dev/null -w 'HTTP %{http_code}, %{size_download} bytes\n' "$BRIIX_URL/assets/media/showcase/manifest.json" || echo "манифест не отдан"
+          node -e "console.log('playwright', require('playwright/package.json').version)" || true
+
       - name: Headless tests
         env:
           BRIIX_URL: http://127.0.0.1:8320
@@ -38,6 +58,19 @@ jobs:
           node tools/check-media-live.cjs
           node tools/check-music-live.cjs
           node tools/check-chat-live.cjs
+
+      # Новые сюиты фазы 3. Пока в режиме наблюдения: они поднимают собственные
+      # серверы (8388/8300), и на общем раннере это может конфликтовать с окружением.
+      # Красным гейт не ломают, но результат виден в логе — дальше включим в гейт.
+      - name: Extended suites (observational)
+        continue-on-error: true
+        env:
+          BRIIX_URL: http://127.0.0.1:8320
+          NODE_PATH: /home/badai/briix-ci-deps/node_modules
+        run: |
+          node tools/check-live-default.cjs
+          node tools/check-wait-phrases.cjs
+          node tools/check-showcase.cjs
 
       - name: Stop static server
         if: always()

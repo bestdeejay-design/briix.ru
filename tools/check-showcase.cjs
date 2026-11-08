@@ -44,13 +44,21 @@ function staticServer(port) {
   const errors = [];
   const external = [];
   const contexts = [];
-  async function page({ hash = '#/music', blockManifest = false } = {}) {
+  async function page({ hash = '#/music', blockManifest = false, manifestMode = null, blockModule = false } = {}) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
     contexts.push(context);
     const p = await context.newPage();
     p.on('pageerror', e => errors.push(e.message));
     p.on('request', r => { if (!r.url().startsWith(`http://127.0.0.1:${PORT}`) && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) external.push(r.url()); });
     if (blockManifest) await p.route('**/assets/media/showcase/*.json', route => route.fulfill({ status: 404, body: 'nf' }));
+    if (manifestMode === '500') await p.route('**/assets/media/showcase/*.json', route => route.fulfill({ status: 500, body: 'boom' }));
+    if (manifestMode === 'garbage') await p.route('**/assets/media/showcase/*.json', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>не json</html>' }));
+    if (manifestMode === 'hang') await p.route('**/assets/media/showcase/*.json', async route => {
+      // Ответ приходит позже клиентского таймаута — вкладка обязана показать «нет данных».
+      await new Promise(r => setTimeout(r, 15000));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":[]}' }).catch(() => {});
+    });
+    if (blockModule) await p.route('**/showcase.js', route => route.fulfill({ status: 404, body: 'nf' }));
     await p.goto(`http://127.0.0.1:${PORT}/${hash}`);
     await p.waitForSelector('#main-content');
     return p;
@@ -176,6 +184,28 @@ function staticServer(port) {
   }
   for (const run of axe) assert.deepEqual(run.violations, [], 'axe: ' + run.where + ' @' + run.width);
   ok('gallery states pass axe on desktop and mobile', { runs: axe });
+
+  // 11. Вкладка живёт при любом сбое каталога: 500, мусор вместо JSON, зависший запрос,
+  // отсутствующий модуль. Именно это подозревали в CI — проверяем в обе стороны.
+  const resilience = [];
+  for (const scenario of [{ manifestMode: '500' }, { manifestMode: 'garbage' }, { manifestMode: 'hang' }, { blockModule: true }]) {
+    const label = Object.entries(scenario).map(([k, v]) => k + '=' + v).join(',');
+    for (const [hash, action, tabId] of [['#/music', 'music', 'music-tab-showcase'], ['#/media', 'media', 'media-tab-showcase']]) {
+      const rp = await page({ hash, ...scenario });
+      await rp.waitForSelector('.' + action + '-page');
+      const tab = rp.locator('#' + tabId);
+      assert.equal(await tab.count(), 1, label + ': вкладка ' + tabId + ' должна быть в DOM всегда');
+      await tab.click({ timeout: 10000 });
+      assert.equal(await tab.getAttribute('aria-selected'), 'true', label + ': вкладка выбирается');
+      const text = await rp.locator('#' + action + '-panel-content').innerText();
+      assert.ok(text.length > 20, label + ': вкладка показывает содержимое, а не пустоту');
+      if (scenario.blockModule) assert.match(text, /не загрузился|не подключена/i);
+      else assert.ok(!/Читаем каталог/.test(text), label + ': вечного «Читаем каталог» быть не должно');
+      resilience.push({ scenario: label, section: action, chars: text.length });
+      await rp.close();
+    }
+  }
+  ok('gallery tab survives every catalogue failure', { cases: resilience.length });
 
   assert.deepEqual(external, [], 'никаких внешних запросов');
   assert.deepEqual(errors, [], 'page errors');

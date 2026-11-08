@@ -71,6 +71,7 @@ jobs:
           node tools/check-live-default.cjs
           node tools/check-wait-phrases.cjs
           node tools/check-showcase.cjs
+          node tools/check-published-mode.cjs
 
       - name: Stop static server
         if: always()

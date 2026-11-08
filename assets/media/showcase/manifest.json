@@ -1,75 +1,224 @@
 {
- "object": "list",
- "license_scope": "demo-only",
- "branding": {
-  "artist": "BRIIX",
-  "album": "BRIIX Generative Music",
-  "comment": "Generated on briix.ru — локальные AI-модели",
-  "url": "https://briix.ru"
- },
- "data": [
-  {
-   "file": "room7.m4a",
-   "title": "Room 7, No Knock",
-   "model": "ace-step-pro",
-   "prompt": "hypnotic psychedelic soul, brutal male baritone starting with a whisper, 72 BPM, slow tight drum groove with ride cymbal, liquid and punchy Fender bass, atmospheric wah-wah guitar texture, vintage Hammond organ with slow Leslie speaker, tape saturation, analog warmth, vinyl crackle, surreal desert motel lyrics, cold sensuality, no climax, stream-of-consciousness, recorded in a 1977 Los Angeles basement studio, tape echo only",
-   "lyrics_source": "chats-audit репо владельца (автор DeepSeek-чат владельца), трек 1 «Room 7, No Knock»",
-   "date": "2026-11-08",
-   "duration_seconds": 150,
-   "size_bytes": 4276044,
-   "lyrics_embedded": "да (полная лирика chats-audit)"
+  "object": "list",
+  "license_scope": "demo-only",
+  "branding": {
+    "artist": "BRIIX",
+    "album": "BRIIX Generative Music",
+    "comment": "Generated on briix.ru — локальные AI-модели",
+    "url": "https://briix.ru"
   },
-  {
-   "file": "ballad60.m4a",
-   "title": "Тихий вечер",
-   "model": "ace-step-pro",
-   "prompt": "Тёплая акустическая баллада с мягкой гитарой и спокойным мужским вокалом (LM 4B, 60с)",
-   "date": "2026-11-08",
-   "duration_seconds": 60,
-   "size_bytes": 1803104,
-   "lyrics_embedded": "да (лирика ACE-Step-запроса)"
-  },
-  {
-   "file": "ballad30.m4a",
-   "title": "Тихий вечер (фрагмент 30с)",
-   "model": "ace-step-flash",
-   "prompt": "Тёплая акустическая баллада с мягкой гитарой и спокойным мужским вокалом (LM 1.7B, 30с)",
-   "date": "2026-11-08",
-   "duration_seconds": 30,
-   "size_bytes": 1061466,
-   "lyrics_embedded": "да (лирика ACE-Step-запроса)"
-  },
-  {
-   "file": "lofi.m4a",
-   "title": "Lo-fi Night",
-   "model": "musicgen-small",
-   "prompt": "lo-fi hip hop beat with warm piano and soft vinyl crackle, relaxed, 90 bpm",
-   "date": "2026-11-07",
-   "duration_seconds": 30,
-   "size_bytes": 692105,
-   "lyrics_embedded": "нет (инструментал)"
-  },
-  {
-   "file": "ambient.m4a",
-   "title": "Ambient Drift",
-   "model": "musicgen-small",
-   "prompt": "calm ambient pad, slow evolving textures, meditation background",
-   "date": "2026-11-07",
-   "duration_seconds": 30,
-   "size_bytes": 502411,
-   "lyrics_embedded": "нет (инструментал)"
-  },
-  {
-   "file": "jingle.m4a",
-   "title": "Bright Jingle",
-   "model": "musicgen-small",
-   "prompt": "upbeat short jingle, bright bells, playful, corporate ident",
-   "date": "2026-11-07",
-   "duration_seconds": 30,
-   "size_bytes": 393939,
-   "lyrics_embedded": "нет (инструментал)"
-  }
- ],
- "format": "m4a (AAC 192k, обложка attached_pic, встроенный текст песни в теге lyrics — ©lyr)",
- "note_url_tag": "mp4-муксер ffmpeg не пишет тег url (а при -movflags use_metadata_tags теряется attached_pic) — адрес вшит в comment"
+  "data": [
+    {
+      "file": "room7.m4a",
+      "title": "Room 7, No Knock",
+      "model": "ace-step-pro",
+      "prompt": "hypnotic psychedelic soul, brutal male baritone starting with a whisper, 72 BPM, slow tight drum groove with ride cymbal, liquid and punchy Fender bass, atmospheric wah-wah guitar texture, vintage Hammond organ with slow Leslie speaker, tape saturation, analog warmth, vinyl crackle, surreal desert motel lyrics, cold sensuality, no climax, stream-of-consciousness, recorded in a 1977 Los Angeles basement studio, tape echo only",
+      "lyrics_source": "chats-audit репо владельца (автор DeepSeek-чат владельца), трек 1 «Room 7, No Knock»",
+      "date": "2026-11-08",
+      "duration_seconds": 150,
+      "size_bytes": 4276044,
+      "lyrics_embedded": "да (полная лирика chats-audit)"
+    },
+    {
+      "file": "ballad60.m4a",
+      "title": "Тихий вечер",
+      "model": "ace-step-pro",
+      "prompt": "Тёплая акустическая баллада с мягкой гитарой и спокойным мужским вокалом (LM 4B, 60с)",
+      "date": "2026-11-08",
+      "duration_seconds": 60,
+      "size_bytes": 1803104,
+      "lyrics_embedded": "да (лирика ACE-Step-запроса)"
+    },
+    {
+      "file": "ballad30.m4a",
+      "title": "Тихий вечер (фрагмент 30с)",
+      "model": "ace-step-flash",
+      "prompt": "Тёплая акустическая баллада с мягкой гитарой и спокойным мужским вокалом (LM 1.7B, 30с)",
+      "date": "2026-11-08",
+      "duration_seconds": 30,
+      "size_bytes": 1061466,
+      "lyrics_embedded": "да (лирика ACE-Step-запроса)"
+    },
+    {
+      "file": "lofi.m4a",
+      "title": "Lo-fi Night",
+      "model": "musicgen-small",
+      "prompt": "lo-fi hip hop beat with warm piano and soft vinyl crackle, relaxed, 90 bpm",
+      "date": "2026-11-07",
+      "duration_seconds": 30,
+      "size_bytes": 692105,
+      "lyrics_embedded": "нет (инструментал)"
+    },
+    {
+      "file": "ambient.m4a",
+      "title": "Ambient Drift",
+      "model": "musicgen-small",
+      "prompt": "calm ambient pad, slow evolving textures, meditation background",
+      "date": "2026-11-07",
+      "duration_seconds": 30,
+      "size_bytes": 502411,
+      "lyrics_embedded": "нет (инструментал)"
+    },
+    {
+      "file": "jingle.m4a",
+      "title": "Bright Jingle",
+      "model": "musicgen-small",
+      "prompt": "upbeat short jingle, bright bells, playful, corporate ident",
+      "date": "2026-11-07",
+      "duration_seconds": 30,
+      "size_bytes": 393939,
+      "lyrics_embedded": "нет (инструментал)"
+    },
+    {
+      "file": "matrix/01a-musicgen-lofi.m4a",
+      "title": "Lo-fi (musicgen)",
+      "model": "musicgen-small",
+      "prompt": "lo-fi hip hop beat with warm piano and soft vinyl crackle, relaxed, 90 bpm",
+      "section": "matrix-gpu",
+      "backend": "CPU A",
+      "date": "2026-11-08",
+      "lyrics_embedded": false,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/01b-musicgen-jingle.m4a",
+      "title": "Джингл (musicgen)",
+      "model": "musicgen-small",
+      "prompt": "short upbeat corporate jingle, bright synths, happy, 15 seconds",
+      "section": "matrix-gpu",
+      "backend": "CPU A",
+      "date": "2026-11-08",
+      "lyrics_embedded": false,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/01c-musicgen-ambient.m4a",
+      "title": "Эмбиент (musicgen)",
+      "model": "musicgen-small",
+      "prompt": "calm ambient pad, slow evolving textures, meditation background",
+      "section": "matrix-gpu",
+      "backend": "CPU A",
+      "date": "2026-11-08",
+      "lyrics_embedded": false,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/13-flash-ru-romance.m4a",
+      "title": "Романс (Flash, ru)",
+      "model": "ace-step-flash",
+      "prompt": "романс из PROMPTS_LIBRARY блок 10823 (база владельца)",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/14-pro-en-lowsling.m4a",
+      "title": "Low-Slung Pulse (Pro, en)",
+      "model": "ace-step-pro",
+      "prompt": "Low-Slung Pulse — PROMPTS_LIBRARY блоки 148-150 (база владельца)",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/15-flash-en-shortcircuit.m4a",
+      "title": "Short Circuit (Flash, en)",
+      "model": "ace-step-flash",
+      "prompt": "Short Circuit trip-hop — PROMPTS_LIBRARY блоки 3-5 (Brat-трипхоп)",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/16-pro-en-eveningyard.m4a",
+      "title": "Evening Yard (Pro, en)",
+      "model": "ace-step-pro",
+      "prompt": "Evening Yard — PROMPTS_LIBRARY (база владельца)",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/R02-flash-ru.m4a",
+      "title": "Flash RU базовый",
+      "model": "ace-step-flash",
+      "prompt": "ru30 базовая лирика",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/R04-pro-ru60-bridge.m4a",
+      "title": "Pro RU 60с + bridge",
+      "model": "ace-step-pro",
+      "prompt": "ru60 с [bridge]",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/R05-pro-ru150-room7.m4a",
+      "title": "Room 7, No Knock (Pro, 150с)",
+      "model": "ace-step-pro",
+      "prompt": "Room 7, No Knock — chats-audit/music (DeepSeek-чат владельца)",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/R06-pro-en60.m4a",
+      "title": "Pro EN 60с",
+      "model": "ace-step-pro",
+      "prompt": "en60",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/R12a-emoji-caption.m4a",
+      "title": "Edge: эмодзи в caption",
+      "model": "ace-step-flash",
+      "prompt": "caption с эмодзи 🌙",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    },
+    {
+      "file": "matrix/R12b-longlyrics.m4a",
+      "title": "Edge: длинная лирика (40 строк на 30с)",
+      "model": "ace-step-flash",
+      "prompt": "40 строк на 30 c",
+      "section": "matrix-gpu",
+      "backend": "GPU B",
+      "date": "2026-11-08",
+      "lyrics_embedded": true,
+      "license_scope": "demo-only"
+    }
+  ],
+  "format": "m4a (AAC 192k, обложка attached_pic, встроенный текст песни в теге lyrics — ©lyr)",
+  "note_url_tag": "mp4-муксер ffmpeg не пишет тег url (а при -movflags use_metadata_tags теряется attached_pic) — адрес вшит в comment",
+  "sections": [
+    {
+      "id": "matrix-gpu",
+      "title": "GPU-матрица кейсов (24h-окно, 08.11)"
+    }
+  ]
 }

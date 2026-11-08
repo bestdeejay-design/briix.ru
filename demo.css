@@ -632,3 +632,30 @@ dialog { color: var(--ink); }
   .empty-state { padding: 28px 18px; }
   .empty-state .btn { min-height: 44px; }
 }
+
+/* Телефон: настройки и боковая панель. Настройки остаются отдельным экраном —
+   творческие экраны они не загромождают, но и здесь всё под палец. */
+@media (max-width: 650px) {
+  .settings-nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; margin: 0 -17px 16px; padding: 0 17px; }
+  .settings-nav::-webkit-scrollbar { display: none; }
+  .settings-nav a { display: inline-flex; align-items: center; flex-shrink: 0; min-height: 44px; padding: 0 14px; font-size: 13px; }
+  .settings-section { margin-bottom: 24px; }
+  .settings-section h2 { font-size: 15px; }
+  .settings-section > p { font-size: 12px; margin-bottom: 13px; }
+  .settings-card { padding: 0 15px; }
+  .setting-row { flex-direction: column; align-items: stretch; gap: 10px; padding: 15px 0; }
+  /* Строки с переключателем остаются в одну линию: подпись слева, тумблер справа. */
+  .setting-row:has(.switch) { flex-direction: row; align-items: center; gap: 14px; }
+  .setting-label { font-size: 14px; }
+  .setting-help { font-size: 12px; max-width: none; }
+  .setting-row select, .setting-row input:not([type='checkbox']):not([type='radio']) { width: 100%; min-height: 48px; font-size: 16px; padding: 12px 13px; }
+  .theme-options { gap: 8px; }
+  .theme-option { flex: 1; min-height: 56px; font-size: 12px; }
+  .switch { width: 44px; height: 26px; }
+  .settings-footer .btn, .settings-card .btn { min-height: 44px; font-size: 13px; }
+
+  .sidebar .nav-item { min-height: 44px; }
+  .sidebar .history-item { min-height: 44px; }
+  .sidebar .btn.new-chat { min-height: 48px; }
+  .sidebar .icon-btn { width: 44px; height: 44px; }
+}

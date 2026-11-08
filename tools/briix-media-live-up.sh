@@ -26,7 +26,7 @@ if port_busy 8388 || port_busy 8300; then
 else
   # Detached master; autossh -M 0 + ServerAlive* — см. 08.11 root cause #23.
   AUTOSSH_GATETIME=0 autossh -M 0 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
-    -o ExitOnForwardFailure=yes -f -N \
+    -o ExitOnForwardFailure=yes -o ControlMaster=auto -f -N \
     -S /tmp/briix-live-ssh-control \
     -L 8388:127.0.0.1:8440 -L 8300:127.0.0.1:8390 \
     fonotext-stand >/dev/null 2>&1 </dev/null

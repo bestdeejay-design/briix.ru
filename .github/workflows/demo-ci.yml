@@ -13,6 +13,12 @@ concurrency:
   group: briix-demo-ci
   cancel-in-progress: true
 
+# Токен нужен только чтобы прислать вывод упавшего шага в комментарий PR:
+# логи self-hosted раннера не всегда доступны тому, кто чинит.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   test:
     runs-on: [self-hosted, briix-ci]
@@ -20,24 +26,130 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Static server for non-live tests (127.0.0.1:8320)
+      # Порт 8320 на общем раннере может быть занят посторонним сервером: тогда наш
+      # http.server падает с «Address already in use», а curl отвечает успехом — его
+      # обслуживает чужой процесс со СТАРОЙ статикой. Тесты при этом едут против
+      # чужого дерева и падают на вкладке, которой в нём нет. Поэтому: свободный порт,
+      # BRIIX_URL через GITHUB_ENV и сверка md5 отданного файла с файлом checkout.
+      - name: Static server for non-live tests (free port, identity checked)
         run: |
-          python3 -m http.server 8320 --bind 127.0.0.1 >/tmp/briix-ci-http.log 2>&1 &
+          set -euo pipefail
+          if [ -f /tmp/briix-ci-http.pid ]; then
+            kill "$(cat /tmp/briix-ci-http.pid)" 2>/dev/null || true
+            rm -f /tmp/briix-ci-http.pid
+          fi
+          PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1]); s.close()")
+          python3 -m http.server "$PORT" --bind 127.0.0.1 >/tmp/briix-ci-http.log 2>&1 &
           echo $! > /tmp/briix-ci-http.pid
-          sleep 1
-          curl -sf -o /dev/null http://127.0.0.1:8320/index.html
+          URL="http://127.0.0.1:$PORT"
+          echo "BRIIX_URL=$URL" >> "$GITHUB_ENV"
+          for i in 1 2 3 4 5; do
+            curl -sf -o /dev/null "$URL/index.html" && break
+            sleep 1
+          done
+          SERVED=$(curl -sf "$URL/media.js" | python3 -c "import hashlib,sys; print(hashlib.md5(sys.stdin.buffer.read()).hexdigest())")
+          LOCAL=$(python3 -c "import hashlib; print(hashlib.md5(open('media.js','rb').read()).hexdigest())")
+          echo "served media.js: $SERVED"
+          echo "checkout media.js: $LOCAL"
+          if [ "$SERVED" != "$LOCAL" ]; then
+            echo "::error::Статический сервер отдаёт чужое дерево ($SERVED != $LOCAL). Тесты против него бессмысленны."
+            cat /tmp/briix-ci-http.log || true
+            exit 1
+          fi
+          echo "статика подтверждена: $URL serve этот checkout"
+
+      # Диагностика окружения: печатает то, что реально отдает статический сервер.
+      # Без этого падение локатора на раннере приходится угадывать по номеру строки.
+      - name: Environment diagnostics
+        env:
+          NODE_PATH: /home/badai/briix-ci-deps/node_modules
+        run: |
+          set -o pipefail
+          {
+          node --version
+          python3 --version
+          echo "commit: $(git rev-parse --short HEAD)"
+          for f in index.html media.js music.js showcase.js wait-ui.js wait-phrases.js; do
+            printf '%s ' "$f"; md5 -q "$f" 2>/dev/null || md5sum "$f" | cut -d' ' -f1
+          done
+          echo "tabs in served media.js:"
+          curl -sf "$BRIIX_URL/media.js" | grep -o "media-tab-\${id}" | head -1 || echo "media.js не отдан"
+          curl -sf "$BRIIX_URL/media.js" | grep -c "showcase" || true
+          echo "manifest:"
+          curl -sf -o /dev/null -w 'HTTP %{http_code}, %{size_download} bytes\n' "$BRIIX_URL/assets/media/showcase/manifest.json" || echo "манифест не отдан"
+          node -e "console.log('playwright', require('playwright/package.json').version)" || true
+          } 2>&1 | tee /tmp/briix-ci-env.log
 
       - name: Headless tests
         env:
-          BRIIX_URL: http://127.0.0.1:8320
           NODE_PATH: /home/badai/briix-ci-deps/node_modules
         run: |
-          node tools/check-media.cjs
-          node tools/check-music.cjs
-          node tools/check-demo.cjs
-          node tools/check-media-live.cjs
-          node tools/check-music-live.cjs
-          node tools/check-chat-live.cjs
+          set -o pipefail
+          {
+          for suite in media music demo media-live music-live chat-live; do
+            echo "=== check-$suite ==="
+            node "tools/check-$suite.cjs" || exit 1
+          done
+          } 2>&1 | tee /tmp/briix-ci-tests.log
+
+      # Сюиты фазы 3 и опубликованного режима. Были в режиме наблюдения из-за страха
+      # конфликтов портов на общем раннере; прогон 42474516496 прошёл их целиком,
+      # поэтому теперь они в гейте наравне с остальными.
+      - name: Extended suites (phase 3 + published mode)
+        env:
+          NODE_PATH: /home/badai/briix-ci-deps/node_modules
+        run: |
+          node tools/check-live-default.cjs
+          node tools/check-wait-phrases.cjs
+          node tools/check-showcase.cjs
+          node tools/check-published-mode.cjs
+
+      # Логи job за авторизацией GitHub и не всегда скачиваются. Присылаем хвост
+      # вывода прямо в PR, чтобы причина падения была видна без доступа к раннеру.
+      - name: Report failure output to the PR
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo '### demo-ci: вывод упавшего прогона'
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo '<details><summary>Environment diagnostics</summary>'
+            echo
+            echo '```'
+            tail -n 40 /tmp/briix-ci-env.log 2>/dev/null || echo 'нет лога окружения'
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '<details><summary>Static server log</summary>'
+            echo
+            echo '```'
+            tail -n 15 /tmp/briix-ci-http.log 2>/dev/null || echo 'нет лога сервера'
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '<details><summary>Headless tests (хвост)</summary>'
+            echo
+            echo '```'
+            tail -n 120 /tmp/briix-ci-tests.log 2>/dev/null || echo 'нет лога тестов'
+            echo '```'
+            echo
+            echo '</details>'
+          } > /tmp/briix-ci-report.md
+          # ключи и токены в комментарий не пускаем
+          sed -i '' -E 's/Bearer [A-Za-z0-9._-]+/Bearer [redacted]/g' /tmp/briix-ci-report.md 2>/dev/null \
+            || sed -i -E 's/Bearer [A-Za-z0-9._-]+/Bearer [redacted]/g' /tmp/briix-ci-report.md
+          python3 -c "import json,os;print(json.dumps({'body':open('/tmp/briix-ci-report.md').read()}))" > /tmp/briix-ci-report.json
+          curl -sf -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$REPO/issues/$PR/comments" -d @/tmp/briix-ci-report.json > /dev/null \
+            && echo 'отчёт отправлен в PR' || echo 'не удалось отправить отчёт'
 
       - name: Stop static server
         if: always()

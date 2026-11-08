@@ -1,5 +1,5 @@
 /* BRIIX — галерея сохранённых результатов стенда.
- * Это НЕ live: файлы лежат в assets/media/showcase/ и отдаются тем жеオリジном.
+ * Это НЕ live: файлы лежат в assets/media/showcase/ и отдаются тем же ориджином.
  * Manifest.json — источник правды о названии, модели, дате, промпте и происхождении.
  * Текст песни и обложку достаём из самого M4A (атомы ©lyr и covr): никаких внешних
  * библиотек тегов и никаких выдуманных данных. Нет файла — так и пишем.
@@ -11,6 +11,20 @@
   const AUDIO_RE = /^[\w.-]{1,80}\.(m4a|mp3|wav)$/;
   const IMAGE_RE = /^[\w.-]{1,80}\.(png|jpg|jpeg|webp)$/;
   const MAX_ITEMS = 60;
+  const FETCH_TIMEOUT_MS = 8000;   // зависший запрос не должен держать вкладку в «Читаем каталог» вечно
+
+  // Мягкая загрузка: любой сбой (сеть, 404, 500, таймаут, не-JSON) — это «нет данных»,
+  // а не сломанный раздел. Вкладка галереи рисуется всегда и не зависит от этого запроса.
+  async function fetchSoft(url, asJson) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { cache: 'no-cache', signal: controller.signal });
+      if (!response.ok) return null;
+      return asJson ? await response.json() : await response.arrayBuffer();
+    } catch { return null; }
+    finally { clearTimeout(timer); }
+  }
   let cache = null;
   let loading = null;
   const tagCache = new Map();
@@ -45,12 +59,8 @@
       let meta = { license: '', branding: null, format: '' };
       let found = false;
       for (const name of MANIFESTS) {
-        let response;
-        try { response = await fetch(BASE + name, { cache: 'no-cache' }); }
-        catch { continue; }
-        if (!response.ok) continue;
-        let payload;
-        try { payload = await response.json(); } catch { continue; }
+        const payload = await fetchSoft(BASE + name, true);
+        if (!payload || typeof payload !== 'object') continue;
         found = true;
         const list = Array.isArray(payload?.data) ? payload.data : [];
         for (const raw of list) {
@@ -137,12 +147,10 @@
   async function tagsFor(item) {
     if (!item || item.kind !== 'audio') return null;
     if (tagCache.has(item.id)) return tagCache.get(item.id);
-    let response;
-    try { response = await fetch(item.url); }
-    catch { return null; }
-    if (!response.ok) return null;
+    const buffer = await fetchSoft(item.url, false);
+    if (!buffer) return null;
     let tags = null;
-    try { tags = readTags(await response.arrayBuffer()); }
+    try { tags = readTags(buffer); }
     catch { tags = null; }
     if (tags) tagCache.set(item.id, tags);
     return tags;
@@ -165,6 +173,7 @@
     base: BASE,
     badge: 'Реальная генерация стенда (сохранённый результат)',
     items: () => cache?.items || [],
+    state: () => ({ loaded: !!cache, found: !!cache?.found, items: cache?.items.length || 0, timeoutMs: FETCH_TIMEOUT_MS }),
     release() { for (const tags of tagCache.values()) if (tags?.cover) URL.revokeObjectURL(tags.cover); tagCache.clear(); }
   };
 })();

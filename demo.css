@@ -158,6 +158,30 @@ kbd { font-family: var(--font); font-size: 10px; font-weight: 450; color: var(--
 .assistant-chip:hover { border-color: var(--tone); transform: translateY(-1px); }
 .assistant-chip.selected { background: var(--tone-soft); border-color: var(--tone); color: var(--ink); }
 .assistant-chip.more { padding: 8px; background: transparent; border-color: transparent; }
+/* Простой выбор «что делаем» и карточка результата в ленте.
+   На вебе чип скрыт — прежний интерфейс не меняется. */
+.mode-select { display: none; }
+.mode-menu { position: absolute; bottom: calc(100% + 8px); left: 0; right: 0; z-index: 30; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: var(--shadow-md); padding: 6px; }
+.mode-option { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 10px 12px; min-height: 52px; cursor: pointer; color: var(--ink); font: inherit; }
+.mode-option .icon { width: 18px; height: 18px; color: var(--accent); flex: 0 0 auto; }
+.mode-option span { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; }
+.mode-option strong { font-size: 14px; font-weight: 600; }
+.mode-option small { font-size: 11px; color: var(--muted); line-height: 1.4; }
+.mode-option.active { background: var(--surface-2, rgba(127,127,127,.08)); }
+.mode-advanced { display: flex; align-items: center; gap: 8px; padding: 12px; min-height: 48px; border-top: 1px solid var(--line); margin-top: 4px; font-size: 12px; color: var(--muted); text-decoration: none; }
+.mode-advanced .icon { width: 15px; height: 15px; }
+.gen-card { border: 1px solid var(--line); border-radius: 13px; padding: 12px; background: var(--surface); }
+.gen-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.gen-head .icon { width: 16px; height: 16px; color: var(--accent); }
+.gen-head strong { font-size: 14px; }
+.gen-head .badge { margin-left: auto; }
+.gen-image { display: block; width: 100%; border-radius: 10px; }
+.gen-audio { width: 100%; margin-top: 2px; }
+.gen-note { margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.gen-foot { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin-top: 10px; font-size: 11px; color: var(--muted); }
+.gen-foot span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gen-foot .text-btn { flex: 0 0 auto; }
+
 .composer { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 17px; box-shadow: var(--shadow-md); padding: 17px 17px 11px; transition: border-color var(--motion-base) var(--ease-standard), box-shadow var(--motion-base) var(--ease-standard); position: relative; }
 .composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-md); }
 .composer.dragging { border: 2px dashed var(--accent); background: var(--accent-soft); }
@@ -558,6 +582,26 @@ dialog { color: var(--ink); }
    Десктопная раскладка не меняется.
    ───────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 650px) {
+
+  /* Простой чат: под полем только помощник и «что делаем». */
+  .mode-select { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+  .mode-select .icon { width: 15px; height: 15px; color: var(--accent); }
+  .composer-left { flex-wrap: nowrap; gap: 6px; min-width: 0; }
+  .composer-left .assistant-select { padding: 0 10px; min-width: 0; }
+  .composer-left .assistant-select .select-name { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mode-select { padding: 0 10px; flex: 0 0 auto; }
+  .mode-select .select-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .composer-left .composer-divider { display: none; }
+  .composer-context .keyboard-hint, .composer-context .char-limit { display: none; }
+  .composer-toolbar [data-action="attach-example"] { display: none; }
+  .mode-option { min-height: 56px; }
+  .mode-option strong { font-size: 15px; }
+  .mode-option small { font-size: 12px; }
+  .mode-advanced { font-size: 13px; min-height: 48px; }
+  .gen-head strong { font-size: 15px; }
+  .gen-note { font-size: 13px; }
+  .gen-foot { font-size: 12px; }
+  .gen-foot .text-btn { min-height: 44px; display: inline-flex; align-items: center; }
   .home { padding-top: 22px; }
   .home-intro { margin-bottom: 16px; }
   .greeting-mark { display: none; }

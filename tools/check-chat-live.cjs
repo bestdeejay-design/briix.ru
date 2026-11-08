@@ -106,10 +106,16 @@ function bffServer(port) {
   };
   const send = async (p, text) => { await p.locator('#prompt-input').fill(text); await p.locator('#send-button').click(); };
   const lastMessage = p => p.evaluate(() => {
-    const s = JSON.parse(localStorage.getItem('briix-workspace-v2'));
-    const chat = s.chats.find(c => c.id === s.chats[0].id) || s.chats[0];
-    return chat.messages.filter(m => m.role === 'assistant').at(-1);
+    const s = JSON.parse(localStorage.getItem('briix-workspace-v2') || 'null');
+    const chat = s?.chats?.[0]; // новый диалог всегда первый: demo.js делает unshift
+    return chat?.messages.filter(m => m.role === 'assistant').at(-1) || null;
   });
+  // Предикат по всему списку диалогов исторически ловил complete-ответы из seedChats()
+  // и падал на JSON.parse(null), пока демо ещё не персистилось. Ждём только свой диалог.
+  const waitAssistant = (p, status) => p.waitForFunction(want => {
+    const s = JSON.parse(localStorage.getItem('briix-workspace-v2') || 'null');
+    return !!s?.chats?.[0]?.messages.some(m => m.role === 'assistant' && m.status === want);
+  }, status, { timeout: 20000 });
 
   // Streaming: text arrives in pieces, the answer is labelled and carries provenance.
   resetBff();
@@ -158,7 +164,7 @@ function bffServer(port) {
   await send(p, 'Расскажи длинную историю про сервер.');
   await p.waitForFunction(() => (document.querySelector('.message.assistant .prose')?.textContent || '').includes('ОТВЕТ-МОДЕЛИ'), {}, { timeout: 10000 });
   await p.locator('#send-button').click(); // becomes "stop" while streaming
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('briix-workspace-v2')).chats.flatMap(c => c.messages).some(m => m.role === 'assistant' && m.status === 'stopped'), {}, { timeout: 10000 });
+  await waitAssistant(p, 'stopped');
   const stopped = await lastMessage(p);
   await p.waitForTimeout(1200);
   assert.equal((await lastMessage(p)).content, stopped.content, 'no chunks after stop');
@@ -171,7 +177,7 @@ function bffServer(port) {
   p = await page();
   await enableLive(p);
   await send(p, 'Проверь обрыв потока на середине ответа.');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('briix-workspace-v2')).chats.flatMap(c => c.messages).some(m => m.role === 'assistant' && m.status === 'error'), {}, { timeout: 15000 });
+  await waitAssistant(p, 'error');
   msg = await lastMessage(p);
   assert.ok(msg.content.startsWith('ОТВЕТ-МОДЕЛИ'), 'partial model text preserved');
   assert.ok(msg.content.length < WHOLE.length);
@@ -216,7 +222,7 @@ function bffServer(port) {
   assert.match(await p.locator('#chat-live-banner').innerText(), /сценарными/);
   assert.equal(await p.locator('[data-action="toggle-chat-live"]').getAttribute('aria-pressed'), 'false');
   await send(p, 'Что ты умеешь?');
-  await p.waitForFunction(() => JSON.parse(localStorage.getItem('briix-workspace-v2')).chats.flatMap(c => c.messages).some(m => m.role === 'assistant' && m.status === 'complete'), {}, { timeout: 15000 });
+  await waitAssistant(p, 'complete');
   msg = await lastMessage(p);
   assert.ok(!msg.content.includes('ОТВЕТ-МОДЕЛИ'));
   assert.equal(await p.locator('.chat-live-badge').count(), 0, 'scripted answers are not labelled live');

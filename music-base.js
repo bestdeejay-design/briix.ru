@@ -62,6 +62,10 @@
     return loading;
   }
 
+  // Вариации в галерее часто отличаются только хвостом промпта. Для подсказки это
+  // один и тот же материал: схлопываем по началу, чтобы варианты были разными.
+  const family = sound => String(sound || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
+
   function entryTokens(entry) {
     let set = tokenCache.get(entry);
     if (!set) { set = tokens(entry.sound + ' ' + entry.name); tokenCache.set(entry, set); }
@@ -88,13 +92,29 @@
       scored.push({ entry, score });
     }
     scored.sort((a, b) => b.score - a.score || b.entry.plays - a.entry.plays);
-    return scored.slice(skip, skip + limit).map(x => x.entry);
+    // В галерее много вариаций одного трека: показываем разные материалы, а не
+    // пять карточек с одинаковым промптом.
+    const seen = new Set(), unique = [];
+    for (const item of scored) {
+      const key = withLyrics ? 'l' + item.entry.lyricId : 's' + family(item.entry.sound);
+      if (seen.has(key)) continue;
+      seen.add(key); unique.push(item.entry);
+    }
+    return unique.slice(skip, skip + limit);
   }
 
   // Если бриф совсем не совпал с базой, честно берём любимое владельцем, а не молчим.
   function fallback({ lang, limit = 8, withLyrics = false, skip = 0 } = {}) {
     if (!index) return [];
-    return index.filter(e => (!withLyrics || (e.lyricId >= 0 && e.lyricLen >= MIN_SONG_LYRICS)) && (!lang || e.lang === lang)).slice(skip, skip + limit);
+    const seen = new Set(), unique = [];
+    for (const e of index) {
+      if (withLyrics && (e.lyricId < 0 || e.lyricLen < MIN_SONG_LYRICS)) continue;
+      if (lang && e.lang !== lang) continue;
+      const key = withLyrics ? 'l' + e.lyricId : 's' + family(e.sound);
+      if (seen.has(key)) continue;
+      seen.add(key); unique.push(e);
+    }
+    return unique.slice(skip, skip + limit);
   }
 
   // Сначала — точное попадание на языке вокала, потом мягче, и только в самом
@@ -126,9 +146,16 @@
     const base = String(current || '').trim();
     if (!entry?.sound) return base;
     const own = tokens(base);
-    const parts = String(entry.sound).split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    // Промпты в базе чаще разделены точкой с запятой на цельные приёмы. Резать их
+    // по запятым нельзя: «электрогитара в миноре, перебор» — один приём, а не два.
+    const whole = String(entry.sound);
+    const major = whole.split(/[;\n]+/).map(s => s.trim()).filter(Boolean);
+    const parts = major.length > 1 ? major : whole.split(/,+/).map(s => s.trim()).filter(Boolean);
+    // Сначала то, что описывает именно звучание, а не сцену.
+    const sonic = /bpm|vocal|voice|voiced|guitar|piano|drum|bass|synth|reverb|tempo|baritone|soprano|falsetto|beat|гитар|пиани|барабан|бас|синтез|вокал|голос|темп|минор|мажор|реверб/i;
+    const ordered = [...parts.filter(x => sonic.test(x)), ...parts.filter(x => !sonic.test(x))];
     const additions = [];
-    for (const part of parts) {
+    for (const part of ordered) {
       const set = tokens(part);
       if (!set.size) continue;
       let shared = 0;

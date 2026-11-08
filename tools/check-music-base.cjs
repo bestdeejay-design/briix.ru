@@ -148,6 +148,8 @@ const host = () => {
   await page.waitForSelector('.music-base-card', { timeout: 20000 });
   const cards = await page.locator('.music-base-card').count();
   assert.ok(cards > 0 && cards <= 6, 'ожидались карточки базы');
+  const previews = await page.locator('.music-base-card p').allInnerTexts();
+  assert.equal(new Set(previews).size, previews.length, 'в выдаче повторяются вариации одного промпта');
   assert.equal(await page.evaluate(() => document.activeElement?.id), 'music-base-query', 'поиск потерял фокус при выдаче');
   await page.locator('.music-base-card [data-music-action="base-take-prompt"]').first().click();
   await page.waitForFunction(() => !document.querySelector('#music-prompt-source')?.hidden, null, { timeout: 20000 });

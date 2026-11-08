@@ -10,6 +10,43 @@
   const TOKEN_KEY = 'briix-media-live-token';
   const SERVER_KEY = 'briix-media-live-server';
   const MODELS_TTL = 30000;
+  const OFF_KEY = 'briix-live-off-v1';   // разделы, где пользователь выключил live вручную
+
+  // Автостарт по умолчанию: единственный ключ включает все разделы. Ручное «выключить»
+  // запоминается отдельно, чтобы перезагрузка не спорила с решением пользователя.
+  function readOff() {
+    try { const v = JSON.parse(localStorage.getItem(OFF_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; }
+    catch { return {}; }
+  }
+  const isLiveOff = section => !!readOff()[section];
+  function setLiveOff(section, off) {
+    const map = readOff();
+    if (off) map[section] = true; else delete map[section];
+    try { localStorage.setItem(OFF_KEY, JSON.stringify(map)); } catch { /* приватный режим браузера */ }
+  }
+
+  // Одна проверка для «Настроек»: здоровье стенда + сколько моделей готовы.
+  async function checkStand() {
+    if (!token()) return { ok: false, code: 'no_token', message: 'Ключ не задан: разделы работают в сценарном режиме.', ready: 0, total: 0, models: [] };
+    const h = await health();
+    if (!h) return { ok: false, code: 'unreachable', message: 'Стенд недоступен: ' + server() + ' не отвечает по /health. Проверьте адрес и туннель.', ready: 0, total: 0, models: [] };
+    try {
+      const list = await models(true);
+      const ready = list.filter(m => m.status === 'ready');
+      return { ok: true, code: 'ok', message: 'Стенд доступен, ' + ready.length + ' из ' + list.length + ' моделей ready.', ready: ready.length, total: list.length, models: list.map(m => ({ id: m.id, status: m.status })) };
+    } catch (error) {
+      if (error.code === 'unauthorized') return { ok: false, code: 'unauthorized', message: 'Стенд ответил, но ключ отклонён (401). Проверьте ключ.', ready: 0, total: 0, models: [] };
+      return { ok: false, code: error.code || 'error', message: error.message || 'Каталог моделей не получен.', ready: 0, total: 0, models: [] };
+    }
+  }
+
+  // Тексты режимов едины для всех разделов: пользователь всегда знает, кто ему отвечает.
+  const MOCK_BANNERS = {
+    no_token: 'Мок: стенд не подключён — вставьте ключ в Настройках, и раздел сразу перейдёт на live.',
+    unreachable: 'Мок: стенд недоступен — проверьте ключ и адрес шины в Настройках.',
+    unauthorized: 'Мок: ключ отклонён стендом — обновите ключ в Настройках.',
+    manual_off: 'Мок: live выключен вручную. Включите кнопкой «Приватный live» в заголовке раздела.'
+  };
   let modelsCache = { ts: 0, data: null };
 
   class BusError extends Error {
@@ -199,6 +236,7 @@
   window.BRIIX_BUS = {
     BusError, server, setServer, token, setToken, hasToken: () => !!token(),
     health, models, capability, modelById, submitJob, getJob, cancelJob, fileBlob, chat,
+    checkStand, isLiveOff, setLiveOff, mockBanner: code => MOCK_BANNERS[code] || MOCK_BANNERS.unreachable,
     invalidate: () => { modelsCache = { ts: 0, data: null }; }
   };
 })();

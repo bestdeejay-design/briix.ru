@@ -115,18 +115,27 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   assert.equal(rawNow, garbage, 'garbage storage left untouched');
   ok('Т3 garbage → protected banner, no wipe', { preserved: rawNow === garbage });
 
-  // ---- Т7: mock labels in mock mode ----
-  assert.ok((await p.locator('.media-mode-note').innerText()).includes('Локальный мок'));
-  assert.ok((await p.locator('.media-local-label').innerText()).includes('Локальный мок'));
-  ok('Т7 mock labels shown in mock mode');
+  // ---- Т7: мок-маркировки. Фаза 3: с ключом раздел живёт сам, поэтому мок проверяем
+  // в отдельном контексте без ключа — и требуем явный баннер о сценарном режиме. ----
+  const mockCtx = await b.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+  const mp = await mockCtx.newPage();
+  mp.on('pageerror', e => errors.push(e.message));
+  await mp.goto(`http://127.0.0.1:${STATIC_PORT}/#/media`);
+  await mp.waitForSelector('.media-page');
+  await mp.waitForFunction(() => !document.querySelector('#media-live-banner')?.hidden, {}, { timeout: 15000 });
+  assert.ok((await mp.locator('.media-mode-note').innerText()).includes('Локальный мок'));
+  assert.ok((await mp.locator('.media-local-label').innerText()).includes('Локальный мок'));
+  assert.match(await mp.locator('#media-live-banner').innerText(), /Мок: стенд не подключён/);
+  assert.equal(await mp.evaluate(() => window.BRIIX_MEDIA_LIVE.active()), false);
+  await mockCtx.close();
+  ok('Т7 mock labels shown in mock mode', { banner: 'явный мок без ключа' });
 
   // ---- live submit flow (fake bff): queued → ready, blob preview ----
   p = await freshPage();
   await p.evaluate(() => localStorage.removeItem('briix-media-v1'));
   await p.reload();
   await p.waitForSelector('.media-page');
-  await p.locator('[data-media-action="live"]').click();
-  await sleep(400);
+  await p.waitForFunction(() => window.BRIIX_MEDIA_LIVE.active(), {}, { timeout: 15000 });
   await p.locator('#media-prompt').fill('Live-бриф: керамическая чашка на камне, мягкий свет.');
   await p.locator('#media-generate').click();
   // Общий контекст: pagehide предыдущей страницы успевает вернуть её состояние в
@@ -187,8 +196,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   // ---- C3: retry interrupted → resubmit принимает serverJobId, job готов ----
   const postsBefore = jobsPostCount;
   p = await freshPage({ version: 2, jobs: [liveRecord({ status: 'interrupted' })] });
-  await p.locator('[data-media-action="live"]').click(); // interrupted не авто-восстанавливается: включаем live вручную
-  await sleep(400);
+  await p.waitForFunction(() => window.BRIIX_MEDIA_LIVE.active(), {}, { timeout: 15000 }); // ключ есть → live сам
   await p.locator('#media-tab-queue').click();
   await p.locator('[data-media-action="retry"]').click();
   await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('briix-media-v1')); const j = s.jobs.find(x => x.mode === 'live'); return j && j.serverJobId === 'job-abc' && j.status === 'ready'; }, {}, { timeout: 15000 });
@@ -204,8 +212,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => localStorage.removeItem('briix-media-v1'));
   await p.reload();
   await p.waitForSelector('.media-page');
-  await p.locator('[data-media-action="live"]').click();
-  await sleep(400);
+  await p.waitForFunction(() => window.BRIIX_MEDIA_LIVE.active(), {}, { timeout: 15000 });
   await p.locator('#media-prompt').fill('коротко');
   await p.locator('#media-generate').click();
   await sleep(500);
@@ -218,8 +225,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => localStorage.removeItem('briix-media-v1'));
   await p.reload();
   await p.waitForSelector('.media-page');
-  await p.locator('[data-media-action="live"]').click();
-  await sleep(400);
+  await p.waitForFunction(() => window.BRIIX_MEDIA_LIVE.active(), {}, { timeout: 15000 });
   blockSubmit = true;
   const postsBeforeC4 = jobsPostCount;
   const jobsBeforeC4 = await p.evaluate(() => (JSON.parse(localStorage.getItem('briix-media-v1'))?.jobs || []).length);

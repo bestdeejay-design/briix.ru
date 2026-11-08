@@ -373,7 +373,7 @@
   }
   function heading() {
     return `<div class="page-header music-heading"><div><div class="eyebrow">Звуковая мастерская</div><h1>Музыка</h1><p>От идеи до чернового звучания. Спокойно, наглядно, в одном месте.</p></div><div class="music-heading-actions"><button class="btn music-live-toggle ${liveActive() ? 'active' : ''}" data-music-action="live" aria-pressed="${liveActive()}">${icon('route')}<span>${liveActive() ? 'Приватный live включён' : 'Приватный live (эксперимент)'}</span></button><button class="btn music-help" data-music-action="help">${icon('help')}<span>Как это работает</span></button></div></div>
-      <div id="music-live-banner" class="storage-banner" role="status" ${liveBannerText ? '' : 'hidden'}>${esc(liveBannerText)}</div>
+      <div id="music-live-banner" class="storage-banner live-mode-banner" role="status" ${liveBannerText ? '' : 'hidden'}><span data-live-banner-text>${esc(liveBannerText)}</span><a class="text-btn" href="#/settings" data-live-settings ${/Настройках/.test(liveBannerText) ? '' : 'hidden'}>${icon('settings')}Ключ в Настройках</a></div>
       <div class="music-mode-note">${icon(liveActive() ? 'route' : 'flask')}<span>${liveActive()
         ? `<strong>Приватный live: считает ваш сервер.</strong> Три режима: инструментал и джингл (MusicGen), песня <strong>Flash</strong> (ACE-Step LM 1.7B, до 30 с) и песня <strong>Pro</strong> (LM 4B, до 150 с, полная структура). Вокалу нужна лирика — она уходит в <code>params.lyrics</code>. Результат приходит <strong>M4A (AAC 192k) с обложкой и встроенным текстом</strong>. Длительность инструментала задаёт модель: MusicGen даёт около 15 секунд, параметр отправляется, но бэкендом пока не учитывается. Доступность режимов и тайминги — из каталога шины.`
         : `<strong>Локальный мок, не нейросеть.</strong> Звук собирается в браузере из простых тонов и шума по жанру, темпу и настроению. Текст брифа влияет только на вариант заглушки. <strong>Вокал в демо не синтезируется:</strong> для песни вы получите минусовку и структуру трека. Без API, кредитов и загрузки файлов.`}</span></div>
@@ -702,7 +702,13 @@
       liveActive,
       originLabel,
       setRefusal: value => { liveRefusal = value || null; },
-      setLiveBanner: text => { liveBannerText = text || ''; const el = $('#music-live-banner', root || document); if (!el) return; el.hidden = !liveBannerText; el.textContent = liveBannerText; },
+      setLiveBanner: text => {
+        liveBannerText = text || '';
+        const el = $('#music-live-banner', root || document); if (!el) return;
+        el.hidden = !liveBannerText;
+        const slot = $('[data-live-banner-text]', el); if (slot) slot.textContent = liveBannerText; else el.textContent = liveBannerText;
+        const link = $('[data-live-settings]', el); if (link) link.hidden = !/Настройках/.test(liveBannerText);
+      },
       readTracks: () => state.tracks.map(t => ({ ...t })),
       addTrack(data) {
         const t = validate({ version: 1, tracks: [{ ...data, mode: 'live', favorite: false, seed: seedFrom(data.prompt || ''), createdAt: Date.now(), progress: 0 }] }).tracks[0];
@@ -718,7 +724,9 @@
       },
       setAudio(id, entry) { cache.set(id, entry); if (selectedId === id) paintPlayer(); },
       openPlayer(id) { selectedId = id; tab = 'create'; renderPanel(); },
-      refresh() { if (root) { render(); updateCounts(); updateNotice(); } }
+      // Живём только на своём маршруте: автопроверка стенда из Настроек не должна
+      // перерисовывать чужую страницу поверх формы ключа.
+      refresh() { if (root && location.hash.split('?')[0].replace(/\/$/, '') === '#/music') { render(); updateCounts(); updateNotice(); } }
     }
   };
 })();

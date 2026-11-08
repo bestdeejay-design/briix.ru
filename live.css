@@ -64,3 +64,19 @@
 .music-lyrics-block { margin: 0 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 10px 13px; }
 .music-lyrics-block summary { cursor: pointer; font-size: 11px; color: var(--ink); }
 .music-lyrics-block p { margin: 9px 0 0; }
+
+/* Фаза 3, п.1: один ключ на все разделы, режим всегда виден. */
+.live-mode-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+.live-mode-banner [data-live-settings] { flex-shrink: 0; }
+.stand-key-row { align-items: flex-start; }
+.stand-key-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.stand-key-controls input { min-width: 240px; font-family: var(--mono); font-size: 12px; }
+.stand-key-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#stand-server { min-width: 240px; font-family: var(--mono); font-size: 12px; }
+.stand-status { margin: 12px 0 0; padding: 10px 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font-size: 11px; line-height: 1.7; }
+.stand-status[data-state="ok"] { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.stand-status[data-state="error"] { border-color: var(--warning); color: var(--ink); background: var(--warning-soft); }
+@media (max-width: 640px) {
+  .stand-key-controls, .stand-key-actions { width: 100%; }
+  .stand-key-controls input, #stand-server { min-width: 0; flex: 1; width: 100%; }
+}

@@ -137,18 +137,19 @@ function bffServer(port) {
     return p;
   }
   const read = p => p.evaluate(k => JSON.parse(localStorage.getItem(k)) || { tracks: [] }, KEY);
+  // Фаза 3: ключ есть → раздел живёт сам. Кликов по тогглу больше нет.
   const enableLive = async p => {
-    await p.locator('[data-music-action="live"]').click();
-    await p.waitForFunction(() => window.BRIIX_MUSIC_LIVE.active(), {}, { timeout: 10000 });
+    await p.waitForFunction(() => window.BRIIX_MUSIC_LIVE.active(), {}, { timeout: 15000 });
   };
 
-  // Catalog gates the switch.
+  // Catalog gates the mode; a stored key switches the section on by itself.
   resetBff();
   let p = await page();
   await enableLive(p);
   assert.equal(await p.locator('[data-music-action="live"]').getAttribute('aria-pressed'), 'true');
   assert.match(await p.locator('.music-mode-note').innerText(), /Приватный live/);
-  ok('live toggles on and the mode note switches', {});
+  assert.equal(await p.locator('#music-live-banner').isHidden(), true, 'live needs no warning banner');
+  ok('stored key auto-enables live music, no toggle click', {});
 
   // Vocal route is live now: two modes from the catalog, timings shown as measurements.
   await p.locator('[data-music-action="kind"][data-id="song"]').click();
@@ -290,8 +291,7 @@ function bffServer(port) {
   // Backend marked unavailable in the catalog must not look active.
   resetBff(); state.musicReady = false; state.vocalReady = false;
   p = await page();
-  await p.locator('[data-music-action="live"]').click();
-  await p.waitForFunction(() => !window.BRIIX_MUSIC_LIVE.active() && !document.querySelector('#music-live-banner').hidden, {}, { timeout: 10000 });
+  await p.waitForFunction(() => !window.BRIIX_MUSIC_LIVE.active() && !document.querySelector('#music-live-banner').hidden, {}, { timeout: 15000 });
   assert.match(await p.locator('#music-live-banner').innerText(), /unavailable/);
   assert.equal(await p.locator('[data-music-action="live"]').getAttribute('aria-pressed'), 'false');
   ok('catalog unavailable keeps the studio in mock', {});

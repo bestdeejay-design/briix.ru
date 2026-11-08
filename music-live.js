@@ -18,6 +18,7 @@
   const polls = new Map();      // serverJobId -> timer
   const audioCache = new Map(); // track id -> {url, blob, peaks, duration}
   let active = false;
+  let autoCheckedAt = 0;    // не дёргаем /health на каждый рендер раздела
   let catalog = { status: 'unavailable', model: null };
   let vocal = { status: 'unavailable', model: null };
   let vocalModels = { flash: { status: 'unavailable' }, pro: { status: 'unavailable' } };
@@ -26,9 +27,12 @@
   const banner = text => api()?.setLiveBanner(text || '');
   const toast = (text, kind) => api()?.toast(text, kind);
 
-  function askToken() {
-    const value = window.prompt('Bearer-токен media-bff (хранится только в этом браузере, ключ briix-media-live-token):');
-    if (value && value.trim()) { bus().setToken(value); toast('Токен сохранён локально.'); }
+  // Ключ вводится один раз в Настройках — здесь только маршрут туда.
+  function goSettings() {
+    banner(bus().mockBanner('no_token'));
+    api()?.refresh();
+    location.hash = '#/settings';
+    setTimeout(() => document.querySelector('#stand-token')?.focus(), 60);
   }
 
   function goMock(reason) {
@@ -63,7 +67,7 @@
       catalog = { status: 'unavailable', model: null };
       vocal = { status: 'unavailable', model: null };
       vocalModels = { flash: { status: 'unavailable' }, pro: { status: 'unavailable' } };
-      if (error.code === 'unauthorized') { askToken(); throw error; }
+      if (error.code === 'unauthorized') { throw error; }
     }
     return catalog;
   }
@@ -71,30 +75,46 @@
   async function toggle() {
     if (active) {
       const pending = api().readTracks().filter(t => t.mode === 'live' && ['queued', 'running'].includes(t.status)).length;
-      active = false; stopAllPolls();
-      banner(pending ? `Live выключен. На сервере остаётся задач: ${pending} — они продолжают считаться, но браузер их больше не опрашивает. Включите live, чтобы возобновить опрос.` : '');
+      active = false; stopAllPolls(); bus().setLiveOff('music', true);
+      banner(pending ? `Мок: live выключен вручную. На сервере остаётся задач: ${pending} — они продолжают считаться, но браузер их больше не опрашивает. Включите live, чтобы возобновить опрос.` : bus().mockBanner('manual_off'));
       api().refresh(); toast('Live-режим выключен. Музыка вернулась в локальный мок.');
       return;
     }
-    const health = await bus().health();
-    if (!health) { banner('Live недоступен: сервер не отвечает. Проверьте туннель (tools/briix-media-live-up.sh).'); toast('Live недоступен: сервер не отвечает по /health.', 'error'); api().refresh(); return; }
-    if (!bus().hasToken()) { askToken(); if (!bus().hasToken()) return; }
-    try { await refreshCatalog(true); }
-    catch { banner('Каталог моделей не получен: проверьте bearer-токен.'); api().refresh(); return; }
-    if (catalog.status !== 'ready' && vocal.status !== 'ready') {
-      banner('Музыкальные модели на сервере недоступны (music.generate и вокальные модели: unavailable). Раздел остаётся в локальном моке.');
-      toast('Сервер ответил, но музыкальные модели помечены unavailable — включаю мок.', 'error');
-      api().refresh(); return;
-    }
-    active = true; banner('');
-    api().refresh();
+    if (!bus().hasToken()) { goSettings(); return; }
+    bus().setLiveOff('music', false);
+    const started = await autoStart({ force: true });
+    if (!started) { toast('Live не включился: смотрите пояснение в разделе.', 'error'); return; }
     const readyModes = Object.entries(vocalModels).filter(([, e]) => e.status === 'ready').map(([id]) => id === 'flash' ? 'Flash' : 'Pro');
     toast('Live-режим включён. Инструментал и джингл: ' + (catalog.status === 'ready' ? catalog.model || 'сервер' : 'недоступны') + '. Вокал: ' + (readyModes.length ? readyModes.join(' + ') : 'не подключён') + '.');
+  }
+
+  /* Live по умолчанию: ключ есть и стенд здоров — музыка считает на стенде без кликов. */
+  async function autoStart({ force = false } = {}) {
+    if (!force && Date.now() - autoCheckedAt < 10000) { api()?.refresh(); return active; }
+    autoCheckedAt = Date.now();
+    if (bus().isLiveOff('music') && !force) { active = false; banner(bus().mockBanner('manual_off')); api()?.refresh(); return false; }
+    if (!bus().hasToken()) { active = false; banner(bus().mockBanner('no_token')); api()?.refresh(); return false; }
+    const health = await bus().health();
+    if (!health) { active = false; banner(bus().mockBanner('unreachable')); api()?.refresh(); return false; }
+    try { await refreshCatalog(true); }
+    catch (error) {
+      active = false;
+      banner(error?.code === 'unauthorized' ? bus().mockBanner('unauthorized') : 'Мок: каталог моделей не получен — проверьте ключ в Настройках.');
+      api()?.refresh(); return false;
+    }
+    if (catalog.status !== 'ready' && vocal.status !== 'ready') {
+      active = false;
+      banner('Мок: музыкальные модели на стенде недоступны (music.generate и вокальные модели: unavailable). Раздел остаётся в локальном моке.');
+      api()?.refresh(); return false;
+    }
+    active = true; banner('');
+    api()?.refresh();
     recover();
+    return true;
   }
 
   async function submit({ kind, prompt, project, duration, genre, mood, key, bpm, vocalMode = 'flash', lyrics = '', language = 'ru' }) {
-    if (!bus().hasToken()) { askToken(); if (!bus().hasToken()) return; }
+    if (!bus().hasToken()) { goSettings(); return; }
     api()?.setRefusal(null);
     const isSong = kind === 'song';
     const spec = VOCAL_SPECS[vocalMode] || VOCAL_SPECS.flash;
@@ -117,7 +137,7 @@
         idempotencyKey: localId
       });
     } catch (error) {
-      if (error.code === 'unauthorized') { askToken(); toast('Сервер отклонил токен.', 'error'); return; }
+      if (error.code === 'unauthorized') { goSettings(); toast('Стенд отклонил ключ — обновите его в Настройках.', 'error'); return; }
       if (error.code === 'content_blocked') {
         // Отказ модерации — не сбой сервера: мок не включаем, задачу не создаём, повтор не предлагаем.
         api()?.setRefusal({ message: error.message, prompt, kind, at: new Date().toISOString() });
@@ -245,7 +265,7 @@
 
   window.BRIIX_MUSIC_LIVE = {
     active: () => active,
-    toggle, submit, cancel, resubmit, ensureAudio, release, recover,
+    toggle, submit, cancel, resubmit, ensureAudio, release, recover, autoStart, goSettings,
     catalog: () => catalog,
     vocalStatus: () => vocal.status,
     vocalModels: () => vocalModels,
@@ -255,11 +275,8 @@
     refreshCatalog,
     onHostReady() {
       const pending = api().readTracks().some(t => t.mode === 'live' && ['queued', 'running'].includes(t.status));
-      if (!pending) return;
-      bus().health().then(async health => {
-        if (!health || !bus().hasToken()) { goMock('Мок-режим (live недоступен): сервер не отвечает после перезагрузки страницы.'); return; }
-        try { await refreshCatalog(true); } catch { return; }
-        active = true; recover(); api().refresh();
+      autoStart().then(ok => {
+        if (!ok && pending) goMock('Мок-режим (live недоступен): стенд не подтвердил режим после перезагрузки страницы.');
       });
     }
   };

@@ -102,9 +102,9 @@ function bffServer(port) {
     await p.waitForSelector('#prompt-input');
     return p;
   }
+  // Фаза 3: ключ в браузере → чат отвечает моделью сразу, без тоггла.
   const enableLive = async p => {
-    await p.locator('[data-action="toggle-chat-live"]').click();
-    await p.waitForFunction(() => window.BRIIX_CHAT_LIVE.active(), {}, { timeout: 10000 });
+    await p.waitForFunction(() => window.BRIIX_CHAT_LIVE.active(), {}, { timeout: 15000 });
   };
   const send = async (p, text) => { await p.locator('#prompt-input').fill(text); await p.locator('#send-button').click(); };
   const lastMessage = p => p.evaluate(() => {
@@ -219,8 +219,7 @@ function bffServer(port) {
   // Dead tunnel at switch-on: the scripted demo stays scripted and says so.
   resetBff(); state.up = false;
   p = await page();
-  await p.locator('[data-action="toggle-chat-live"]').click();
-  await p.waitForFunction(() => !window.BRIIX_CHAT_LIVE.active() && !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 10000 });
+  await p.waitForFunction(() => !window.BRIIX_CHAT_LIVE.active() && !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 15000 });
   assert.match(await p.locator('#chat-live-banner').innerText(), /сценарными/);
   assert.equal(await p.locator('[data-action="toggle-chat-live"]').getAttribute('aria-pressed'), 'false');
   await send(p, 'Что ты умеешь?');
@@ -235,8 +234,7 @@ function bffServer(port) {
   // Backend marked unavailable must not switch the chat to live.
   resetBff(); state.chatReady = false;
   p = await page();
-  await p.locator('[data-action="toggle-chat-live"]').click();
-  await p.waitForFunction(() => !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 10000 });
+  await p.waitForFunction(() => !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 15000 });
   assert.equal(await p.evaluate(() => window.BRIIX_CHAT_LIVE.active()), false);
   assert.match(await p.locator('#chat-live-banner').innerText(), /unavailable/);
   ok('catalog unavailable keeps chat scripted', {});
@@ -245,8 +243,7 @@ function bffServer(port) {
   // 422 in chat is a polite refusal with status complete — not an error, not a retry button.
   resetBff(); state.blocked = true;
   p = await page();
-  await p.locator('[data-action="toggle-chat-live"]').click();
-  await p.waitForFunction(() => window.BRIIX_CHAT_LIVE.active(), {}, { timeout: 10000 });
+  await enableLive(p);
   const callsBefore = state.calls.length;
   await send(p, 'Запрос, который сервер отклонит по политике контента.');
   await waitAssistant(p, 'complete');

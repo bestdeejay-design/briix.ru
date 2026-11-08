@@ -1,0 +1,170 @@
+[
+  {
+    "name": "short prompt rejected"
+  },
+  {
+    "name": "reference type/size/count limits"
+  },
+  {
+    "name": "photo job and escaped project"
+  },
+  {
+    "name": "image preview/download 1:1",
+    "box": [
+      365,
+      365
+    ],
+    "file": "/tmp/briix-veo-check/briix-download-1x1.jpg"
+  },
+  {
+    "name": "image preview/download 4:5",
+    "box": [
+      292,
+      365
+    ],
+    "file": "/tmp/briix-veo-check/briix-download-4x5.jpg"
+  },
+  {
+    "name": "image preview/download 16:9",
+    "box": [
+      629,
+      354
+    ],
+    "file": "/tmp/briix-veo-check/briix-download-16x9.jpg"
+  },
+  {
+    "name": "image preview/download 9:16",
+    "box": [
+      205,
+      365
+    ],
+    "file": "/tmp/briix-veo-check/briix-download-9x16.jpg"
+  },
+  {
+    "name": "video playback/download 16:9",
+    "meta": {
+      "duration": 5,
+      "w": 1280,
+      "h": 720,
+      "src": "http://127.0.0.1:3000/assets/media/ceramic-still-landscape.mp4"
+    },
+    "time": 0.269162
+  },
+  {
+    "name": "video playback/download 9:16",
+    "meta": {
+      "duration": 5,
+      "w": 720,
+      "h": 1280,
+      "src": "http://127.0.0.1:3000/assets/media/ceramic-still-portrait.mp4"
+    },
+    "time": 0.276658
+  },
+  {
+    "name": "WebM fallback playback",
+    "src": "http://127.0.0.1:3000/assets/media/ceramic-still-portrait.webm",
+    "duration": 5
+  },
+  {
+    "name": "populated image label contrast"
+  },
+  {
+    "name": "library filters/search/favorite/reuse"
+  },
+  {
+    "name": "brief export"
+  },
+  {
+    "name": "delete confirmation"
+  },
+  {
+    "name": "simulated error and retry"
+  },
+  {
+    "name": "cancel"
+  },
+  {
+    "name": "running job recovered after reload"
+  },
+  {
+    "name": "active limit and protected capacity"
+  },
+  {
+    "name": "bounded eviction preserves favorites"
+  },
+  {
+    "name": "retry capacity remains reloadable"
+  },
+  {
+    "name": "corrupt storage protected and explicit clear recovery"
+  },
+  {
+    "name": "tab keyboard navigation",
+    "tabs": [
+      "media-tab-create",
+      "media-tab-library",
+      "media-tab-queue",
+      "media-tab-models",
+      "media-tab-showcase"
+    ]
+  },
+  {
+    "name": "help modal focus/escape"
+  },
+  {
+    "0": {
+      "width": 390,
+      "tab": "create",
+      "violations": []
+    },
+    "1": {
+      "width": 390,
+      "tab": "library",
+      "violations": []
+    },
+    "2": {
+      "width": 390,
+      "tab": "queue",
+      "violations": []
+    },
+    "3": {
+      "width": 390,
+      "tab": "models",
+      "violations": []
+    },
+    "4": {
+      "width": 390,
+      "tab": "showcase",
+      "violations": []
+    },
+    "5": {
+      "width": 1440,
+      "tab": "create",
+      "violations": []
+    },
+    "6": {
+      "width": 1440,
+      "tab": "library",
+      "violations": []
+    },
+    "7": {
+      "width": 1440,
+      "tab": "queue",
+      "violations": []
+    },
+    "8": {
+      "width": 1440,
+      "tab": "models",
+      "violations": []
+    },
+    "9": {
+      "width": 1440,
+      "tab": "showcase",
+      "violations": []
+    },
+    "name": "responsive and axe"
+  },
+  {
+    "name": "no page errors or external requests"
+  }
+]

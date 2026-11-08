@@ -57,6 +57,14 @@ python3 tools/build-media-assets.py --check --ffmpeg /path/to/ffmpeg
 
 Переменные `BRIIX_URL`, `BRIIX_TEST_OUT`, `BRIIX_CHROMIUM` и `NODE_PATH` описаны в `audits/2026-11-06-demo-code-css-audit.md`.
 
+## CI/CD демо (стенд A fonotext)
+
+GitHub Actions (`.github/workflows/demo-ci.yml`, self-hosted runner `briix-ci` на стенде A):
+
+- **push в `main`** = тесты + автодеплой демо в `/home/badai/briix-demo/` (атомарно: staging `briix-demo.new` + mv) — раздаёт `briix-demo.service`, `127.0.0.1:8440`.
+- **PR** = только тесты (headless playwright, деплоя нет). Один job за раз (concurrency group).
+- Доступ к стенду A для работы с демо **не нужен**: владелец открывает `http://127.0.0.1:8388` через `tools/briix-media-live-up.sh` (туннели `:8388→8440` демо, `:8300→8390` media-bff).
+
 ## Отчёты
 
 - `audits/2026-11-06-media-hub-research.md` — медиа-хабы, провайдеры, бесплатные лимиты и лицензии.

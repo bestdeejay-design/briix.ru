@@ -50,7 +50,10 @@ jobs:
         id: audit
         continue-on-error: true
         env:
-          BRIIX_BUS_URL: ${{ github.event.inputs.bus_url || 'http://127.0.0.1:8390' }}
+          BRIIX_BUS_URL: ${{ github.event.inputs.bus_url || vars.BRIIX_BUS_URL || 'http://127.0.0.1:8390' }}
+          # Секрет репозитория. Если не задан — инструмент честно отчитается,
+          # что проверил и чего не хватает, вместо молчаливого падения.
+          BRIIX_BUS_TOKEN: ${{ secrets.BRIIX_BUS_TOKEN }}
           BRIIX_LIVE_PHASES: ${{ github.event.inputs.phases || 'catalog,image,instrumental,song-flash,moderation,cancel,chat' }}
           BRIIX_TEST_OUT: ${{ github.workspace }}/live-audit-out
         run: |
@@ -75,10 +78,26 @@ jobs:
               echo '```'
             fi
           } > /tmp/briix-live-report.md
+          {
+            echo ""
+            echo "<details><summary>Вывод прогона (хвост)</summary>"
+            echo ""
+            echo '```'
+            tail -n 80 /tmp/briix-live-audit.log 2>/dev/null || echo 'лога нет'
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> /tmp/briix-live-report.md
           cat /tmp/briix-live-report.md >> "$GITHUB_STEP_SUMMARY"
-          gh api "repos/${{ github.repository }}/issues/46/comments" -X POST -F body=@/tmp/briix-live-report.md >/dev/null \
-            && echo "Отчёт отправлен в #46" \
-            || echo "Не удалось отправить отчёт в #46 — он остаётся в job summary"
+          # На раннере нет gh — работаем тем же способом, что и demo-ci: curl + python3.
+          # Секреты в комментарий не пускаем ни при каком исходе.
+          sed -i -E 's/Bearer [A-Za-z0-9._-]+/Bearer [redacted]/g; s/(MEDIA_BFF_TOKEN|BRIIX_BUS_TOKEN)=[^ ]+/\1=[redacted]/g' /tmp/briix-live-report.md
+          python3 -c "import json;print(json.dumps({'body':open('/tmp/briix-live-report.md').read()}))" > /tmp/briix-live-report.json
+          curl -sf -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/46/comments" \
+            -d @/tmp/briix-live-report.json > /dev/null \
+            && echo 'Отчёт отправлен в #46' \
+            || echo 'Не удалось отправить отчёт — он остаётся в job summary'
 
       - name: Keep the evidence
         if: always()

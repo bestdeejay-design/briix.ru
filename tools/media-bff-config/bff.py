@@ -7,6 +7,7 @@ Bearer auth mandatory even on loopback. No docker, no NFS paths.
 import asyncio
 import hashlib
 import json
+import re
 import os
 import shutil
 import signal
@@ -40,11 +41,139 @@ MUSIC_PY = Path.home() / "briix-media" / "musicgen-venv" / "bin" / "python"
 MUSIC_CLI = Path.home() / "briix-media" / "musicgen-cli.py"  # CLI-обёртка gen.py, живёт рядом с venv
 OLLAMA_TEXT = "http://127.0.0.1:11436"
 TEXT_MODEL = "qwen3:4b-instruct"
+# Vocal-route (решение владельца 08.11): ACE-Step в двух режимах. type=music с
+# params.model=ace-step-flash|ace-step-pro идёт в пайплайн ace-lm -> ace-synth;
+# без params.model — прежний musicgen (инструментал).
+ACE_DIR = Path.home() / "briix-media" / "acestep" / "acestep.cpp"
+ACE_LM = ACE_DIR / "build" / "ace-lm"
+ACE_SYNTH = ACE_DIR / "build" / "ace-synth"
+ACE_MODELS = ACE_DIR / "models"
+ACE_SYNTH_MODEL = "acestep-v15-turbo-Q4_K_M.gguf"
+VOCAL_MODELS = {
+    "ace-step-flash": {"lm": "acestep-5Hz-lm-1.7B-Q8_0.gguf", "max_duration": 30, "timeout": 300},
+    "ace-step-pro":   {"lm": "acestep-5Hz-lm-4B-Q8_0.gguf",   "max_duration": 150, "timeout": 900},
+}
+MAX_LYRICS = 8000
+# Брендинг-пакет music-джобов (решение владельца 08.11): после генерации —
+# обложка (sd-cli) и mux WAV+cover -> MP3 192k с ID3v2-тегами. WAV остаётся
+# внутренним, result_url отдаёт MP3.
+FFMPEG = Path.home() / "ffmpeg" / "ffmpeg"
+COVER_PROMPT_SUFFIX = "album cover art, square, atmospheric, no text"
+COVER_TIMEOUT = 300
+MUX_TIMEOUT = 120
+BRIIX_TAGS = {
+    "artist": "BRIIX",
+    "album": "BRIIX Generative Music",
+    "comment": "Generated on briix.ru — локальные AI-модели",
+    "url": "https://briix.ru",
+}
 ALLOWED_ORIGINS = {"http://127.0.0.1:8388", "http://localhost:8388"}
 TEXT_HEALTH_TTL = 30       # S4: кэш health-проверки ollama
 TEXT_HEALTH_TIMEOUT = 8    # S4: холодный :11436 отвечает дольше 3с
 
 QUEUE: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_CAP)
+
+# --- Модерация (решение владельца 08.11): explicit-порнография и сексуализация
+# несовершеннолетних запрещены; художественная нагота/«полуголые» (suggestive) —
+# разрешены. Две ступени: regex-блэклист (мгновенный 422) -> LLM-классификатор
+# qwen3 для серой зоны (fail-open при недоступности ollama).
+MODERATION_LOG = BASE / "moderation.log"
+MODERATION_TTL = 1800  # 30 мин кэш вердиктов по sha256(prompt)
+MODERATION_TIMEOUT = 15
+HARD_PATTERNS = [
+    r"\bпорнограф\w*", r"\bпорно[- ]?(сайт|акт|видео|фильм)\b", r"\bпорно\b",
+    r"\bполовой акт\b", r"\bминет\b", r"\bоральный секс\b", r"\bанальный секс\b",
+    r"\bмастурбац\w*", r"\bэякуляц\w*", r"\bгрупповой секс\b", r"\bхентай\b",
+    r"\bb?dsm\b", r"\bblowjob\b", r"\bcumshot\b", r"\bgangbang\b", r"\bhardcore sex\b",
+    r"\bsex scene\b", r"\bpornographic\b", r"\bhandjob\b", r"\bfacial\b.*\bsex\b",
+]
+MINOR_TERMS = re.compile(r"\b(детск|ребен|ребён|малолет|несовершеннолетн|подростк|школьниц|школьник|дочк|сыночк|teens?|teenagers?|minors?|children|kids?|underage|preteen|loli|shota|schoolgirl|schoolboy)\w*", re.IGNORECASE)
+SEXUAL_TERMS = re.compile(r"\b(секс|сексуальн|эрот|порн|гол[аоу]|обнаж|интим|nude|naked|nsfw|sex|sexual|erotic|porn|unclothed|topless)\w*", re.IGNORECASE)
+CRIME_PATTERNS = [
+    r"как\s+(сделать|изготовить|сварить)\s+(бомбу|взрывчатк\w*|наркотик\w*|мет\w*|яд)",
+    r"\b(how to (make|build|synthesize)\s+(a\s+)?(bomb|explosive|meth|poison))\b",
+    r"\bизготовление\s+взрывчатк\w*", r"\bсинтез\s+наркотик\w*",
+]
+_mod_cache = {}  # sha256 -> (ts, verdict: "blocked"|"allowed")
+
+
+def _mod_log(src, phash, verdict, endpoint):
+    try:
+        with open(MODERATION_LOG, "a") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {src} {phash} {verdict} {endpoint}\n")
+    except OSError:
+        pass
+
+
+def _regex_verdict(text):
+    low = text.lower()
+    for p in HARD_PATTERNS:
+        if re.search(p, low):
+            return "explicit"
+    for p in CRIME_PATTERNS:
+        if re.search(p, low):
+            return "explicit"
+    if MINOR_TERMS.search(text) and SEXUAL_TERMS.search(text):
+        return "explicit"
+    return None
+
+
+def moderation_blocked_sync(text):
+    """Ступень 1: кэш + regex. Возвращает True только для явного запрета."""
+    phash = hashlib.sha256(text.encode()).hexdigest()
+    hit = _mod_cache.get(phash)
+    now = time.time()
+    if hit and now - hit[0] < MODERATION_TTL:
+        return hit[1] == "blocked"
+    v = _regex_verdict(text)
+    if v == "explicit":
+        _mod_cache[phash] = (now, "blocked")
+        _mod_log("regex", phash[:16], "blocked", "")
+        return True
+    return False  # None/возможная серая зона — решит LLM-ступень
+
+
+async def moderation_llm_verdict(text):
+    """Ступень 2: qwen3 классифицирует safe|suggestive|explicit. Fail-open."""
+    phash = hashlib.sha256(text.encode()).hexdigest()
+    payload = {"model": TEXT_MODEL, "prompt": (
+        "Классифицируй запрос генерации контента одним словом. Правила: explicit = "
+        "порнография, половые акты, сексуализация несовершеннолетних. suggestive = "
+        "художественная нагота, «полуголые», эротика без половых актов — это НЕ explicit. "
+        "Всё остальное — safe. Ответь ровно одним словом: safe, suggestive или explicit.\n\nЗапрос: "
+        + text[:2000]),
+        "stream": False, "options": {"num_thread": 2, "temperature": 0}, "keep_alive": "5m"}
+    verdict = None
+    try:
+        async with ClientSession() as s:
+            async with s.post(f"{OLLAMA_TEXT}/api/generate", json=payload,
+                              timeout=ClientTimeout(total=MODERATION_TIMEOUT)) as r:
+                if r.status == 200:
+                    data = await r.json()
+                    word = (data.get("response") or "").strip().lower()
+                    if word in ("safe", "suggestive", "explicit"):
+                        verdict = word
+    except Exception:
+        verdict = None
+    if verdict is None:
+        _mod_log("failopen", phash[:16], "allowed", "")
+        _mod_cache[phash] = (time.time(), "allowed")
+        return False  # fail-open: не блокируем демо из-за падения классификатора
+    blocked = verdict == "explicit"
+    _mod_cache[phash] = (time.time(), "blocked" if blocked else "allowed")
+    _mod_log("llm", phash[:16], "blocked" if blocked else f"allowed({verdict})", "")
+    return blocked
+
+
+async def moderate_or_block(text, endpoint, request):
+    """Возвращает 422-envelope или None (пропустить)."""
+    phash = hashlib.sha256(text.encode()).hexdigest()
+    if moderation_blocked_sync(text):
+        _mod_log("regex", phash[:16], "blocked", endpoint)
+        return envelope(422, "Запрос нарушает политику контента: откровенный материал не генерируется.", "content_blocked", request)
+    if await moderation_llm_verdict(text):
+        return envelope(422, "Запрос нарушает политику контента: откровенный материал не генерируется.", "content_blocked", request)
+    return None
 
 
 class ThreadBudget:
@@ -260,6 +389,29 @@ async def create_job(request):
     if not isinstance(params, dict):
         return envelope(400, "params должен быть объектом.", "bad_params", request)
 
+    # Модерация (до очереди): prompt + lyrics для vocal.
+    mod_text = prompt if jtype != "music" else prompt + "\n" + str(params.get("lyrics") or "")
+    blocked = await moderate_or_block(mod_text, f"POST {request.path}", request)
+    if blocked:
+        return blocked
+
+    # Vocal-route: type=music + params.model из VOCAL_MODELS (иначе musicgen-инструментал).
+    vocal_model = params.get("model") if jtype == "music" else None
+    if vocal_model is not None:
+        if vocal_model not in VOCAL_MODELS:
+            return envelope(400, "params.model должен быть ace-step-flash или ace-step-pro.", "bad_params", request)
+        lyrics = params.get("lyrics")
+        if not isinstance(lyrics, str) or not (1 <= len(lyrics) <= MAX_LYRICS):
+            return envelope(400, f"params.lyrics обязателен для vocal, строка 1..{MAX_LYRICS} символов (теги [intro]/[verse]/[chorus]/[bridge]/[outro]).", "bad_params", request)
+        vlang = params.get("language", "en")
+        if vlang not in ("ru", "en"):
+            return envelope(400, "params.language должен быть ru или en.", "bad_params", request)
+        vdur = params.get("duration", 30)
+        if not isinstance(vdur, int) or isinstance(vdur, bool) or not (5 <= vdur <= VOCAL_MODELS[vocal_model]["max_duration"]):
+            return envelope(400, f"params.duration для {vocal_model} — целое 5..{VOCAL_MODELS[vocal_model]['max_duration']} секунд.", "bad_params", request)
+        if not (ACE_LM.exists() and os.access(ACE_LM, os.X_OK) and ACE_SYNTH.exists() and os.access(ACE_SYNTH, os.X_OK)):
+            return envelope(503, "Бэкенд vocal недоступен.", "backend_unavailable", request)
+
     if not await backend_available(jtype):
         return envelope(503, f"Бэкенд {jtype} недоступен.", "backend_unavailable", request)
 
@@ -284,17 +436,21 @@ async def create_job(request):
             return resp
 
         job_id = "job-" + hashlib.sha256(f"{idem or ''}{now}{prompt}{jtype}{os.urandom(8)}".encode()).hexdigest()[:16]
+        is_vocal = vocal_model is not None
+        model_name = (vocal_model if is_vocal else
+                      {"image": "flux-2-klein-4b (sd.cpp)", "music": "musicgen-small", "text": TEXT_MODEL}[jtype])
+        capability = ("song.vocal" if is_vocal else
+                      "instrumental" if jtype == "music" else None)
         job = {
             "id": job_id, "type": jtype, "prompt": prompt,
             "params": {k: v for k, v in params.items() if isinstance(v, (str, int, float, bool))},
             "status": "queued", "result_url": None, "error": None,
-            "provenance": {"model": {"image": "flux-2-klein-4b (sd.cpp)", "music": "musicgen-small",
-                                     "text": TEXT_MODEL}[jtype],
+            "provenance": {"model": model_name,
                            "params": params if isinstance(params, dict) else {},
                            "wall_clock_ms": None, "queued_ms": None,
-                           # model-bus contract (PR #24): MusicGen is instrumental-only,
-                           # never present or labelled as vocal on any layer.
-                           **({"capability": "instrumental"} if jtype == "music" else {})},
+                           # model-bus contract (PR #24): musicgen — instrumental-only;
+                           # ACE-Step vocal-джобы помечаются capability song.vocal.
+                           **({"capability": capability} if capability else {})},
             "created_at": now, "started_at": None, "finished_at": None,
         }
         JOBS[job_id] = job
@@ -366,11 +522,14 @@ async def get_file(request):
     j = JOBS.get(jid)
     if not j or j["status"] != "ready":
         return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
-    ext = {"image": ".png", "music": ".wav", "text": ".txt"}[j["type"]]
+    ext = {"image": ".png", "music": ".mp3", "text": ".txt"}[j["type"]]
     path = RESULTS / f"{jid}{ext}"
+    if not path.exists() and j["type"] == "music":
+        path = RESULTS / f"{jid}.wav"  # legacy-треки до брендинг-пакета
     if not path.exists():
         return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
-    mime = {"image": "image/png", "music": "audio/wav", "text": "text/plain; charset=utf-8"}[j["type"]]
+    mime = {"image": "image/png", "music": "audio/mpeg" if path.suffix == ".mp3" else "audio/wav",
+            "text": "text/plain; charset=utf-8"}[j["type"]]
     return web.Response(body=path.read_bytes(), content_type=mime.split(";")[0],
                         charset="utf-8" if j["type"] == "text" else None)
 
@@ -403,12 +562,20 @@ MODELS_CATALOG = [
                     "инструментал; тёплый прогон ~80с, холодный (первый после рестарта) ~356с — bff прогревает модель на старте"},
     },
     {
-        "id": "ace-step-1.5", "object": "model",
-        "capabilities": ["song.vocal"], "status": "unavailable",
-        "limits": {"max_duration_seconds": None, "max_concurrent_jobs": 0},
+        "id": "ace-step-flash", "object": "model",
+        "capabilities": ["song.vocal"], "status": "ready",
+        "limits": {"max_duration_seconds": 30, "max_concurrent_jobs": 1},
         "license_scope": "demo-only",
-        "latency": {"source": "none", "seconds": None, "conditions":
-                    "пилот ace-step.cpp не проведён; до вердикта пилота route не открывается"},
+        "latency": {"source": "measured", "seconds": 111, "conditions":
+                    "30с трек: LM 1.7B + turbo-синтезатор на CPU (smoke 08.11: wall 111с)"},
+    },
+    {
+        "id": "ace-step-pro", "object": "model",
+        "capabilities": ["song.vocal"], "status": "ready",
+        "limits": {"max_duration_seconds": 150, "max_concurrent_jobs": 1},
+        "license_scope": "demo-only",
+        "latency": {"source": "measured", "seconds": 596, "conditions":
+                    "150с трек (Room 7): LM 4B 215с + синтез 381с на CPU, peak RSS 8.7 GB"},
     },
 ]
 
@@ -448,6 +615,10 @@ async def chat_completions(request):
     problem = validate_chat_body(body)
     if problem:
         return envelope(400, problem, "bad_schema", request)
+    blocked = await moderate_or_block("\n".join(m.get("content", "") for m in body["messages"]),
+                                      "POST /v1/chat/completions", request)
+    if blocked:
+        return blocked
     rid = request["request_id"]
     prompt = messages_to_prompt(body["messages"])
     payload = {"model": TEXT_MODEL, "prompt": prompt, "stream": bool(body.get("stream")),
@@ -613,6 +784,136 @@ def run_worker(j, loop):
     raise RuntimeError("text job must not reach thread worker")
 
 
+async def vocal_worker(j):
+    """Vocal-route (решение владельца 08.11): пайплайн ace-lm -> ace-synth.
+
+    Stage-статусы честные: writing-lyrics (LM пишет аудио-коды) -> synthesizing
+    (DiT+VAE). ace-lm пишет выходной json как <input>-путь+"0", synth —
+    <lm-json>-путь c ".json"->"0.wav" (наблюдаемая конвенция acestep.cpp).
+    Таймаут — общий на пайплайн (flash 300с / pro 900с), процесс-группа
+    убивается на отмене и таймауте. Падение acestep (в т.ч. OOM при peak RSS
+    pro ~8.7 GB) превращается в error-джоб, bff не роняется.
+    """
+    jid = j["id"]
+    spec = VOCAL_MODELS[j["params"]["model"]]
+    req = {
+        "lm_model": spec["lm"],
+        "synth_model": ACE_SYNTH_MODEL,
+        "caption": j["prompt"],
+        "lyrics": j["params"]["lyrics"],
+        "vocal_language": j["params"].get("language", "en"),
+        "duration": j["params"].get("duration", 30),
+        "seed": int.from_bytes(os.urandom(4), "little"),
+        "thinking": True,
+        "lm_temperature": 0.85,
+        "lm_cfg_scale": 2.0,
+        "lm_top_p": 0.9,
+        "lm_negative_prompt": "NO USER INPUT",
+        "inference_steps": 8,
+        "guidance_scale": 1.0,
+        "shift": 3.0,
+        "output_format": "wav16",
+    }
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    req_path = RESULTS / f"{jid}.json"
+    req_path.write_text(json.dumps(req, ensure_ascii=False, indent=1))
+    lm_out = RESULTS / f"{jid}0.json"
+    wav_out = RESULTS / f"{jid}00.wav"
+    final = RESULTS / f"{jid}.wav"
+    deadline = time.time() + spec["timeout"]
+
+    async def run_stage(argv, stage, expect):
+        j["stage"] = stage
+        save_jobs()
+        proc = await asyncio.create_subprocess_exec(
+            *argv, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+            start_new_session=True)
+        PROCS[jid] = proc
+        try:
+            _, err = await asyncio.wait_for(proc.communicate(),
+                                            timeout=max(5.0, deadline - time.time()))
+        except asyncio.TimeoutError:
+            kill_tree(proc)
+            raise TimeoutError(f"vocal stage {stage} exceeded {spec['timeout']}s budget, killed")
+        finally:
+            PROCS.pop(jid, None)
+        if proc.returncode != 0 or not expect.exists():
+            tail = (err or b"")[-300:].decode("utf-8", "replace")
+            log(f"vocal stage {stage} failed rc={proc.returncode}: {tail}")
+            raise RuntimeError(f"vocal stage {stage} exit {proc.returncode}")
+
+    try:
+        await run_stage([str(ACE_LM), "--models", str(ACE_MODELS), "--request", str(req_path)],
+                        "writing-lyrics", lm_out)
+        await run_stage([str(ACE_SYNTH), "--models", str(ACE_MODELS), "--request", str(lm_out)],
+                        "synthesizing", wav_out)
+        shutil.move(str(wav_out), str(final))
+    finally:
+        # временные артефакты пайплайна не копим в retention
+        req_path.unlink(missing_ok=True)
+        lm_out.unlink(missing_ok=True)
+        j["stage"] = None
+
+
+def _track_title(j):
+    """Заголовок трека: params.title, первая содержательная строка лирики или prompt."""
+    t = j["params"].get("title")
+    if isinstance(t, str) and t.strip():
+        return t.strip()[:80]
+    src = j["params"].get("lyrics") or j["prompt"]
+    for line in src.splitlines():
+        line = line.strip()
+        if line and not line.startswith("[") and not line.startswith("("):
+            return line[:80]
+    return j["prompt"][:80]
+
+
+def music_package(j):
+    """Обложка (sd-cli, 512px) + mux WAV -> MP3 192k с ID3v2 и attached_pic.
+
+    Деградация мягкая: нет обложки — MP3 без APIC; не сработал mux — остаётся WAV
+    (get_file отдаёт fallback). Ошибки не роняют готовый трек.
+    """
+    jid = j["id"]
+    wav = RESULTS / f"{jid}.wav"
+    if not wav.exists():
+        return
+    cover = RESULTS / f"{jid}-cover.png"
+    env = dict(os.environ)
+    env["OMP_NUM_THREADS"] = str(THREAD_BUDGET)
+    cmd = [str(SD_CLI), "--diffusion-model", str(Path.home() / "briix-media/models/flux-2-klein-4b-Q8_0.gguf"),
+           "--vae", str(Path.home() / "briix-media/models/full_encoder_small_decoder.safetensors"),
+           "--llm", str(Path.home() / "briix-media/models/Qwen3-4B-Q6_K.gguf"),
+           "--cfg-scale", "1.0", "--steps", "4", "--threads", str(THREAD_BUDGET), "--offload-to-cpu",
+           "-o", str(cover), "-p", f"{j['prompt']}, {COVER_PROMPT_SUFFIX}"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=env,
+                            start_new_session=True)
+    PROCS[f"{jid}-cover"] = proc
+    try:
+        proc.communicate(timeout=COVER_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        kill_tree(proc)
+        proc.communicate()
+        log(f"cover timeout {jid}")
+    finally:
+        PROCS.pop(f"{jid}-cover", None)
+    mux = [str(FFMPEG), "-y", "-loglevel", "error", "-i", str(wav)]
+    if cover.exists() and cover.stat().st_size > 0:
+        mux += ["-i", str(cover), "-map", "0:a", "-map", "1:v",
+                "-c:v", "copy", "-disposition:v", "attached_pic"]
+    mux += ["-c:a", "libmp3lame", "-b:a", "192k", "-id3v2_version", "3"]
+    for k, v in BRIIX_TAGS.items():
+        mux += ["-metadata", f"{k}={v}"]
+    mux += ["-metadata", f"title={_track_title(j)}", str(RESULTS / f"{jid}.mp3")]
+    try:
+        r = subprocess.run(mux, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                           timeout=MUX_TIMEOUT)
+        if r.returncode != 0:
+            log(f"mux failed {jid}: {(r.stderr or b'')[-200:].decode('utf-8', 'replace')}")
+    except (subprocess.TimeoutExpired, OSError) as e:
+        log(f"mux error {jid}: {type(e).__name__}")
+
+
 async def text_worker(j):
     jid = j["id"]
     payload = {"model": TEXT_MODEL, "prompt": j["prompt"], "stream": False,
@@ -641,6 +942,7 @@ async def executor():
             continue
         async def run_one(j, jid):
             is_text = j["type"] == "text"
+            is_vocal = j["type"] == "music" and j.get("params", {}).get("model") in VOCAL_MODELS
             tokens = TEXT_BUDGET if is_text else THREAD_BUDGET
             try:
                 # S3 strict-режим: text стартует только когда ни один heavy не идёт.
@@ -658,22 +960,32 @@ async def executor():
                         j["provenance"]["queued_ms"] = round((time.time() - j["created_at"]) * 1000)
                         j["status"] = "running"
                         j["started_at"] = time.time()
-                        # S2: music начинается в стадии прогрева модели.
-                        j["stage"] = "model-warmup" if j["type"] == "music" else None
+                        # S2: music начинается в стадии прогрева модели; vocal — с текста песни.
+                        j["stage"] = ("writing-lyrics" if is_vocal
+                                      else "model-warmup" if j["type"] == "music" else None)
                         save_jobs()
-                        log(f"running {jid} tokens={tokens} held={BUDGET.held} strict={STRICT_THREADS}")
+                        log(f"running {jid} tokens={tokens} held={BUDGET.held} strict={STRICT_THREADS}"
+                            + (f" model={j['params']['model']}" if is_vocal else ""))
                         watcher = None
-                        if j["type"] == "music":
+                        if j["type"] == "music" and not is_vocal:
                             watcher = asyncio.ensure_future(music_stage_watcher(j))
                         try:
                             if is_text:
                                 await text_worker(j)
+                            elif is_vocal:
+                                await vocal_worker(j)
                             else:
                                 await loop.run_in_executor(None, run_worker, j, None)
                         finally:
                             if watcher:
                                 watcher.cancel()
                         j["stage"] = None
+                        # Брендинг-пакет (08.11): обложка + MP3-mux для любого music-режима.
+                        if j["type"] == "music" and not j.get("status") == "cancelled":
+                            j["stage"] = "album-cover"
+                            save_jobs()
+                            await loop.run_in_executor(None, music_package, j)
+                            j["stage"] = None
                     finally:
                         BUDGET.release(tokens)
                 finally:
@@ -682,13 +994,18 @@ async def executor():
                 # S9: метаданные файла результата.
                 ext = {"image": ".png", "music": ".wav", "text": ".txt"}[j["type"]]
                 path = RESULTS / f"{jid}{ext}"
+                if j["type"] == "music":
+                    mp3 = RESULTS / f"{jid}.mp3"
+                    if mp3.exists() and mp3.stat().st_size > 0:
+                        path = mp3
                 if path.exists():
                     h = hashlib.sha256()
                     with open(path, "rb") as fh:
                         for chunk in iter(lambda: fh.read(1 << 20), b""):
                             h.update(chunk)
                     j["file_id"] = jid
-                    j["mime"] = {"image": "image/png", "music": "audio/wav", "text": "text/plain; charset=utf-8"}[j["type"]]
+                    j["mime"] = {"image": "image/png", "music": "audio/mpeg" if path.suffix == ".mp3" else "audio/wav",
+                                 "text": "text/plain; charset=utf-8"}[j["type"]]
                     j["size"] = path.stat().st_size
                     j["checksum"] = h.hexdigest()
                 j["status"] = "ready"
@@ -744,8 +1061,11 @@ def prune_records(cutoff):
         if j["status"] in ("queued", "running"):
             continue
         if j["status"] == "ready":
-            ext = {"image": ".png", "music": ".wav", "text": ".txt"}[j["type"]]
-            if not (RESULTS / f"{jid}{ext}").exists():
+            ext = {"image": ".png", "music": ".mp3", "text": ".txt"}[j["type"]]
+            still_there = (RESULTS / f"{jid}{ext}").exists()
+            if j["type"] == "music" and not still_there:
+                still_there = (RESULTS / f"{jid}.wav").exists()
+            if not still_there:
                 del JOBS[jid]
                 removed += 1
                 continue

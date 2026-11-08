@@ -64,3 +64,28 @@
 ## Границы снапшота
 
 Это конфигурационный снимок 08.11, не эталонный деплой; пароли/токены вне репо; серверные пути — домашние каталоги badai. Публикация только в приватном `briix.ru`.
+
+
+## Решение владельца 08.11 (волна 2): vocal-route ОТКРЫТ — три режима
+
+- **musicgen-small** — инструментал (как раньше).
+- **ace-step-flash** — vocal 30с, LM 1.7B-Q8_0: POST /jobs type=music + `params.model="ace-step-flash"`, `params.lyrics` (теги [intro]/[verse]/[chorus]/[bridge]/[outro]), `params.language` ru|en, `params.duration` 5..30. Smoke 08.11: wall **111с**, stages `writing-lyrics → synthesizing`.
+- **ace-step-pro** — vocal до 150с, LM 4B-Q8_0. Smoke: 60с трек за **240с**; полная композиция 150с (Room 7, No Knock, лирика из chats-audit владельца, автор DeepSeek-чат) — LM 215с + синтез 381с = **596с**, peak RSS 8.7 GB (fallback нет: RAM 94 GB). Тренд качества вокала по размеру LM: 0.6B — инструментал, 1.7B — вокал-структура 30с, 4B — держит структуру 60–150с.
+- Provenance vocal-джобов: `capability: "song.vocal"` (не instrumental). Таймауты: flash 300с / pro 900с, процесс-группа убивается, OOM/padение acestep превращается в error-джоб (bff не роняется).
+
+## Модерация контента (серверно, до очереди)
+
+Двухступенчатый gate на POST /jobs (все типы, prompt+lyrics) и POST /v1/chat/completions:
+1. **Regex-блэклист** явного (порно/половые акты, minors+sexual — комбинация двух словарей, преступные инструкции) → мгновенный **422 content_blocked** без LLM.
+2. **Серая зона** → qwen3-классификатор (:11436, num_thread 2, timeout 15с, temperature 0) одним словом safe|suggestive|explicit; explicit → 422; suggestive/safe → проход. **Fail-open** при недоступности ollama (проверено живьём: 2 таймаута → allowed + лог).
+- Кэш вердиктов 30 мин по sha256; лог `{ts} {source} {prompt-hash} {verdict} {endpoint}` в `moderation.log` (сам промпт не пишется).
+- **Политика**: explicit = порнография/половые акты/сексуализация несовершеннолетних — жёстко; suggestive = художественная нагота, «полуголые», эротика без актов — РАЗРЕШЕНО (проверено: «полуголая женщина в стиле нуар» → 202).
+- Тесты 08.11: явный RU → 422 за 3мс; школьница+обнажённая → 422; «как сделать бомбу» → 422; нуар-нагота → 202; пустой prompt → 400; chat explicit → 422.
+
+## Брендинг-пакет music-джобов
+
+После успешной генерации (любой режим): обложка 512px (sd-cli, prompt=caption+«album cover art, square, atmospheric, no text», stage `album-cover`) → ffmpeg mux WAV → **MP3 192k** с обложкой attached_pic и ID3v2: title (params.title или первая строка лирики), artist **BRIIX**, album **BRIIX Generative Music**, comment «Generated on briix.ru — локальные AI-модели», url https://briix.ru. result_url отдаёт MP3 (audio/mpeg), WAV внутренний. E2E smoke 08.11: musicgen 60с + обложка 240с + mux = 313с, ffprobe: `codec_name=png, DISPOSITION:attached_pic=1`, все теги на месте. UI-заметка для Арены: скачивание/плеер получают MP3 со встроенным cover — jsmediatags не нужен, просто fallback-обложка.
+
+## Showcase — реальные генерации стенда A
+
+`assets/media/showcase/` — MP3 192k с обложками и брендинг-тегами, manifest.json (title/prompt/model/date/duration/license demo-only). Источники: реальные прогоны стенда (ACE-Step ru-баллада 30с/60с, Room 7 No Knock, musicgen lofi/ambient/jingle). Room 7: лирика — chats-audit репо владельца (автор DeepSeek-чат владельца).

@@ -1084,9 +1084,10 @@
     if (liveActive()) {
       if (brief.kind === 'song' && !brief.lyrics.trim()) return { error: 'Для песни нужна лирика.' };
       const before = state.tracks[0]?.id;
+      const vocalUnavailable = brief.kind === 'song' && live().vocalStatus() !== 'ready';
       await live().submit(brief);
       const created = state.tracks[0];
-      return created && created.id !== before ? { id: created.id, mode: 'live' } : { error: 'Задача не принята сервером.' };
+      return created && created.id !== before ? { id: created.id, mode: 'live' } : { error: vocalUnavailable ? 'Вокальная модель сейчас недоступна. Текст сохранён в диалоге; инструментал вместо песни не подставляем.' : 'Задача не принята сервером.' };
     }
     const t = {
       id: uid(), kind: brief.kind, genre: brief.genre, mood: brief.mood, key: brief.key, goal: brief.goal,
@@ -1111,7 +1112,7 @@
     validate,
     // Narrow internal surface for music-live.js (optional live mode).
     _api: {
-      toast: (text, kind) => host?.toast(text, kind),
+      toast: (text, kind) => host ? host.toast(text, kind) : window.BRIIX_UI?.toast(text, kind),
       liveActive,
       originLabel,
       setRefusal: value => { liveRefusal = value || null; },
@@ -1143,6 +1144,7 @@
       // Опрос сервера идёт каждые 2.5 секунды. Полная пересборка страницы стирала
       // набираемую лирику и дёргала экран, поэтому обновляем только зону результата.
       refresh() {
+        window.BRIIX_UI?.refreshLiveChrome?.();
         if (!root || location.hash.split('?')[0].replace(/\/$/, '') !== '#/music') return;
         updateCounts(); updateNotice(); paintLiveChrome();
         if (tab !== 'create' || !$('#music-preview', root)) { renderPanel(); return; }

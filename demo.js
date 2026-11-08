@@ -1,5 +1,5 @@
-/* BRIIX — интерактивное демо пользовательского интерфейса.
- * Только localStorage и сценарные ответы. Ни сетевых запросов, ни SDK, ни настоящего inference.
+/* BRIIX — интерактивное пространство пользователя.
+ * Локальные сценарии и моки; опциональный live через существующий media-bff без ключей в коде.
  * Dynamic user content is escaped before rendering; markdown is a small allowlisted renderer.
  */
 (() => {
@@ -11,12 +11,15 @@
   const MAX_FILES = 4;
   // Простой выбор под полем ввода: человек решает ЧТО получить, а не заполняет анкету.
   const SIMPLE_MODES = [
-    { id: 'text', title: 'Ответ', short: 'Ответ', icon: 'chat', hint: 'Помощник отвечает текстом' },
-    { id: 'image', title: 'Картинка', short: 'Картинка', icon: 'image', hint: 'Одна фраза — изображение в ленте' },
-    { id: 'music', title: 'Музыка', short: 'Музыка', icon: 'music', hint: 'Инструментал без вокала' },
-    { id: 'song', title: 'Песня', short: 'Песня', icon: 'mic', hint: 'Песня с вокалом, лирика подберётся сама' }
+    { id: 'text', title: 'Ответ', short: 'Ответ', mobileTitle: 'Текст', icon: 'chat', hint: 'Помощник отвечает текстом', assistant: 'universal' },
+    { id: 'image', title: 'Картинка', short: 'Картинка', mobileTitle: 'Фото', icon: 'image', hint: 'Одна фраза — изображение в ленте', assistant: 'photographer' },
+    { id: 'video', title: 'Видео', short: 'Видео', mobileTitle: 'Видео', icon: 'play', hint: 'Короткий ролик по одному описанию', assistant: 'director' },
+    { id: 'music', title: 'Музыка', short: 'Музыка', mobileTitle: 'Аудио', icon: 'music', hint: 'Инструментал без вокала', assistant: 'producer' },
+    { id: 'song', title: 'Песня', short: 'Песня', mobileTitle: 'Аудио', icon: 'mic', hint: 'Песня с вокалом, лирика подберётся сама', assistant: 'songwriter' }
   ];
   const simpleMode = () => SIMPLE_MODES.find(m => m.id === state.settings.simpleMode) || SIMPLE_MODES[0];
+  const modeGroup = id => ['music', 'song'].includes(id) ? 'audio' : id;
+  const assistantMode = a => a?.simpleMode || 'text';
   const isPhone = () => matchMedia('(max-width: 650px)').matches;
   const DEFAULT_SETTINGS = {
     theme: 'light', name: '', defaultAssistant: 'universal', enterToSend: true, simpleMode: 'text',
@@ -42,6 +45,23 @@
   let sidebarReturnFocus = null;
   let activeStream = null;
   const chatLiveActive = () => !!window.BRIIX_CHAT_LIVE?.active();
+  const mediaLiveActive = () => !!window.BRIIX_MEDIA_LIVE?.active();
+  const musicLiveActive = () => !!window.BRIIX_MUSIC_LIVE?.active();
+  const anyLiveActive = () => chatLiveActive() || mediaLiveActive() || musicLiveActive();
+  function modeLiveActive(mode = state.settings.simpleMode) {
+    if (mode === 'text') return chatLiveActive();
+    if (mode === 'image') return mediaLiveActive();
+    if (mode === 'music') return musicLiveActive() && window.BRIIX_MUSIC_LIVE?.catalog().status === 'ready';
+    if (mode === 'song') return musicLiveActive() && window.BRIIX_MUSIC_LIVE?.vocalStatus() === 'ready';
+    return false; // video: на существующем BFF нет video.generate
+  }
+  function mobileModeStatus(mode = state.settings.simpleMode) {
+    const live = modeLiveActive(mode);
+    const text = live
+      ? ({ text: 'Live · отвечает ваша модель', image: 'Live · фото на вашем сервере', music: 'Live · аудио на вашем сервере', song: 'Live · песня на вашем сервере' })[mode]
+      : mode === 'video' ? 'Локальный видео-мок · live-видео нет' : 'Локальный мок · не нейросеть';
+    return { live, text };
+  }
   let draftTimer = null;
   let pendingSend = false;
   let modalVersion = 0;
@@ -153,7 +173,7 @@
     const settings = { ...DEFAULT_SETTINGS };
     const incoming = raw.settings && typeof raw.settings === 'object' && !Array.isArray(raw.settings) ? raw.settings : {};
     for (const key of ['enterToSend', 'showSuggestions', 'simulateErrors', 'saveHistory', 'streaming']) if (typeof incoming[key] === 'boolean') settings[key] = incoming[key];
-    for (const [key, values] of Object.entries({ theme: ['light', 'dark', 'system'], defaultAssistant: assistants.map(a => a.id), density: ['comfortable', 'compact'], fontSize: ['normal', 'large'], simpleMode: ['text', 'image', 'music', 'song'] })) if (values.includes(incoming[key])) settings[key] = incoming[key];
+    for (const [key, values] of Object.entries({ theme: ['light', 'dark', 'system'], defaultAssistant: assistants.map(a => a.id), density: ['comfortable', 'compact'], fontSize: ['normal', 'large'], simpleMode: ['text', 'image', 'video', 'music', 'song'] })) if (values.includes(incoming[key])) settings[key] = incoming[key];
     if (typeof incoming.name === 'string') settings.name = incoming.name.slice(0, 40);
     const saved = raw.saved.filter(s => s && typeof s.id === 'string' && /^[\w-]{1,100}$/.test(s.id) && typeof s.content === 'string' && typeof s.title === 'string').slice(0, 1000).map(s => ({ id: s.id.slice(0, 100), chatId: String(s.chatId || '').slice(0, 100), messageId: String(s.messageId || '').slice(0, 100), title: s.title.slice(0, 100), content: s.content.slice(0, 100000), assistantId: assistant(s.assistantId).id, createdAt: safeDate(s.createdAt) }));
     const savedIds = new Set();
@@ -167,7 +187,7 @@
     const incomingGen = raw.generations && typeof raw.generations === 'object' && !Array.isArray(raw.generations) ? raw.generations : {};
     for (const [key, value] of Object.entries(incomingGen).slice(0, 400)) {
       if (!/^[\w-]{1,100}$/.test(key) || !value || typeof value !== 'object') continue;
-      if (!['image', 'music', 'song'].includes(value.kind) || typeof value.targetId !== 'string' || !/^[\w-]{1,100}$/.test(value.targetId)) continue;
+      if (!['image', 'video', 'music', 'song'].includes(value.kind) || typeof value.targetId !== 'string' || !/^[\w-]{1,100}$/.test(value.targetId)) continue;
       generations[key] = { kind: value.kind, targetId: value.targetId, mode: value.mode === 'live' ? 'live' : 'mock' };
     }
     return { version: 2, settings, chats, saved: uniqueSaved, drafts, generations, favoritePrompts: [...new Set(raw.favoritePrompts.filter(id => promptLibrary.some(p => p.id === id)))], selectedAssistant: assistant(raw.selectedAssistant).id };
@@ -255,9 +275,9 @@
     updateSidebarAccess();
   }
   function renderTopbar() {
-    const r = route(); const chat = currentChat();
+    const r = route(); const chat = currentChat(); const live = anyLiveActive();
     const labels = { home: 'Новый диалог', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Изображения', music: 'Музыка', settings: 'Настройки', chat: chat?.title || 'Диалог не найден' };
-    $('#topbar').innerHTML = `<button class="icon-btn mobile-menu" data-action="toggle-sidebar" aria-label="Открыть меню" aria-controls="sidebar" aria-expanded="false">${icon('menu')}</button><div class="breadcrumb">${icon('compass')}<span class="workspace-crumb">Личное пространство</span><span class="slash">/</span><span class="breadcrumb-current">${esc(labels[r.page])}</span></div><div class="topbar-actions"><button class="badge" data-action="about" title="${chatLiveActive() ? 'Чат отвечает с вашего сервера через приватный туннель' : 'Это демо со сценарными ответами'}"><span class="dot"></span>${chatLiveActive() ? 'Приватный live' : 'Демо без backend'}</button><span class="topbar-separator"></span><button class="icon-btn" data-action="toggle-theme" aria-pressed="${document.documentElement.dataset.theme === 'dark'}" aria-label="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}" title="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button><button class="icon-btn help-top" data-action="shortcuts" aria-label="Справка и горячие клавиши" title="Справка и горячие клавиши">${icon('help')}</button></div>`;
+    $('#topbar').innerHTML = `<button class="icon-btn mobile-menu" data-action="toggle-sidebar" aria-label="Открыть меню" aria-controls="sidebar" aria-expanded="false">${icon('menu')}</button><div class="breadcrumb">${icon('compass')}<span class="workspace-crumb">Личное пространство</span><span class="slash">/</span><span class="breadcrumb-current">${esc(labels[r.page])}</span></div><div class="topbar-actions"><button class="badge ${live ? 'live' : ''}" data-action="about" title="${live ? 'Подключённые модели работают на вашем сервере через media-bff' : 'Серверные модели не подключены: доступны сценарные ответы и локальные моки'}"><span class="dot"></span>${live ? 'Приватный live' : 'Демо без backend'}</button><span class="topbar-separator"></span><button class="icon-btn" data-action="toggle-theme" aria-pressed="${document.documentElement.dataset.theme === 'dark'}" aria-label="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}" title="${document.documentElement.dataset.theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button><button class="icon-btn help-top" data-action="shortcuts" aria-label="Справка и горячие клавиши" title="Справка и горячие клавиши">${icon('help')}</button></div>`;
   }
   function updateSidebarAccess() {
     const sidebar = $('#sidebar'); const open = sidebar.classList.contains('open');
@@ -278,7 +298,13 @@
   function composerMarkup(chat = null) {
     const a = assistant(chat?.assistantId || state.selectedAssistant);
     const value = getDraft(); const streaming = activeStream && activeStream.chatId === chat?.id;
-    return `<div class="composer" id="composer"><div class="attachment-list" id="attachment-list"></div><label class="sr-only" for="prompt-input">Ваше сообщение помощнику ${esc(a.name)}</label><textarea id="prompt-input" rows="2" maxlength="${MAX_CHARS}" placeholder="${esc(isPhone() && state.settings.simpleMode !== 'text' ? ({ image: 'Опишите, что показать на картинке…', music: 'Опишите настроение музыки…', song: 'О чём песня? Лирику подберу из вашей базы…' })[state.settings.simpleMode] : chat ? 'Продолжим мысль или зададим новый вопрос…' : 'О чём вы думаете? Спросите, напишите, придумайте…')}">${esc(value)}</textarea><div class="composer-toolbar"><div class="composer-left"><button class="icon-btn" data-action="attach" aria-label="Прикрепить файл-заглушку" title="Прикрепить файл-заглушку (до 4 файлов, до 10 МБ)" ${streaming ? 'disabled' : ''}>${icon('paperclip')}</button><button class="icon-btn" data-action="attach-example" aria-label="Добавить пример вложения" title="Добавить пример вложения" ${streaming ? 'disabled' : ''}>${icon('file')}</button><span class="composer-divider"></span><button class="assistant-select tone-${a.tone}" data-action="choose-assistant" aria-label="Выбрать помощника: ${esc(a.name)}"><span class="assistant-dot"></span><span class="select-name">${esc(a.name)}</span>${icon('chevronDown')}</button><button class="mode-select" data-action="choose-mode" aria-label="Что делаем: ${esc(simpleMode().title)}" aria-expanded="false">${icon(simpleMode().icon)}<span class="select-name">${esc(simpleMode().short)}</span>${icon('chevronDown')}</button></div><div class="mode-menu" id="mode-menu" role="menu" aria-label="Что делаем" hidden>${SIMPLE_MODES.map(m => `<button role="menuitemradio" aria-checked="${m.id === state.settings.simpleMode}" class="mode-option ${m.id === state.settings.simpleMode ? 'active' : ''}" data-action="set-mode" data-id="${m.id}">${icon(m.icon)}<span><strong>${esc(m.title)}</strong><small>${esc(m.hint)}</small></span>${m.id === state.settings.simpleMode ? icon('check') : ''}</button>`).join('')}<a class="mode-advanced" href="#/${state.settings.simpleMode === 'image' ? 'media' : state.settings.simpleMode === 'text' ? 'settings' : 'music'}">${icon('settings')}<span>Все настройки подробно</span></a></div><button class="send-btn" id="send-button" data-action="${streaming ? 'stop' : 'send'}" aria-label="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" title="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" ${!streaming && !value.trim() && !pendingAttachments.length ? 'disabled' : ''}>${icon(streaming ? 'stop' : 'arrowUp')}</button></div></div><div class="composer-context"><span>${icon(chatLiveActive() ? 'route' : 'lock')}${chatLiveActive() ? 'Приватный live · отвечает ваш сервер' : 'Только в вашем браузере · сценарные ответы'}</span><button class="text-btn chat-live-toggle ${chatLiveActive() ? 'active' : ''}" data-action="toggle-chat-live" aria-pressed="${chatLiveActive()}" title="Ответы с вашего сервера через приватный туннель">${chatLiveActive() ? 'Выключить live' : 'Приватный live'}</button><span class="char-limit ${value.length > MAX_CHARS * .9 ? 'near' : ''}" id="char-count">${value.length > MAX_CHARS * .8 ? value.length.toLocaleString('ru-RU') + ' / 12 000' : ''}</span><span class="keyboard-hint">${state.settings.enterToSend ? 'Enter — отправить' : 'Ctrl Enter — отправить'}</span></div>`;
+    const mobileHome = isPhone() && !chat && route().page === 'home';
+    const mode = state.settings.simpleMode;
+    const homeStatus = mobileModeStatus(mode);
+    const context = mobileHome
+      ? `<span class="mobile-model-status ${homeStatus.live ? 'active' : ''}">${icon(homeStatus.live ? 'route' : 'lock')}${homeStatus.text}</span><button class="text-btn mobile-live-button ${homeStatus.live ? 'active' : ''}" data-action="mobile-live-setup" aria-label="${window.BRIIX_BUS?.hasToken() ? 'Проверить подключение моделей' : 'Подключить серверные модели'}">${icon('route')}${window.BRIIX_BUS?.hasToken() ? 'Модели' : 'Подключить'}</button>`
+      : `<span>${icon(chatLiveActive() ? 'route' : 'lock')}${chatLiveActive() ? 'Приватный live · отвечает ваш сервер' : 'Только в вашем браузере · сценарные ответы'}</span><button class="text-btn chat-live-toggle ${chatLiveActive() ? 'active' : ''}" data-action="toggle-chat-live" aria-pressed="${chatLiveActive()}" title="Ответы с вашего сервера через приватный туннель">${chatLiveActive() ? 'Выключить live' : 'Приватный live'}</button>`;
+    return `<div class="composer" id="composer"><div class="attachment-list" id="attachment-list"></div><label class="sr-only" for="prompt-input">Ваше сообщение помощнику ${esc(a.name)}</label><textarea id="prompt-input" rows="2" maxlength="${MAX_CHARS}" placeholder="${esc(isPhone() && state.settings.simpleMode !== 'text' ? ({ image: 'Опишите кадр, свет и настроение…', video: 'Что происходит в видео? Добавьте движение камеры…', music: 'Опишите настроение музыки…', song: 'О чём песня? Лирику подберу из вашей базы…' })[state.settings.simpleMode] : chat ? 'Продолжим мысль или зададим новый вопрос…' : 'О чём вы думаете? Спросите, напишите, придумайте…')}">${esc(value)}</textarea><div class="composer-toolbar"><div class="composer-left"><button class="icon-btn" data-action="attach" aria-label="Прикрепить файл-заглушку" title="Прикрепить файл-заглушку (до 4 файлов, до 10 МБ)" ${streaming ? 'disabled' : ''}>${icon('paperclip')}</button><button class="icon-btn" data-action="attach-example" aria-label="Добавить пример вложения" title="Добавить пример вложения" ${streaming ? 'disabled' : ''}>${icon('file')}</button><span class="composer-divider"></span><button class="assistant-select tone-${a.tone}" data-action="choose-assistant" aria-label="Выбрать помощника: ${esc(a.name)}"><span class="assistant-dot"></span><span class="select-name">${esc(a.name)}</span>${icon('chevronDown')}</button><button class="mode-select" data-action="choose-mode" aria-label="Что делаем: ${esc(simpleMode().title)}" aria-expanded="false">${icon(simpleMode().icon)}<span class="select-name">${esc(simpleMode().short)}</span>${icon('chevronDown')}</button></div><div class="mode-menu" id="mode-menu" role="menu" aria-label="Что делаем" hidden>${SIMPLE_MODES.map(m => `<button role="menuitemradio" aria-checked="${m.id === state.settings.simpleMode}" class="mode-option ${m.id === state.settings.simpleMode ? 'active' : ''}" data-action="set-mode" data-id="${m.id}">${icon(m.icon)}<span><strong>${esc(m.title)}</strong><small>${esc(m.hint)}</small></span>${m.id === state.settings.simpleMode ? icon('check') : ''}</button>`).join('')}<a class="mode-advanced" href="#/${['image', 'video'].includes(state.settings.simpleMode) ? 'media' : state.settings.simpleMode === 'text' ? 'settings' : 'music'}">${icon('settings')}<span>Все настройки подробно</span></a></div><button class="send-btn" id="send-button" data-action="${streaming ? 'stop' : 'send'}" aria-label="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" title="${streaming ? 'Остановить ответ' : 'Отправить сообщение'}" ${!streaming && !value.trim() && !pendingAttachments.length ? 'disabled' : ''}>${icon(streaming ? 'stop' : 'arrowUp')}</button></div></div><div class="composer-context">${context}<span class="char-limit ${value.length > MAX_CHARS * .9 ? 'near' : ''}" id="char-count">${value.length > MAX_CHARS * .8 ? value.length.toLocaleString('ru-RU') + ' / 12 000' : ''}</span><span class="keyboard-hint">${state.settings.enterToSend ? 'Enter — отправить' : 'Ctrl Enter — отправить'}</span></div>`;
   }
   function updateComposerState() {
     const input = $('#prompt-input'); const send = $('#send-button'); if (!input || !send) return;
@@ -305,23 +331,77 @@
   }
   function fillPrompt(text, assistantId) {
     if (activeStream) { toast('Сначала остановите текущий ответ или дождитесь его завершения.', 'error'); return; }
-    if (assistantId) state.selectedAssistant = assistantId;
+    if (assistantId) {
+      state.selectedAssistant = assistantId;
+      if (isPhone()) state.settings.simpleMode = assistantMode(assistant(assistantId));
+    }
     state.drafts.new = text.slice(0, MAX_CHARS);
     closeModal(); navigate('home');
     requestAnimationFrame(() => { const input = $('#prompt-input'); if (input) { input.value = state.drafts.new || ''; updateComposerState(); input.focus(); input.setSelectionRange(input.value.length, input.value.length); } });
   }
   /* Home */
+  let homeBasePrompts = { assistantId: null, items: [] };
+  let homeBaseRequest = 0;
+  function creativePrompts(a) {
+    return isPhone() && homeBasePrompts.assistantId === a.id && homeBasePrompts.items.length ? homeBasePrompts.items : a.prompts;
+  }
+  function homePromptCards(a) {
+    const quickIcons = [a.icon, 'lightbulb', 'route'];
+    return creativePrompts(a).map((p, i) => `<button class="quick-card tone-${a.tone}" data-action="use-creative-prompt" data-id="${a.id}" data-index="${i}">${icon(quickIcons[i])}<strong>${esc(p.title)}</strong><span>${esc(p.text.length > 85 ? p.text.slice(0, 82) + '…' : p.text)}</span></button>`).join('');
+  }
+  function mediaModeSwitchMarkup() {
+    const audioMode = modeGroup(state.settings.simpleMode) === 'audio' ? state.settings.simpleMode : 'music';
+    const modes = ['image', 'video', audioMode, 'text'];
+    return `<div class="mobile-media-switch" role="group" aria-label="Тип медиа">${modes.map(id => {
+      const m = SIMPLE_MODES.find(item => item.id === id);
+      const active = state.settings.simpleMode === id || (modeGroup(state.settings.simpleMode) === 'audio' && modeGroup(id) === 'audio');
+      return `<button type="button" class="mobile-media-option ${active ? 'active' : ''}" data-action="set-mode" data-id="${id}" aria-pressed="${active}">${icon(m.icon)}<span>${esc(m.mobileTitle)}</span></button>`;
+    }).join('')}</div>`;
+  }
+  async function loadCreativeBase(selected) {
+    const request = ++homeBaseRequest;
+    const heading = $('.quick-heading h2');
+    if (heading) heading.textContent = 'Подбираем идеи из вашей базы…';
+    try {
+      const base = window.BRIIX_MUSIC_BASE;
+      if (!base) return;
+      await base.load();
+      const songwriter = selected.id === 'songwriter';
+      const query = getDraft().trim() || selected.prompts.map(p => p.text).join(' ');
+      const entries = base.pick(query, { limit: 3, withLyrics: songwriter, lang: songwriter ? 'ru' : null });
+      const items = entries.map(entry => ({
+        title: base.label(entry),
+        text: songwriter ? 'Песня на русском: ' + entry.sound : entry.sound
+      }));
+      if (!items.length) return;
+      homeBasePrompts = { assistantId: selected.id, items };
+      if (request !== homeBaseRequest || route().page !== 'home' || state.selectedAssistant !== selected.id) return;
+      const grid = $('#quick-grid');
+      if (grid) grid.innerHTML = homePromptCards(selected);
+      const title = $('.quick-heading h2');
+      if (title) title.textContent = 'DJ1 · 8 202 промпта · 6 133 текста';
+    } catch {
+      // Статические подсказки остаются: потеря базы не блокирует ручной бриф.
+      if (request === homeBaseRequest) {
+        const title = $('.quick-heading h2');
+        if (title) title.textContent = 'Подсказки для аудио';
+      }
+    }
+  }
   function renderHome() {
     const selected = assistant(state.selectedAssistant);
     const name = state.settings.name.trim().split(' ')[0];
-    const quickIcons = [selected.icon, 'lightbulb', 'route'];
-    main.innerHTML = `<section class="home" aria-labelledby="home-title"><div id="chat-live-banner" class="storage-banner live-mode-banner" role="status" hidden><span data-live-banner-text></span><a class="text-btn" href="#/settings" data-live-settings aria-label="Ключ в Настройках" title="Ключ в Настройках" hidden>${icon('settings')}<span>Ключ в Настройках</span></a></div><div class="home-intro"><div class="greeting-mark">${brandMark()}</div><h1 id="home-title">${name ? esc(name) + ', с чего начнём?' : 'Больше ясности. Меньше рутины.'}</h1><p>Поможем разобраться, найти слова и превратить идею в следующий шаг.</p></div><div class="assistant-strip" role="group" aria-label="Выбор помощника">${assistants.slice(0, 5).map(a => `<button class="assistant-chip tone-${a.tone} ${a.id === selected.id ? 'selected' : ''}" data-action="select-assistant" data-id="${a.id}" aria-pressed="${a.id === selected.id}">${icon(a.icon)}${esc(a.name)}</button>`).join('')}<a class="assistant-chip more" href="#/assistants" aria-label="Все помощники" title="Все помощники">${icon('grid')}</a></div>${composerMarkup()}${state.settings.showSuggestions ? `<div class="quick-heading"><h2>Немного вдохновения для старта</h2><button class="text-btn" data-action="shuffle-prompts">${icon('refresh')}Другой помощник</button></div><div class="quick-grid" id="quick-grid">${selected.prompts.map((p, i) => `<button class="quick-card tone-${selected.tone}" data-action="use-assistant-prompt" data-id="${selected.id}" data-index="${i}">${icon(quickIcons[i])}<strong>${esc(p.title)}</strong><span>${esc(p.text.length > 85 ? p.text.slice(0, 82) + '…' : p.text)}</span></button>`).join('')}</div>` : ''}<div class="studio-links" role="group" aria-label="Мастерские"><a class="studio-link" href="#/media"><span class="avatar tone-green">${icon('image')}</span><span class="studio-link-text"><strong>Изображения</strong><small>Фото и видео для контента · локальный мок</small></span>${icon('arrowRight')}</a><a class="studio-link" href="#/music"><span class="avatar tone-teal">${icon('music')}</span><span class="studio-link-text"><strong>Музыка</strong><small>Песня, инструментал или джингл · локальный мок</small></span>${icon('arrowRight')}</a></div><div class="home-bottom">${icon(chatLiveActive() ? 'route' : 'flask')}${chatLiveActive() ? 'Приватный live: отвечает ваша модель, история остаётся в этом браузере.' : 'Это демо: ответы сценарные, возможности интерфейса — настоящие.'}<button data-action="about">Подробнее</button></div></section>`;
+    const mobile = isPhone();
+    const group = modeGroup(state.settings.simpleMode);
+    const suggestionTitle = ({ image: 'Подсказки для фото', video: 'Подсказки для видео', audio: 'Подсказки для аудио', text: 'Немного вдохновения для старта' })[group];
+    main.innerHTML = `<section class="home" aria-labelledby="home-title"><div id="chat-live-banner" class="storage-banner live-mode-banner" role="status" hidden><span data-live-banner-text></span><a class="text-btn" href="#/settings" data-live-settings aria-label="Ключ в Настройках" title="Ключ в Настройках" hidden>${icon('settings')}<span>Ключ в Настройках</span></a></div><div class="home-intro"><div class="greeting-mark">${brandMark()}</div><h1 id="home-title">${mobile ? 'Что создадим?' : name ? esc(name) + ', с чего начнём?' : 'Больше ясности. Меньше рутины.'}</h1><p>Поможем разобраться, найти слова и превратить идею в следующий шаг.</p></div>${mobile ? mediaModeSwitchMarkup() : `<div class="assistant-strip" role="group" aria-label="Выбор помощника">${assistants.slice(0, 5).map(a => `<button class="assistant-chip tone-${a.tone} ${a.id === selected.id ? 'selected' : ''}" data-action="select-assistant" data-id="${a.id}" aria-pressed="${a.id === selected.id}">${icon(a.icon)}${esc(a.name)}</button>`).join('')}<a class="assistant-chip more" href="#/assistants" aria-label="Все помощники" title="Все помощники">${icon('grid')}</a></div>`}${composerMarkup()}${state.settings.showSuggestions ? `<div class="quick-heading"><h2>${suggestionTitle}</h2>${mobile ? '' : `<button class="text-btn" data-action="shuffle-prompts">${icon('refresh')}Другой помощник</button>`}</div><div class="quick-grid" id="quick-grid">${homePromptCards(selected)}</div>` : ''}${mobile ? '' : `<div class="studio-links" role="group" aria-label="Мастерские"><a class="studio-link" href="#/media"><span class="avatar tone-green">${icon('image')}</span><span class="studio-link-text"><strong>Изображения</strong><small>Фото и видео для контента · локальный мок</small></span>${icon('arrowRight')}</a><a class="studio-link" href="#/music"><span class="avatar tone-teal">${icon('music')}</span><span class="studio-link-text"><strong>Музыка</strong><small>Песня, инструментал или джингл · локальный мок</small></span>${icon('arrowRight')}</a></div><div class="home-bottom">${icon(chatLiveActive() ? 'route' : 'flask')}${chatLiveActive() ? 'Приватный live: отвечает ваша модель, история остаётся в этом браузере.' : 'Это демо: ответы сценарные, возможности интерфейса — настоящие.'}<button data-action="about">Подробнее</button></div>`}</section>`;
     renderAttachments(); updateComposerState();
+    if (mobile && group === 'audio' && state.settings.showSuggestions) loadCreativeBase(selected);
   }
   /* Catalogs */
   function pageHeader(eyebrow, title, description, action = '') { return `<div class="page-header"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${description}</p></div>${action}</div>`; }
   function renderAssistants() {
-    main.innerHTML = `<section class="page" aria-label="Помощники">${pageHeader('Под задачу, а не наоборот', 'Один вопрос. Разные сильные стороны.', 'Выберите собеседника под то, что хотите сделать. Каждый помощник показывает свои примеры и подход к ответу.', '<button class="btn small" data-action="about">' + icon('info') + 'Как это работает</button>')}<div class="filter-bar"><div class="tabs" role="group" aria-label="Категории помощников">${[['all', 'Все помощники'], ['everyday', 'На каждый день'], ['work', 'Работа'], ['creative', 'Творчество'], ['learning', 'Обучение']].map(([id, label]) => `<button class="tab ${catalogFilter === id ? 'active' : ''}" data-action="filter-assistants" data-id="${id}" aria-pressed="${catalogFilter === id}">${label}</button>`).join('')}</div><label class="inline-search">${icon('search')}<input id="assistant-search" type="search" placeholder="Найти помощника" aria-label="Найти помощника" value="${esc(catalogQuery)}"></label></div><div class="assistant-grid" id="assistant-grid"></div><div class="catalog-note">${icon('flask')}<span>В демо помощники — разные сценарии общения, а не подключённые модели. Ответы подготовлены заранее; произвольный вопрос получит пример ответа по профилю помощника. Реальную модель можно подключить позже, сохранив интерфейс.</span></div></section>`;
+    main.innerHTML = `<section class="page" aria-label="Помощники">${pageHeader('Под задачу, а не наоборот', 'Один вопрос. Разные сильные стороны.', 'Выберите собеседника под то, что хотите сделать. Каждый помощник показывает свои примеры и подход к ответу.', '<button class="btn small" data-action="about">' + icon('info') + 'Как это работает</button>')}<div class="filter-bar"><div class="tabs" role="group" aria-label="Категории помощников">${[['all', 'Все помощники'], ['everyday', 'На каждый день'], ['work', 'Работа'], ['creative', 'Творчество'], ['learning', 'Обучение']].map(([id, label]) => `<button class="tab ${catalogFilter === id ? 'active' : ''}" data-action="filter-assistants" data-id="${id}" aria-pressed="${catalogFilter === id}">${label}</button>`).join('')}</div><label class="inline-search">${icon('search')}<input id="assistant-search" type="search" placeholder="Найти помощника" aria-label="Найти помощника" value="${esc(catalogQuery)}"></label></div><div class="assistant-grid" id="assistant-grid"></div><div class="catalog-note">${icon('flask')}<span>Без live помощники используют заранее подготовленные сценарии. После подключения media-bff текст отвечает серверная модель, а изображения и музыка уходят в серверную очередь. Режим всегда виден в интерфейсе.</span></div></section>`;
     updateAssistantGrid();
   }
   function updateAssistantGrid() {
@@ -368,13 +448,14 @@
     renderAttachments(); updateComposerState(); restoreComposer(draft); ensureGenerationTimer();
   }
   function generationSource(gen) {
-    return gen.kind === 'image' ? window.BRIIX_MEDIA?.job(gen.targetId) : window.BRIIX_MUSIC?.track(gen.targetId);
+    return ['image', 'video'].includes(gen.kind) ? window.BRIIX_MEDIA?.job(gen.targetId) : window.BRIIX_MUSIC?.track(gen.targetId);
   }
   function generationCard(m, gen) {
     const item = generationSource(gen);
-    const title = ({ image: 'Картинка', music: 'Музыка', song: 'Песня' })[gen.kind];
-    const label = gen.mode === 'live' ? 'Ваш сервер' : 'Локальный мок, не нейросеть';
-    const href = gen.kind === 'image' ? '#/media' : '#/music';
+    const title = ({ image: 'Картинка', video: 'Видео', music: 'Музыка', song: 'Песня' })[gen.kind];
+    const model = item?.serverModel || item?.provenance?.model;
+    const label = gen.mode === 'live' ? 'Live · ' + esc(model || 'ваш сервер') : 'Локальный мок, не нейросеть';
+    const href = ['image', 'video'].includes(gen.kind) ? '#/media' : '#/music';
     if (!item) return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon('alert')}<strong>${title}</strong><span class="badge">${label}</span></div><p class="gen-note">Результат больше не хранится в этом браузере. Бриф остался — можно повторить.</p><a class="text-btn" href="${href}">${icon('arrowRight')}Открыть раздел</a></div>`;
     if (['queued', 'running'].includes(item.status)) {
       return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon('clock')}<strong>${title} собирается</strong><span class="badge">${label}</span></div><div class="media-progress" role="progressbar" aria-label="Готовность" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${item.progress || 0}"><span style="width:${item.progress || 0}%"></span></div><p class="gen-note">${gen.mode === 'live' ? 'Считает ваш сервер. Это минуты, а не секунды.' : 'Заглушка собирается прямо в браузере.'}</p></div>`;
@@ -384,8 +465,11 @@
     }
     const media = gen.kind === 'image'
       ? `<img class="gen-image" src="${esc(window.BRIIX_MEDIA.resultUrl(gen.targetId) || '')}" alt="Результат по вашему описанию">`
-      : (genUrls[m.id] ? `<audio class="gen-audio" controls preload="metadata" src="${esc(genUrls[m.id])}"></audio>` : `<p class="gen-note">Готово, загружаю звук…</p>`);
-    return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon(gen.kind === 'image' ? 'image' : gen.kind === 'song' ? 'mic' : 'music')}<strong>${title} готова</strong><span class="badge">${label}</span></div>${media}<div class="gen-foot"><span>${esc((m.content || '').slice(0, 90))}</span><a class="text-btn" href="${href}">${icon('settings')}Настроить подробно</a></div></div>`;
+      : gen.kind === 'video'
+        ? `<video class="gen-video" controls playsinline preload="metadata" src="${esc(window.BRIIX_MEDIA.resultUrl(gen.targetId) || '')}" aria-label="Видео по вашему описанию"></video>`
+        : (genUrls[m.id] ? `<audio class="gen-audio" controls preload="metadata" src="${esc(genUrls[m.id])}"></audio>` : `<p class="gen-note">Готово, загружаю звук…</p>`);
+    const readyTitle = gen.kind === 'video' ? 'Видео готово' : title + ' готова';
+    return `<div class="gen-card" data-gen-card="${esc(m.id)}"><div class="gen-head">${icon(gen.kind === 'image' ? 'image' : gen.kind === 'video' ? 'play' : gen.kind === 'song' ? 'mic' : 'music')}<strong>${readyTitle}</strong><span class="badge">${label}</span></div>${media}<div class="gen-foot"><span>${esc((m.content || '').slice(0, 90))}</span><a class="text-btn" href="${href}">${icon('settings')}Настроить подробно</a></div></div>`;
   }
   const genUrls = {};
   let genTimer = null;
@@ -401,7 +485,8 @@
   function ensureGenerationTimer() {
     const pending = () => Object.entries(state.generations || {}).filter(([, g]) => {
       const item = generationSource(g);
-      return !item || ['queued', 'running'].includes(item.status) || (item.status === 'ready' && g.kind !== 'image' && !genUrls[Object.keys(state.generations).find(k => state.generations[k] === g)]);
+      const visualPending = item?.status === 'ready' && ['image', 'video'].includes(g.kind) && g.mode === 'live' && !window.BRIIX_MEDIA.resultUrl(g.targetId);
+      return !item || ['queued', 'running'].includes(item.status) || visualPending || (item.status === 'ready' && !['image', 'video'].includes(g.kind) && !genUrls[Object.keys(state.generations).find(k => state.generations[k] === g)]);
     });
     if (genTimer || !pending().length) return;
     genTimer = setInterval(async () => {
@@ -410,7 +495,8 @@
         const item = generationSource(gen);
         if (!item) continue;
         if (['queued', 'running'].includes(item.status)) { active = true; paintGenerationCard(messageId); continue; }
-        if (item.status === 'ready' && gen.kind !== 'image' && !genUrls[messageId]) {
+        if (item.status === 'ready' && ['image', 'video'].includes(gen.kind) && gen.mode === 'live' && !window.BRIIX_MEDIA.resultUrl(gen.targetId)) { active = true; paintGenerationCard(messageId); continue; }
+        if (item.status === 'ready' && !['image', 'video'].includes(gen.kind) && !genUrls[messageId]) {
           active = true;
           const url = await window.BRIIX_MUSIC.audioUrl(gen.targetId);
           if (url) {
@@ -430,7 +516,7 @@
     chat.messages.push(message); chat.updatedAt = Date.now();
     state.generations = state.generations || {};
     let result;
-    if (mode === 'image') result = await window.BRIIX_MEDIA.generate({ prompt: content });
+    if (['image', 'video'].includes(mode)) result = await window.BRIIX_MEDIA.generate({ prompt: content, type: mode });
     else {
       let lyrics = '';
       if (mode === 'song') {
@@ -445,6 +531,7 @@
     if (!result || result.error) {
       message.content = result?.error || 'Не удалось поставить задачу.';
       message.status = 'error';
+      message.generationError = true;
       persist(); refreshMessages(); announce('Задача не создана.'); return;
     }
     state.generations[message.id] = { kind: mode, targetId: result.id, mode: result.mode === 'live' ? 'live' : 'mock' };
@@ -459,7 +546,7 @@
     const last = chat.messages.at(-1)?.id === m.id;
     const streaming = activeStream?.messageId === m.id;
     const saved = state.saved.some(s => s.messageId === m.id && s.chatId === chat.id);
-    const body = state.generations?.[m.id] ? generationCard(m, state.generations[m.id]) : m.status === 'error' ? `<div class="message-error"><strong>${icon('alert')}Не удалось получить ответ</strong>${window.BRIIX_CHAT_LIVE?.errorNote(m) || '<p>Это демонстрационная ошибка. Сообщение сохранено — можно повторить запрос, ничего не вводя заново.</p>'}<button class="btn small" data-action="retry" data-id="${esc(m.id)}" ${last ? '' : 'disabled'}>${icon('refresh')}Попробовать снова</button></div>` : `${m.content ? `<div class="prose" data-prose-id="${esc(m.id)}">${markdown(m.content)}${streaming ? '<span class="streaming-caret" aria-hidden="true"></span>' : ''}</div>` : `<div class="typing"><span class="typing-dots"><i></i><i></i><i></i></span>Собираем мысль…</div>${chatLiveActive() ? '<p class="wait-line" data-wait data-wait-type="chat" aria-live="off"></p>' : ''}`}${m.status === 'stopped' ? `<div class="stopped-note">${icon('stop')}Вы остановили ответ. Можно продолжить вопросом или попробовать другой вариант.</div>` : ''}`;
+    const body = state.generations?.[m.id] ? generationCard(m, state.generations[m.id]) : m.status === 'error' ? `<div class="message-error"><strong>${icon('alert')}${m.generationError ? 'Задача не создана' : 'Не удалось получить ответ'}</strong>${m.generationError ? `<p>${esc(m.content)}</p>` : window.BRIIX_CHAT_LIVE?.errorNote(m) || '<p>Это демонстрационная ошибка. Сообщение сохранено — можно повторить запрос, ничего не вводя заново.</p>'}${m.generationError ? '' : `<button class="btn small" data-action="retry" data-id="${esc(m.id)}" ${last ? '' : 'disabled'}>${icon('refresh')}Попробовать снова</button>`}</div>` : `${m.content ? `<div class="prose" data-prose-id="${esc(m.id)}">${markdown(m.content)}${streaming ? '<span class="streaming-caret" aria-hidden="true"></span>' : ''}</div>` : `<div class="typing"><span class="typing-dots"><i></i><i></i><i></i></span>Собираем мысль…</div>${chatLiveActive() ? '<p class="wait-line" data-wait data-wait-type="chat" aria-live="off"></p>' : ''}`}${m.status === 'stopped' ? `<div class="stopped-note">${icon('stop')}Вы остановили ответ. Можно продолжить вопросом или попробовать другой вариант.</div>` : ''}`;
     return `<article class="message assistant" data-message-id="${esc(m.id)}" aria-label="Ответ: ${esc(a.name)}">${avatar(a, 'small')}<div class="message-body"><div class="message-heading"><strong>${esc(a.name)}</strong>${window.BRIIX_CHAT_LIVE?.badge(m) || '<span class="badge">Демо-ответ</span>'}<time datetime="${new Date(m.createdAt).toISOString()}">${timeLabel(m.createdAt)}</time></div><div class="message-content">${body}</div>${window.BRIIX_CHAT_LIVE?.provenanceMarkup(m) || ''}${!streaming ? `<div class="message-actions"><button class="icon-btn" data-action="copy-message" data-id="${esc(m.id)}" aria-label="Скопировать ответ" title="Скопировать" ${m.status === 'error' ? 'disabled' : ''}>${icon('copy')}</button><button class="icon-btn ${saved ? 'active' : ''}" data-action="save-message" data-id="${esc(m.id)}" aria-label="${saved ? 'Убрать ответ из избранного' : 'Сохранить ответ'}" aria-pressed="${saved}" title="${saved ? 'Сохранено' : 'Сохранить ответ'}" ${m.status === 'error' ? 'disabled' : ''}>${icon('bookmark')}</button><span class="action-divider"></span><button class="icon-btn ${m.feedback === 'up' ? 'active' : ''}" data-action="feedback" data-id="${esc(m.id)}" data-value="up" aria-label="Хороший ответ" aria-pressed="${m.feedback === 'up'}" title="Хороший ответ" ${m.status === 'error' ? 'disabled' : ''}>${icon('thumbsUp')}</button><button class="icon-btn ${m.feedback === 'down' ? 'active' : ''}" data-action="feedback" data-id="${esc(m.id)}" data-value="down" aria-label="Ответ нужно улучшить" aria-pressed="${m.feedback === 'down'}" title="Нужно улучшить" ${m.status === 'error' ? 'disabled' : ''}>${icon('thumbsDown')}</button>${m.feedback ? '<span class="feedback-note">Отметка сохранена локально</span>' : ''}${last && !window.BRIIX_CHAT_LIVE?.provenanceFor(m.id)?.contentBlocked ? `<button class="text-btn" data-action="regenerate" data-id="${esc(m.id)}">${icon('refresh')}Другой вариант</button>` : ''}</div>` : `<div class="message-actions"><button class="text-btn" data-action="stop">${icon('stop')}Остановить</button></div>`}</div></article>`;
   }
   function followupMarkup(chat) {
@@ -668,7 +755,7 @@
       <section class="settings-section reveal" id="settings-profile"><h2>Локальный профиль</h2><p>Это не аккаунт. Имя нужно только для приветствия.</p><div class="settings-card"><div class="setting-row"><div><label class="setting-label" for="setting-name">Как к вам обращаться</label><div class="setting-help">Останется на этом устройстве. Можно оставить пустым.</div></div><input type="text" id="setting-name" data-setting="name" maxlength="40" placeholder="Например, Саша" value="${esc(state.settings.name)}"></div></div></section>
       ${standSection()}
       <section class="settings-section reveal" id="settings-data"><h2>Данные и демо</h2><p>Всё под вашим контролем. Экспортируйте копию перед очисткой браузера.</p><div class="settings-card">${settingToggle('saveHistory', 'Сохранять историю диалогов', 'Если выключить, новые диалоги не сохраняются после перезагрузки. Уже сохранённые остаются, пока вы их не удалите.')}${settingToggle('simulateErrors', 'Ошибка в следующем ответе', 'Проверить состояние ошибки и повтор. Сработает один раз, затем выключится автоматически.')}<div class="setting-row"><div style="flex:1"><div class="setting-label">Локальное хранилище</div><div class="setting-help">${state.chats.length} диалогов · ${state.saved.length} сохранённых ответов · ${storageProtected ? 'исходные данные защищены, работа в памяти' : storageAvailable ? 'доступно' : 'недоступно, работа в памяти'}</div><div class="storage-meter"><span style="width:${Math.min(100, bytes / (5 * 1024 * 1024) * 100)}%"></span></div><div class="storage-caption"><span>${(bytes / 1024).toFixed(1)} КБ данных</span><span>Ориентир браузера: ~5 МБ</span></div><div class="data-actions"><button class="btn small" data-action="export-all">${icon('download')}Экспорт JSON</button><button class="btn small" data-action="import-all">${icon('upload')}Импорт JSON</button></div></div></div><div class="setting-row"><div><div class="setting-label">Начать с чистого листа</div><div class="setting-help">Удалить диалоги, избранное и черновики. Настройки останутся.</div></div><button class="btn small danger" data-action="clear-data">${icon('trash')}Очистить</button></div><div class="setting-row"><div><div class="setting-label">Вернуть начальное демо</div><div class="setting-help">Три примера диалогов и настройки по умолчанию.</div></div><button class="btn small" data-action="reset-demo">${icon('refresh')}Сбросить</button></div></div></section>
-      <footer class="settings-footer"><span>BRIIX · UI-демо 2.0 · без backend</span><button class="text-btn" data-action="about">Что работает, а что имитируется ${icon('arrowRight')}</button></footer>
+      <footer class="settings-footer"><span>BRIIX · локальный мок + опциональный live</span><button class="text-btn" data-action="about">Что работает, а что имитируется ${icon('arrowRight')}</button></footer>
     </div></div></section>`;
     setupReveals(); updateSettingsSpy();
     if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
@@ -711,19 +798,23 @@
   function closeModal() { if (modal.open) modal.close(); }
   function chooseAssistant() {
     const chat = currentChat(); const selected = chat?.assistantId || state.selectedAssistant;
-    openModal('Кто поможет сегодня?', `<p>У каждого помощника свои примеры и тон ответа. В демо это сценарии, не разные модели.</p>${assistants.map(a => `<button class="assistant-option tone-${a.tone} ${selected === a.id ? 'selected' : ''}" data-action="modal-select-assistant" data-id="${a.id}">${avatar(a)}<span class="assistant-option-text"><strong>${esc(a.name)}</strong><span>${esc(a.short)}</span></span>${selected === a.id ? icon('check') : icon('chevronRight')}</button>`).join('')}`, [{ label: 'Все помощники', action: () => { closeModal(); navigate('assistants'); } }]);
+    const filtered = isPhone() && route().page === 'home'
+      ? assistants.filter(a => modeGroup(assistantMode(a)) === modeGroup(state.settings.simpleMode))
+      : assistants;
+    openModal('Кто поможет сегодня?', `<p>У каждого помощника свои примеры и тон ответа. В демо это сценарии, не разные модели.</p>${filtered.map(a => `<button class="assistant-option tone-${a.tone} ${selected === a.id ? 'selected' : ''}" data-action="modal-select-assistant" data-id="${a.id}">${avatar(a)}<span class="assistant-option-text"><strong>${esc(a.name)}</strong><span>${esc(a.short)}</span></span>${selected === a.id ? icon('check') : icon('chevronRight')}</button>`).join('')}`, [{ label: 'Все помощники', action: () => { closeModal(); navigate('assistants'); } }]);
   }
   function selectAssistant(id) {
     const a = assistant(id); const chat = currentChat();
     if (chat) { chat.assistantId = a.id; } else state.selectedAssistant = id;
+    if (isPhone() && route().page === 'home') state.settings.simpleMode = assistantMode(a);
     persist(); closeModal(); renderSidebar(); render(); toast('Теперь помогает: ' + a.name);
   }
   function assistantDetails(id) {
     const a = assistant(id);
-    openModal('Знакомьтесь, ' + a.name.toLowerCase(), `<div class="modal-detail-top tone-${a.tone}">${avatar(a, 'large')}<div><h3>${esc(a.name)}</h3><p>${esc(a.short)}</p></div></div><p>${esc(a.description)}</p><div class="skill-list tone-${a.tone}">${a.skills.map(s => `<span class="skill">${esc(s)}</span>`).join('')}</div><div class="eyebrow" style="margin-top:22px">Попробуйте на примере</div><div class="detail-prompts">${a.prompts.map((p, i) => `<button class="detail-prompt" data-action="use-assistant-prompt" data-id="${a.id}" data-index="${i}"><span>${esc(p.title)}</span>${icon('arrowRight')}</button>`).join('')}</div><div class="catalog-note">${icon('flask')}<span>Ответы сценарные. Помощник не подключён к модели и не выполняет действия во внешних сервисах.</span></div>`, [{ label: 'Закрыть', action: closeModal }, { label: 'Начать диалог', primary: true, action: () => { state.selectedAssistant = a.id; closeModal(); navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); } }]);
+    openModal('Знакомьтесь, ' + a.name.toLowerCase(), `<div class="modal-detail-top tone-${a.tone}">${avatar(a, 'large')}<div><h3>${esc(a.name)}</h3><p>${esc(a.short)}</p></div></div><p>${esc(a.description)}</p><div class="skill-list tone-${a.tone}">${a.skills.map(s => `<span class="skill">${esc(s)}</span>`).join('')}</div><div class="eyebrow" style="margin-top:22px">Попробуйте на примере</div><div class="detail-prompts">${a.prompts.map((p, i) => `<button class="detail-prompt" data-action="use-assistant-prompt" data-id="${a.id}" data-index="${i}"><span>${esc(p.title)}</span>${icon('arrowRight')}</button>`).join('')}</div><div class="catalog-note">${icon('flask')}<span>В локальном режиме ответы сценарные. В live текст и творческие брифы уходят только на подключённый вами media-bff.</span></div>`, [{ label: 'Закрыть', action: closeModal }, { label: 'Начать диалог', primary: true, action: () => { state.selectedAssistant = a.id; closeModal(); navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); } }]);
   }
   function about() {
-    openModal('Место для идей. Пока — демо.', `<p>Это интерактивный прототип пользовательского опыта BRIIX. Можно исследовать весь интерфейс без регистрации и backend.</p><div class="about-grid"><div class="about-item">${icon('check')}<div><strong>Работает по-настоящему</strong><p>Выбор помощника, диалоги, поиск, история, избранное, экспорт, настройки, тёмная тема и мобильная версия. Данные сохраняются в вашем браузере.</p></div></div><div class="about-item">${icon('flask')}<div><strong>Имитируется честно</strong><p>Ответы — заранее подготовленные сценарии, а не работа нейросети. Раздел «Изображения» использует локальные картинки и анимации, а «Музыка» — синтезированную в браузере звуковую заглушку без вокала. Это не inference. Знакомые примеры раскрываются подробно; на другой текст помощник даёт демонстрационный ответ своего профиля.</p></div></div><div class="about-item">${icon('paperclip')}<div><strong>Файлы — визуальные заглушки</strong><p>Сохраняются только имя, тип и размер. Содержимое не читается, никуда не загружается и не анализируется.</p></div></div><div class="about-item">${icon('shield')}<div><strong>Локально не значит навсегда</strong><p>Очистка данных браузера удалит историю. Для переноса или резервной копии используйте экспорт JSON в настройках. Не вводите чувствительные данные на общем устройстве.</p></div></div></div><div class="eyebrow" style="margin-top:20px">Вопросы о демо</div><div class="faq-list">${faqItem('model', 'Это настоящая нейросеть?', 'Нет. Ответы заранее подготовлены под примеры и профили помощников. Так можно проверять интерфейс, не подключая модель и не отправляя данные наружу.')}${faqItem('storage', 'Куда сохраняются диалоги?', 'Только в localStorage этого браузера. На другом устройстве или после очистки данных браузера история не появится. Для переноса есть экспорт и импорт JSON в настройках.')}${faqItem('files', 'Что происходит с файлами?', 'Это визуальные заглушки. Сохраняются имя, тип и размер, чтобы проверить интерфейс вложений. Содержимое не читается, не анализируется и не загружается на сервер.')}${faqItem('policy', 'Есть ли проверка контента?', 'Генерации проходят проверку контента: без порнографии. Художественная нагота — допустима. Если запрос не проходит, сервер объясняет причину: измените формулировку и отправьте снова — это не сбой сервиса.')}${faqItem('backend', 'Можно ли потом подключить backend?', 'Да. Экраны, состояние и сценарные ответы отделены друг от друга. Позже сценарный генератор можно заменить реальным API, сохранив пользовательский интерфейс.')}</div>`, [{ label: 'Понятно, попробуем', primary: true, action: closeModal }], true);
+    openModal('Место для идей. Локально или на вашем сервере.', `<p>Интерфейс работает без регистрации: с локальными моками или с моделями на вашем media-bff. Текущий режим всегда отмечен.</p><div class="about-grid"><div class="about-item">${icon('check')}<div><strong>Работает по-настоящему</strong><p>Выбор помощника, диалоги, поиск, история, избранное, экспорт, настройки, тёмная тема и мобильная версия. Данные сохраняются в вашем браузере.</p></div></div><div class="about-item">${icon('flask')}<div><strong>Два честных режима</strong><p>Локальный мок использует сценарии, готовые картинки и синтезированный браузером звук — это не inference. В live текст, изображения и аудио приходят с вашего сервера; карточка результата показывает модель и происхождение файла. Если live недоступен, ошибка не подменяется успешным моком.</p></div></div><div class="about-item">${icon('paperclip')}<div><strong>Файлы — визуальные заглушки</strong><p>Сохраняются только имя, тип и размер. Содержимое не читается, никуда не загружается и не анализируется.</p></div></div><div class="about-item">${icon('shield')}<div><strong>Локально не значит навсегда</strong><p>Очистка данных браузера удалит историю. Для переноса или резервной копии используйте экспорт JSON в настройках. Не вводите чувствительные данные на общем устройстве.</p></div></div></div><div class="eyebrow" style="margin-top:20px">Вопросы о демо</div><div class="faq-list">${faqItem('model', 'Это настоящая нейросеть?', 'В локальном моке — нет. В live — да, ответ выполняет модель из каталога вашего media-bff. Название модели и live-маркировка показываются у результата.')}${faqItem('storage', 'Куда сохраняются диалоги?', 'Только в localStorage этого браузера. На другом устройстве или после очистки данных браузера история не появится. Для переноса есть экспорт и импорт JSON в настройках.')}${faqItem('files', 'Что происходит с файлами?', 'Это визуальные заглушки. Сохраняются имя, тип и размер, чтобы проверить интерфейс вложений. Содержимое не читается, не анализируется и не загружается на сервер.')}${faqItem('policy', 'Есть ли проверка контента?', 'Генерации проходят проверку контента: без порнографии. Художественная нагота — допустима. Если запрос не проходит, сервер объясняет причину: измените формулировку и отправьте снова — это не сбой сервиса.')}${faqItem('backend', 'Как подключить серверные модели?', 'На телефоне нажмите «Подключить» под полем или откройте Настройки. Один bearer-ключ включает чат, изображения и музыку через media-bff. Видео-модели на текущем сервере нет, поэтому видео остаётся локальным моком.')}</div>`, [{ label: 'Понятно, попробуем', primary: true, action: closeModal }], true);
   }
   function shortcuts() {
     openModal('Меньше кликов, больше мысли', `<p>Работает на macOS, Windows и Linux. Вместо ⌘ можно использовать Ctrl.</p>${[['Поиск по пространству', isMac ? '⌘ K' : 'Ctrl K'], ['Новый диалог', isMac ? '⌘ ⇧ O' : 'Ctrl ⇧ O'], ['Отправить сообщение', state.settings.enterToSend ? 'Enter' : (isMac ? '⌘ Enter' : 'Ctrl Enter')], ['Перенести строку', 'Shift Enter'], ['Закрыть окно или меню', 'Esc'], ['Перейти по результатам поиска', '↑ / ↓ / Enter']].map(([label, keys]) => `<div class="shortcut-row"><span>${label}</span><kbd>${keys}</kbd></div>`).join('')}<div class="catalog-note">${icon('info')}<span>Настройки отправки можно поменять в разделе «Поведение». На телефоне используйте кнопку со стрелкой.</span></div>`, [{ label: 'Открыть настройки', action: () => { closeModal(); navigate('settings'); } }, { label: 'Закрыть', primary: true, action: closeModal }]);
@@ -779,6 +870,19 @@
   function onMainScroll() { updateTopbarShadow(); if (route().page === 'settings') updateSettingsSpy(); }
   /* Ключ стенда: один раз в Настройках — и чат, музыка и изображения работают на стенде.
    * Ключ остаётся в localStorage этого браузера и уходит только на адрес вашей шины. */
+  function mobileLiveSetup() {
+    const bus = window.BRIIX_BUS;
+    if (!bus) { toast('Модуль серверной шины не загрузился. Обновите страницу.', 'error'); return; }
+    const address = bus.server();
+    const proxyMode = !['127.0.0.1', 'localhost'].includes(location.hostname);
+    openModal('Модели на вашем сервере', `<p>Один ключ подключает фото, музыку, песни и текст через существующий media-bff. Ключ остаётся только в этом браузере.</p><div class="catalog-note">${icon('route')}<span>На стенде доступны FLUX, MusicGen, ACE-Step и Qwen — фактический статус проверим по каталогу. <strong>Видео-модели на сервере нет:</strong> режим «Видео» остаётся локальным моком.</span></div><label class="modal-field" for="stand-token">Ключ доступа к стенду</label><input class="modal-input" type="password" id="stand-token" autocomplete="off" spellcheck="false" placeholder="${bus.hasToken() ? '•••••••• ключ сохранён' : 'Вставьте ключ стенда'}" aria-describedby="stand-status"><label class="modal-field" for="stand-server">Адрес шины</label><input class="modal-input" type="url" id="stand-server" value="${esc(address)}" spellcheck="false" ${proxyMode ? 'readonly aria-readonly="true"' : ''}><p class="setting-help">${proxyMode ? 'На опубликованном сайте используется защищённый same-origin /api.' : 'Для локального запуска — ваш туннель к media-bff.'}</p><p class="stand-status" id="stand-status" role="status">${bus.hasToken() ? 'Ключ сохранён. Проверьте соединение и каталог моделей.' : 'Ключ ещё не задан — пока работает локальный мок.'}</p>`, [
+      { label: 'Закрыть', action: closeModal },
+      { label: bus.hasToken() ? 'Проверить и включить' : 'Сохранить и подключить', primary: true, action: async () => {
+        const result = await standCheck(true);
+        if (result?.ok) { closeModal(); if (route().page === 'home') render(); else navigate('home'); }
+      } }
+    ], true);
+  }
   function standSection() {
     const bus = window.BRIIX_BUS;
     const hasKey = !!bus?.hasToken();
@@ -808,6 +912,7 @@
     window.BRIIX_MUSIC_LIVE?.autoStart({ force: true });
     window.BRIIX_MEDIA_LIVE?.autoStart({ force: true });
     toast(result.ok ? 'Стенд доступен: ' + result.ready + ' моделей ready.' : result.message, result.ok ? 'success' : 'error');
+    return result;
   }
 
   function faqItem(id, question, answer) {
@@ -833,7 +938,7 @@
     document.title = (r.page === 'chat' && currentChat() ? currentChat().title + ' — BRIIX' : ({ home: 'Ваше пространство для идей', assistants: 'Помощники', prompts: 'Библиотека промптов', favorites: 'Избранное', media: 'Изображения', music: 'Музыка', settings: 'Настройки' }[r.page] || 'Диалог')) + ' — BRIIX';
   }
   const actions = {
-    'new-chat': () => { pendingAttachments = []; state.selectedAssistant = state.settings.defaultAssistant; navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); },
+    'new-chat': () => { pendingAttachments = []; state.selectedAssistant = isPhone() && state.settings.simpleMode !== 'text' ? simpleMode().assistant : state.settings.defaultAssistant; navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); },
     'send': sendMessage, 'stop': stopResponse,
     'choose-mode': () => {
       const menu = $('#mode-menu'); if (!menu) return;
@@ -844,22 +949,34 @@
     },
     'set-mode': el => {
       state.settings.simpleMode = el.dataset.id;
-      persist();
       const menu = $('#mode-menu'); if (menu) menu.hidden = true;
+      if (isPhone()) {
+        const a = assistant(simpleMode().assistant);
+        state.selectedAssistant = a.id;
+        const chat = currentChat(); if (chat) chat.assistantId = a.id;
+        homeBaseRequest += 1;
+      }
+      persist();
+      if (isPhone() && route().page === 'home') {
+        renderSidebar(); renderHome();
+        requestAnimationFrame(() => $('#prompt-input')?.focus());
+        return;
+      }
       const chip = $('[data-action="choose-mode"]');
       if (chip) { chip.setAttribute('aria-expanded', 'false'); chip.setAttribute('aria-label', 'Что делаем: ' + simpleMode().title); chip.innerHTML = icon(simpleMode().icon) + '<span class="select-name">' + esc(simpleMode().short) + '</span>' + icon('chevronDown'); chip.focus(); }
       $$('.mode-option').forEach(b => { const on = b.dataset.id === state.settings.simpleMode; b.classList.toggle('active', on); b.setAttribute('aria-checked', String(on)); });
       const input = $('#prompt-input');
-      if (input) { input.placeholder = state.settings.simpleMode === 'text' ? 'О чём вы думаете? Спросите, напишите, придумайте…' : ({ image: 'Опишите, что показать на картинке…', music: 'Опишите настроение музыки…', song: 'О чём песня? Лирику подберу из вашей базы…' })[state.settings.simpleMode]; input.focus(); }
-      const advanced = $('.mode-advanced'); if (advanced) advanced.setAttribute('href', '#/' + (state.settings.simpleMode === 'image' ? 'media' : state.settings.simpleMode === 'text' ? 'settings' : 'music'));
+      if (input) { input.placeholder = state.settings.simpleMode === 'text' ? 'О чём вы думаете? Спросите, напишите, придумайте…' : ({ image: 'Опишите кадр, свет и настроение…', video: 'Что происходит в видео? Добавьте движение камеры…', music: 'Опишите настроение музыки…', song: 'О чём песня? Лирику подберу из вашей базы…' })[state.settings.simpleMode]; input.focus(); }
+      const advanced = $('.mode-advanced'); if (advanced) advanced.setAttribute('href', '#/' + (['image', 'video'].includes(state.settings.simpleMode) ? 'media' : state.settings.simpleMode === 'text' ? 'settings' : 'music'));
     },
     'attach': () => $('#file-input').click(),
     'attach-example': () => { addAttachments([{ name: 'brief-kofeynya.pdf', size: 248320, type: 'application/pdf' }]); },
     'remove-attachment': el => { pendingAttachments = pendingAttachments.filter(f => f.id !== el.dataset.id); renderAttachments(); },
     'choose-assistant': chooseAssistant, 'select-assistant': el => selectAssistant(el.dataset.id), 'modal-select-assistant': el => selectAssistant(el.dataset.id),
-    'start-assistant': el => { state.selectedAssistant = el.dataset.id; persist(); navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); },
+    'start-assistant': el => { const a = assistant(el.dataset.id); state.selectedAssistant = a.id; if (isPhone()) state.settings.simpleMode = assistantMode(a); persist(); navigate('home'); requestAnimationFrame(() => $('#prompt-input')?.focus()); },
     'assistant-details': el => assistantDetails(el.dataset.id),
     'use-assistant-prompt': el => { const a = assistant(el.dataset.id); const p = a.prompts[Number(el.dataset.index)]; if (p) fillPrompt(p.text, a.id); },
+    'use-creative-prompt': el => { const a = assistant(el.dataset.id); const p = creativePrompts(a)[Number(el.dataset.index)]; if (p) fillPrompt(p.text, a.id); },
     'use-prompt': el => { const p = promptLibrary.find(p => p.id === el.dataset.id); if (p) { closeSearch(); fillPrompt(p.text, p.assistant); } },
     'shuffle-prompts': () => { const a = assistant(state.selectedAssistant); const next = assistants[(assistants.indexOf(a) + 1) % assistants.length]; state.selectedAssistant = next.id; persist(); renderHome(); toast('Идеи от помощника «' + next.name + '»'); },
     'filter-assistants': el => { catalogFilter = el.dataset.id; renderAssistants(); },
@@ -906,6 +1023,7 @@
       toast('Ключ удалён из этого браузера.');
     },
     'toggle-chat-live': () => { if (window.BRIIX_CHAT_LIVE) window.BRIIX_CHAT_LIVE.toggle(); else toast('Live-модуль не загрузился. Обновите страницу.', 'error'); },
+    'mobile-live-setup': mobileLiveSetup,
     'search-chat': el => { closeSearch(); navigate('chat/' + el.dataset.id); },
     'search-assistant': el => { closeSearch(); assistantDetails(el.dataset.id); },
     'toggle-sidebar': () => $('#sidebar').classList.contains('open') ? closeSidebar() : openSidebar(),
@@ -978,10 +1096,32 @@
   window.addEventListener('hashchange', () => { closeSidebar(false); pendingAttachments = []; if (draftTimer) flushDraft(); render(); });
   window.addEventListener('resize', () => { updateComposerState(); $$('.faq-item.open .faq-a').forEach(a => { a.style.maxHeight = a.scrollHeight + 'px'; }); });
   main.addEventListener('scroll', onMainScroll, { passive: true });
+  function refreshLiveChrome() {
+    const signature = [chatLiveActive(), mediaLiveActive(), musicLiveActive()].map(Number).join('');
+    if (refreshLiveChrome.signature !== signature) { refreshLiveChrome.signature = signature; renderTopbar(); }
+    const status = $('.mobile-model-status');
+    if (status && route().page === 'home') {
+      const current = mobileModeStatus();
+      const html = icon(current.live ? 'route' : 'lock') + current.text;
+      status.classList.toggle('active', current.live);
+      if (status.innerHTML !== html) status.innerHTML = html;
+      const button = $('.mobile-live-button');
+      if (button) {
+        const hasToken = !!window.BRIIX_BUS?.hasToken();
+        const label = hasToken ? 'Модели' : 'Подключить';
+        button.classList.toggle('active', current.live);
+        button.setAttribute('aria-label', hasToken ? 'Проверить подключение моделей' : 'Подключить серверные модели');
+        if (button.innerHTML !== icon('route') + label) button.innerHTML = icon('route') + label;
+      }
+    }
+  }
   window.BRIIX_UI = {
     toast,
+    refreshLiveChrome,
     refreshChat: () => { const r = route(); if (r.page === 'chat') { renderChat(); updateSendButton(); } else if (r.page === 'home') renderHome(); renderSidebar(); renderTopbar(); if (window.BRIIX_CHAT_LIVE) window.BRIIX_CHAT_LIVE.setBanner(window.BRIIX_CHAT_LIVE.bannerText()); }
   };
+  window.BRIIX_MEDIA_LIVE?.onHostReady();
+  window.BRIIX_MUSIC_LIVE?.onHostReady();
   window.BRIIX_CHAT_LIVE?.onHostReady();
   window.addEventListener('pagehide', () => { flushDraft(); window.BRIIX_MEDIA?.suspend(); window.BRIIX_MUSIC?.suspend(); window.BRIIX_CHAT_LIVE?.stop(); });
   mobileQuery.addEventListener('change', () => { closeSidebar(false); updateSidebarAccess(); });

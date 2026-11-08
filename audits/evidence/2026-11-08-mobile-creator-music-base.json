@@ -1,0 +1,54 @@
+{
+  "passed": 11,
+  "results": [
+    {
+      "name": "base stays unloaded until the author asks for it",
+      "requests": 0
+    },
+    {
+      "name": "prompt enriched from the author base, intent kept",
+      "before": 60,
+      "after": 288
+    },
+    {
+      "name": "prompt undo restores the author text"
+    },
+    {
+      "name": "lyrics inserted from the base with a visible source",
+      "chars": 1174,
+      "lang": "ru"
+    },
+    {
+      "name": "another variant gives a different text"
+    },
+    {
+      "name": "lyrics undo restores the author text"
+    },
+    {
+      "name": "auto-lyrics checkbox fills the empty field",
+      "chars": 1181
+    },
+    {
+      "name": "submit with empty lyrics auto-fills from the base and sends",
+      "lyricsChars": 1181
+    },
+    {
+      "name": "base search keeps focus and inserts a chosen prompt",
+      "cards": 6
+    },
+    {
+      "name": "honest source label and mobile-sized controls",
+      "overflow": 0,
+      "small": 0,
+      "fontSize": 16
+    },
+    {
+      "name": "no external requests, shards only, no page errors",
+      "files": [
+        "index.json",
+        "lyrics-19.json",
+        "lyrics-20.json"
+      ]
+    }
+  ]
+}

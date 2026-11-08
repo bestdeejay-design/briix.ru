@@ -34,9 +34,9 @@ const BASE = process.env.BRIIX_URL || 'http://127.0.0.1:8320';
   await chip.click();
   await page.waitForSelector('#mode-menu:not([hidden])');
   const options = await page.locator('.mode-option').allInnerTexts();
-  assert.equal(options.length, 4, 'ожидались четыре понятных режима');
+  assert.equal(options.length, 5, 'ожидались текст, фото, видео, музыка и песня');
   assert.match(await page.locator('.mode-advanced').innerText(), /Все настройки подробно/);
-  ok('mode menu offers four plain choices and a way to full settings', { options: options.map(t => t.split('\n')[0]) });
+  ok('mode menu offers five plain choices and a way to full settings', { options: options.map(t => t.split('\n')[0]) });
 
   // Картинка: одна фраза — результат в ленте, без ухода в раздел.
   await page.locator('.mode-option[data-id="image"]').click();

@@ -175,8 +175,10 @@ kbd { font-family: var(--font); font-size: 10px; font-weight: 450; color: var(--
 .gen-head .icon { width: 16px; height: 16px; color: var(--accent); }
 .gen-head strong { font-size: 14px; }
 .gen-head .badge { margin-left: auto; }
-.gen-image { display: block; width: 100%; border-radius: 10px; }
+.gen-image, .gen-video { display: block; width: 100%; border-radius: 10px; }
+.gen-video { max-height: 420px; background: var(--surface-2); }
 .gen-audio { width: 100%; margin-top: 2px; }
+.mobile-media-switch { display: none; }
 .gen-note { margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .gen-foot { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin-top: 10px; font-size: 11px; color: var(--muted); }
 .gen-foot span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -702,4 +704,48 @@ dialog { color: var(--ink); }
   .sidebar .history-item { min-height: 44px; }
   .sidebar .btn.new-chat { min-height: 48px; }
   .sidebar .icon-btn { width: 44px; height: 44px; }
+}
+
+/* Чистый мобильный сценарий: тип медиа → профильный помощник → задумка.
+   Только телефон; десктопная главная и утверждённая палитра не меняются. */
+@media (max-width: 650px) {
+  .home { padding: 18px 17px 24px; }
+  .home-intro { text-align: left; margin-bottom: 14px; }
+  .home h1 { font-size: 23px; letter-spacing: -.5px; margin: 0; }
+  .home > .live-mode-banner,
+  .home .assistant-strip,
+  .home .studio-links,
+  .home .home-bottom,
+  .home .mode-select,
+  .home .composer-toolbar [data-action="attach"],
+  .home .composer-context .chat-live-toggle { display: none !important; }
+
+  .mobile-media-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .mobile-media-option { min-width: 0; min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px 3px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+  .mobile-media-option .icon { width: 17px; height: 17px; }
+  .mobile-media-option.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+
+  .home .composer { padding: 13px 12px 10px; border-radius: 14px; box-shadow: var(--shadow-sm); }
+  .home .composer textarea { min-height: 92px; }
+  .home .composer-left { flex: 1 1 auto; min-width: 0; }
+  .home .assistant-select { flex: 1 1 auto; max-width: none; min-width: 0; justify-content: flex-start; }
+  .home .assistant-select .select-name { max-width: none; }
+  .home .composer-context { justify-content: flex-start; min-height: 28px; padding-top: 7px; font-size: 10px; }
+
+  .home .quick-heading { margin: 18px 0 9px; }
+  .home .quick-heading h2 { font-size: 11px; }
+  .home .quick-grid { gap: 6px; }
+  .home .quick-card { min-height: 48px; padding: 10px 12px; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 9px; border-radius: 10px; }
+  .home .quick-card > .icon { position: static; width: 16px; height: 16px; margin: 0; }
+  .home .quick-card strong { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .home .quick-card span { display: none; }
+}
+
+/* Один компактный вход в существующий media-bff, без возврата служебных панелей. */
+@media (max-width: 650px) {
+  .home .composer-context { flex-wrap: wrap; gap: 4px 8px; }
+  .home .mobile-model-status { flex: 1 1 190px; min-width: 0; display: inline-flex; align-items: center; gap: 5px; }
+  .home .mobile-model-status.active { color: var(--accent-ink); }
+  .home .composer-context .mobile-live-button { flex: 0 0 auto; min-height: 40px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 0 4px 8px; white-space: nowrap; font-size: 11px; }
+  .home .mobile-live-button.active { color: var(--accent-ink); }
 }

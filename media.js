@@ -457,15 +457,17 @@
     if (prompt.length < 12) return { error: 'Опишите задумку хотя бы 12 символами: что показать, какой свет и настроение.' };
     if (activeCount() >= MAX_ACTIVE || !makeRoom()) return { error: 'Очередь или медиатека заполнены. Освободите место.' };
     const type = ['image', 'video'].includes(params.type) ? params.type : 'image';
-    const ratio = /^\d+:\d+$/.test(String(params.ratio || '')) ? params.ratio : form.ratio;
+    const selectedRecipe = RECIPES.find(r => r.type === type) || RECIPES[0];
+    const ratio = /^\d+:\d+$/.test(String(params.ratio || '')) ? params.ratio : type === 'video' ? (form.ratio === '9:16' ? '9:16' : '16:9') : form.ratio;
     const project = String(params.project || '').trim().slice(0, 80);
     if (liveActive()) {
+      if (type === 'video') return { error: 'Live-видео пока не подключено. Выключите live для локального мока — подменять видео картинкой не будем.' };
       const before = state.jobs[0]?.id;
-      await window.BRIIX_MEDIA_LIVE.submit({ type: type === 'video' ? 'image' : type, prompt, project, ratio });
+      await window.BRIIX_MEDIA_LIVE.submit({ type, prompt, project, ratio });
       const created = state.jobs[0];
       return created && created.id !== before ? { id: created.id, mode: 'live' } : { error: 'Задача не принята сервером.' };
     }
-    const j = { id: uid(), type, recipe: form.recipe, asset: form.asset, goal: form.goal, ratio, project, prompt,
+    const j = { id: uid(), type, recipe: selectedRecipe.id, asset: selectedRecipe.asset, goal: selectedRecipe.goal, ratio, project, prompt,
       status: 'queued', progress: 0, favorite: false, createdAt: Date.now(), startedAt: null, fail: false, references: [] };
     state.jobs.unshift(j); trimCapacity(); persist(); updateCounts();
     if (root && $('#media-inline-queue', root)) $('#media-inline-queue', root).innerHTML = inlineQueueMarkup();
@@ -501,8 +503,8 @@
         if (root) { updateJobRows(); if (tab === 'create') { $('#media-inline-queue', root).innerHTML = inlineQueueMarkup(); } if (tab === 'queue') renderPanel(); if (tab === 'library') updateLibrary(); }
         return j;
       },
-      refresh: () => { if (root) { renderPanel(); if (tab === 'library') updateLibrary(); } updateCounts(); },
-      toast: (message, kind) => host && host.toast(message, kind)
+      refresh: () => { window.BRIIX_UI?.refreshLiveChrome?.(); if (root) { renderPanel(); if (tab === 'library') updateLibrary(); } updateCounts(); },
+      toast: (message, kind) => host ? host.toast(message, kind) : window.BRIIX_UI?.toast(message, kind)
     }
   };
 })();

@@ -451,7 +451,32 @@
   $('#modal').addEventListener('close', () => { detailId = null; $$('video', $('#modal')).forEach(v => v.pause()); });
   window.addEventListener('pageshow', () => { if (state.jobs.some(j => j.status === 'queued')) ensureTimer(); });
   function suspend() { $$('video').forEach(v => v.pause()); clearInterval(timer); timer = null; state.jobs.forEach(j => { if (j.status === 'running' && j.mode !== 'live') { j.status = 'queued'; j.startedAt = null; j.progress = 0; } }); persist(); }
+  /* Запуск без формы — для простого чата: одна фраза, результат в ленте. */
+  async function generateFromBrief(params = {}) {
+    const prompt = String(params.prompt || '').trim();
+    if (prompt.length < 12) return { error: 'Опишите задумку хотя бы 12 символами: что показать, какой свет и настроение.' };
+    if (activeCount() >= MAX_ACTIVE || !makeRoom()) return { error: 'Очередь или медиатека заполнены. Освободите место.' };
+    const type = ['image', 'video'].includes(params.type) ? params.type : 'image';
+    const ratio = /^\d+:\d+$/.test(String(params.ratio || '')) ? params.ratio : form.ratio;
+    const project = String(params.project || '').trim().slice(0, 80);
+    if (liveActive()) {
+      const before = state.jobs[0]?.id;
+      await window.BRIIX_MEDIA_LIVE.submit({ type: type === 'video' ? 'image' : type, prompt, project, ratio });
+      const created = state.jobs[0];
+      return created && created.id !== before ? { id: created.id, mode: 'live' } : { error: 'Задача не принята сервером.' };
+    }
+    const j = { id: uid(), type, recipe: form.recipe, asset: form.asset, goal: form.goal, ratio, project, prompt,
+      status: 'queued', progress: 0, favorite: false, createdAt: Date.now(), startedAt: null, fail: false, references: [] };
+    state.jobs.unshift(j); trimCapacity(); persist(); updateCounts();
+    if (root && $('#media-inline-queue', root)) $('#media-inline-queue', root).innerHTML = inlineQueueMarkup();
+    ensureTimer();
+    return { id: j.id, mode: 'mock' };
+  }
+
   window.BRIIX_MEDIA = {
+    generate: generateFromBrief,
+    job(id) { const j = job(id); return j ? { ...j } : null; },
+    resultUrl(id) { const j = job(id); return j && j.status === 'ready' ? output(j) : null; },
     render(main, services) { host = services; root = main; render(); if (tab === 'library') updateLibrary(); ensureTimer(); window.BRIIX_MEDIA_LIVE && window.BRIIX_MEDIA_LIVE.onHostReady(); },
     suspend,
     validate,

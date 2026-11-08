@@ -1,5 +1,5 @@
-/* Studio checks: standalone chat/photo/music screen on the private bus.
- * Self-contained: repo on 127.0.0.1:8388, fake media-bff on 127.0.0.1:8300.
+/* Studio v2 checks: composer-first dark UI on the private bus.
+ * Self-contained: repo on 127.0.0.1:18388, fake media-bff on 127.0.0.1:18300.
  * Run: node tools/check-studio.cjs
  */
 const { launch } = require('./browser-env.cjs');
@@ -8,9 +8,6 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
-// Ports are configurable: the owner's live tunnel occupies 8388/8300, so the suite
-// defaults to free high ports and points studio at the mock via the same
-// localStorage server key bus-live.js uses.
 const STATIC_PORT = Number(process.env.BRIIX_STUDIO_STATIC_PORT || 18388);
 const BFF_PORT = Number(process.env.BRIIX_STUDIO_BFF_PORT || 18300);
 const TOKEN = 'test-token';
@@ -45,7 +42,7 @@ function staticServer(port) {
 }
 
 function sse(res, fullText) {
-      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` });
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` });
   const words = fullText.split(' ');
   let i = 0;
   const timer = setInterval(() => {
@@ -133,31 +130,52 @@ function bffServer(port) {
     }, { t: token, port: BFF_PORT });
     else await p.addInitScript(port => localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port)), BFF_PORT);
     await p.goto(URL_);
-    await p.waitForSelector('#create');
+    await p.waitForSelector('#send');
     return p;
   }
 
-  // 1. Загрузка без ошибок + 3 режима.
+  // 1. Загрузка без ошибок, 3 режима, чип помощника по режимам, состояния send.
   let p = await page();
   await p.waitForTimeout(300);
   assert.deepEqual(errors, [], 'no page errors on load');
   assert.equal(await p.locator('.mode').count(), 3);
   assert.equal(await p.locator('.mode[data-mode="chat"]').getAttribute('aria-pressed'), 'true');
-  assert.equal(await p.locator('#assistant option').count(), 3, 'chat has 3 assistants');
+  assert.equal(await p.locator('#send').isDisabled(), true, 'send disabled on empty field');
+  assert.equal(await p.locator('#assistantChip').isVisible(), true, 'assistant is a toolbar chip');
+  // Чат: 3 помощника в меню чипа.
+  await p.locator('#assistantChip').click();
+  assert.equal(await p.locator('#assistantMenu button').count(), 3, 'chat has 3 assistants');
+  assert.match(await p.locator('#assistantMenu').innerText(), /Наставник/);
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#assistantMenu').isVisible(), false, 'Escape closes the menu');
+  // Фото: 1 помощник, музыкальные чипы скрыты.
   await p.locator('.mode[data-mode="photo"]').click();
-  assert.equal(await p.locator('#assistant option').count(), 1, 'photo has 1 assistant');
-  assert.match(await p.locator('#assistant').innerText(), /Арт-директор/);
+  await p.locator('#assistantChip').click();
+  assert.equal(await p.locator('#assistantMenu button').count(), 1, 'photo has 1 assistant');
+  assert.match(await p.locator('#assistantMenu').innerText(), /Арт-директор/);
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#modelChip').isVisible(), false, 'model chip hidden outside music');
+  // Музыка: 2 помощника + муз-чипы видимы.
   await p.locator('.mode[data-mode="music"]').click();
-  assert.equal(await p.locator('#assistant option').count(), 2, 'music has 2 assistants');
-  assert.equal(await p.locator('#musicFields').isVisible(), true);
-  assert.equal(await p.locator('#singleField').isVisible(), false);
-  ok('loads clean, 3 modes, per-mode assistant sets', {});
+  await p.locator('#assistantChip').click();
+  assert.equal(await p.locator('#assistantMenu button').count(), 2, 'music has 2 assistants');
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#modelChip').isVisible(), true, 'model chip visible in music');
+  assert.equal(await p.locator('#durationChip').isVisible(), true, 'duration chip visible in music');
+  assert.equal(await p.locator('#vocalChip').isVisible(), true, 'vocal toggle visible in music');
+  assert.equal(await p.locator('#tuneToggle').isVisible(), true, 'fine-tune toggle visible in music');
+  assert.equal(await p.locator('#advanced').isVisible(), false, 'advanced fields hidden by default (Simple)');
+  // Поле активно — send разблокируется.
+  await p.locator('#prompt').fill('dream pop track');
+  assert.equal(await p.locator('#send').isDisabled(), false, 'send enabled once the prompt is filled');
+  await p.locator('#prompt').fill('');
+  ok('loads clean, 3 modes, assistant chip menus per mode, music toolbar', {});
 
   // 2. Инлайн-ввод ключа, когда localStorage пуст.
   p = await page({ token: '' });
   await p.locator('.mode[data-mode="chat"]').click();
-  await p.locator('#inputText').fill('привет');
-  await p.locator('#create').click();
+  await p.locator('#prompt').fill('привет');
+  await p.locator('#send').click();
   await p.waitForSelector('#keyCard:not([hidden])');
   await p.locator('#keyInput').fill(TOKEN);
   await p.locator('#keySave').click();
@@ -165,19 +183,32 @@ function bffServer(port) {
   assert.equal(stored, TOKEN);
   ok('missing key shows inline card, saved to localStorage', {});
 
-  // 3. Чат-стрим приходит.
+  // 3. Чат-стрим + inline-кнопка «Сделать из этого трек».
   p = await page();
-  await p.locator('#inputText').fill('Вопрос про музыку');
-  await p.locator('#create').click();
+  await p.locator('#prompt').fill('Вопрос про музыку');
+  await p.locator('#send').click();
   await p.waitForFunction(() => document.querySelectorAll('.card.assistant .body').length &&
     document.querySelector('.card.assistant .body').textContent.includes('Стрим пришёл'), {}, { timeout: 15000 });
   assert.ok(state.chatPosts.at(-1).stream === true, 'chat went as SSE stream');
   assert.match(state.chatPosts.at(-1).messages[0].content, /система|Наставник|собеседник/i);
   assert.equal(await p.locator('.card.user').count(), 1);
-  ok('chat SSE stream lands in the feed with system prompt', {});
+  await p.waitForSelector('.card .action.make-track', { timeout: 5000 });
+  ok('chat SSE stream lands in the feed with system prompt + make-track action', {});
 
-  // 4. Улучшение лирики: few-shot из creative-base, non-stream, замена поля + отмена.
-  await p.locator('.mode[data-mode="music"]').click();
+  // 4. «Сделать из этого трек» → музыка с подставленным брифом.
+  await p.locator('.card .action.make-track').click();
+  assert.equal(await p.locator('.mode[data-mode="music"]').getAttribute('aria-pressed'), 'true', 'switched to music mode');
+  assert.match(await p.locator('#prompt').inputValue(), /Стрим пришёл/, 'brief inserted into the music field');
+  assert.match(await p.locator('#prompt').getAttribute('placeholder'), /Опиши трек/);
+  ok('make-track switches to music with the brief prefilled', {});
+
+  // 5. «Тонко настроить»: два поля, улучшение лирики (few-shot, non-stream, отмена).
+  await p.locator('#prompt').fill('');
+  await p.locator('#tuneToggle').click();
+  assert.equal(await p.locator('#advanced').isVisible(), true, 'advanced panel opens');
+  assert.equal(await p.locator('#prompt').isVisible(), false, 'single field hides in advanced mode');
+  assert.match(await p.locator('#lyrics').getAttribute('placeholder'), /Текст песни/);
+  assert.equal(await p.locator('#improveLyrics').isDisabled(), true, 'improve disabled on empty lyrics');
   const originalLyrics = 'Город спит, а я не сплю';
   await p.locator('#lyrics').fill(originalLyrics);
   assert.equal(await p.locator('#improveLyrics').isDisabled(), false);
@@ -196,51 +227,62 @@ function bffServer(port) {
   assert.equal(await p.locator('#undoLyrics').isVisible(), true);
   await p.locator('#undoLyrics').click();
   assert.equal(await p.locator('#lyrics').inputValue(), originalLyrics, 'undo restores original text');
-  // Пустое поле — кнопка неактивна.
-  await p.locator('#lyrics').fill('');
-  assert.equal(await p.locator('#improveLyrics').isDisabled(), true);
   ok('lyrics improve: few-shot from creative-base, replace + undo, disabled when empty', { exampleCount });
 
-  // 5. Музыка-джоб уходит с lyrics из второго поля + стадии + плеер.
-  await p.locator('#lyrics').fill('[verse]\nГород спит\n[chorus]\nА я не сплю');
+  // 6. Структурные теги вставляются в лирику.
+  await p.locator('#tags .tag[data-tag="[Chorus]"]').click();
+  await p.locator('#tags .tag[data-tag="[Verse]"]').click();
+  const tagged = await p.locator('#lyrics').inputValue();
+  assert.match(tagged, /\[Chorus\]/);
+  assert.match(tagged, /\[Verse\]/);
+  ok('structure tags insert into lyrics field', { tagged: tagged.trim() });
+
+  // 7. Музыка-джоба: лирика + стиль, длительность, без вокала, Pro, стадии, плеер.
+  await p.locator('#lyrics').fill('[Verse]\nГород спит\n[Chorus]\nА я не сплю');
   await p.locator('#musicPrompt').fill('dream pop, 90 BPM, female vocals');
+  await p.locator('#durationChip').click();
+  await p.locator('#durationMenu button', { hasText: '60 с' }).click();
+  assert.equal(await p.locator('#durationName').innerText(), '60 с');
+  await p.locator('#vocalChip').click();
+  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'true');
   await p.evaluate(() => {
     window.__stageSeen = [];
-    window.__mutLog = [];
     new MutationObserver(muts => {
       for (const r of muts) {
         const t = (r.target.textContent || '').slice(0, 40);
-        window.__mutLog.push(r.type + ':' + t);
         const m = t.match(/Пишем лирику|Синтезируем/);
         if (m && !window.__stageSeen.includes(m[0])) window.__stageSeen.push(m[0]);
       }
     }).observe(document.getElementById('feed'), { subtree: true, childList: true, characterData: true });
   });
-  await p.locator('#create').click();
+  await p.locator('#send').click();
   await p.waitForSelector('.card.stage', { timeout: 10000 });
   await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
-  await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
   const seen = await p.evaluate(() => window.__stageSeen);
-  assert.ok(seen.length >= 1, 'polling stages were shown: ' + seen.join(',')
-    + ' | url: ' + p.url()
-    + ' | cards: ' + await p.evaluate(() => [...document.querySelectorAll('#feed .card')].map(c => c.className).join('; '))
-    + ' | mut: ' + await p.evaluate(() => (window.__mutLog || ['NO-LOG']).slice(0, 8).join(' | ')));
+  assert.ok(seen.length >= 1, 'polling stages were shown: ' + seen.join(','));
   const musicPost = state.jobPosts.at(-1);
   assert.equal(musicPost.type, 'music');
   assert.equal(musicPost.prompt, 'dream pop, 90 BPM, female vocals');
-  assert.match(musicPost.params.lyrics, /\[chorus\]/);
+  assert.match(musicPost.params.lyrics, /\[Chorus\]/);
   assert.equal(musicPost.params.model, 'ace-step-flash');
-  // Переключатель Pro меняет params.model.
-  await p.locator('.seg-btn[data-quality="pro"]').click();
-  await p.locator('#create').click();
+  assert.equal(musicPost.params.duration_seconds, 60);
+  assert.equal(musicPost.params.instrumental, true);
+  // Pro через чип модели + снова с вокалом.
+  await p.locator('#vocalChip').click();
+  await p.locator('#modelChip').click();
+  await p.locator('#modelMenu button', { hasText: 'Pro' }).click();
+  assert.equal(await p.locator('#modelName').innerText(), 'Pro');
+  await p.locator('#musicPrompt').fill('dream pop, 90 BPM, female vocals');
+  await p.locator('#send').click();
   await p.waitForFunction(() => document.querySelectorAll('audio').length >= 2, {}, { timeout: 20000 });
   assert.equal(state.jobPosts.at(-1).params.model, 'ace-step-pro');
-  ok('music job: prompt + params.lyrics + flash/pro switch, stages, audio player', {});
+  assert.equal(state.jobPosts.at(-1).params.instrumental, undefined, 'vocal toggle off removes the flag');
+  ok('music job: lyrics + style + duration/instrumental/pro chips, stages, audio player', {});
 
-  // 6. Фото-джоб: превью в ленту.
+  // 8. Фото-джоба: превью в ленту.
   await p.locator('.mode[data-mode="photo"]').click();
-  await p.locator('#inputText').fill('neon city at night');
-  await p.locator('#create').click();
+  await p.locator('#prompt').fill('neon city at night');
+  await p.locator('#send').click();
   await p.waitForSelector('.card img', { timeout: 20000 });
   const photoPost = state.jobPosts.at(-1);
   assert.equal(photoPost.type, 'image');
@@ -248,32 +290,57 @@ function bffServer(port) {
   assert.ok(natural > 0, 'PNG preview actually decoded');
   ok('photo job renders decoded PNG preview', {});
 
-  // 7. Модерация 422 → карточка.
+  // 9. Модерация 422 в чате и в джобе: карточка + сохранение текста.
   state.chatBlocked = true;
   await p.locator('.mode[data-mode="chat"]').click();
   const blockedText = 'запрещённый текст';
-  await p.locator('#inputText').fill(blockedText);
-  await p.locator('#create').click();
+  await p.locator('#prompt').fill(blockedText);
+  await p.locator('#send').click();
   await p.waitForSelector('.card.error', { timeout: 10000 });
-  const errText = await p.locator('.card.error').innerText();
+  const errText = await p.locator('.card.error').last().innerText();
   assert.match(errText, /Не пройдена проверка контента/);
-  assert.equal(await p.locator('#inputText').inputValue(), blockedText, 'blocked text kept in the field');
-  ok('422 content_blocked shows moderation card, text preserved', {});
+  assert.equal(await p.locator('#prompt').inputValue(), blockedText, 'blocked chat text kept in the field');
+  state.chatBlocked = false;
+  state.jobBlock = true;
+  const errCount = await p.locator('.card.error').count();
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('запрещённая картинка');
+  await p.locator('#send').click();
+  await p.waitForFunction(n => document.querySelectorAll('.card.error').length > n, errCount, { timeout: 10000 });
+  assert.equal(await p.locator('#prompt').inputValue(), 'запрещённая картинка', 'blocked job text kept in the field');
+  state.jobBlock = false;
+  ok('422 content_blocked: moderation card + text preserved (chat and jobs)', {});
 
-  // 8. Мобильный вьюпорт 390×844: без горскролла.
+  // 10. Кнопки-состояния: hover/active/disabled присутствуют в CSS.
+  const css = fs.readFileSync(path.join(ROOT, 'studio.css'), 'utf8');
+  for (const sel of ['.send:hover', '.send:disabled', '.tool:hover', '.tag:hover', '.mode[aria-pressed="true"]', ':focus-visible']) {
+    assert.ok(css.includes(sel), 'css defines state ' + sel);
+  }
+  assert.ok(css.includes('#d97757'), 'single accent color used');
+  ok('interactive states defined in css (hover/active/disabled/focus + accent)', {});
+
+  // 11. Мобильный 390×844: композер у низа, без горскролла, тач-таргеты ≥44.
   p = await page({ viewport: { width: 390, height: 844 } });
   await p.waitForTimeout(300);
   const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 0, 'no horizontal scroll at 390px, overflow=' + overflow);
-  const tap = await p.evaluate(() => {
-    const sizes = [...document.querySelectorAll('button, select, textarea, input')]
-      .filter(el => el.offsetParent !== null)
-      .map(el => el.getBoundingClientRect().height);
-    return Math.min(...sizes);
+  const geo = await p.evaluate(() => {
+    const wrap = document.querySelector('.composer-wrap').getBoundingClientRect();
+    const sizes = [...document.querySelectorAll('button, textarea, input')]
+      .filter(el => el.offsetParent !== null && !el.closest('[hidden]'))
+      .map(el => Math.max(el.getBoundingClientRect().width, el.getBoundingClientRect().height));
+    return { bottomGap: window.innerHeight - Math.round(wrap.bottom), minTarget: Math.min(...sizes.filter(s => s > 0)) };
   });
-  assert.ok(tap >= 36, 'smallest touch target >= 36px, got ' + tap);
-  await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-390.png'), fullPage: true });
-  ok('mobile 390x844: no h-scroll, touch targets OK', { minTarget: Math.round(tap) });
+  assert.ok(geo.bottomGap >= 0 && geo.bottomGap <= 16, 'composer pinned to viewport bottom, gap=' + geo.bottomGap);
+  assert.ok(geo.minTarget >= 44, 'smallest touch target >= 44px, got ' + geo.minTarget);
+  await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-390.png'), fullPage: false });
+  // Музыка на мобайле: тулбар не ломается.
+  await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('#tuneToggle').click();
+  const overflow2 = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  assert.ok(overflow2 <= 0, 'no h-scroll in music advanced at 390px, overflow=' + overflow2);
+  await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-390-music.png'), fullPage: false });
+  ok('mobile 390x844: composer sticky bottom, no h-scroll, touch targets >=44', { ...geo });
 
   assert.deepEqual(errors, [], 'no page errors anywhere');
   await browser.close();

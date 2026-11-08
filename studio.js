@@ -1,4 +1,4 @@
-/* BRIIX Studio — standalone screen: chat / photo / music on the private bus.
+/* BRIIX Studio v2 — composer-first standalone screen: chat / photo / music.
  * Own minimal transport (pattern of bus-live.js, no shared code). No secrets in git.
  * Chat: SSE stream from /v1/chat/completions. Photo/Music: POST /jobs + polling.
  * "Улучшить": few-shot from assets/data/creative-base.json (owner's own style base).
@@ -9,13 +9,20 @@
   const DEFAULT_SERVER = 'http://127.0.0.1:8300';
   const SERVER_KEY = 'briix-media-live-server';
   const TOKEN_KEY = 'briix-media-live-token';
-  const CHAT_MODEL = 'qwen3:4b-instruct';
   const MUSIC_MODELS = { flash: 'ace-step-flash', pro: 'ace-step-pro' };
+  const MODEL_LABELS = { flash: 'Flash', pro: 'Pro' };
+  const DURATIONS = [30, 60, 120];
   const STAGE_LABELS = {
     'writing-lyrics': 'Пишем лирику…',
     'synthesizing': 'Синтезируем музыку…',
     'album-cover': 'Готовим обложку…',
     'model-warmup': 'Прогреваем модель…'
+  };
+  const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
+  const PLACEHOLDERS = {
+    chat: 'Что создаём?',
+    photo: 'Что рисуем? Опишите изображение…',
+    music: 'Опиши трек…'
   };
 
   const ASSISTANTS = {
@@ -33,7 +40,7 @@
     ]
   };
 
-  // ---- transport -----------------------------------------------------------
+  // ---- transport (as v1) ----------------------------------------------------
   const server = () => {
     const host = location.hostname;
     if (host !== '127.0.0.1' && host !== 'localhost') return location.origin + '/api';
@@ -142,7 +149,7 @@
     throw new BusError('timeout', 'Задача выполняется слишком долго — ожидание прервано.');
   }
 
-  // ---- creative base -------------------------------------------------------
+  // ---- creative base --------------------------------------------------------
   let baseCache = null;
   async function creativeBase() {
     if (baseCache) return baseCache;
@@ -175,23 +182,31 @@
     return chatNonStream({ messages: [{ role: 'system', content: system }, { role: 'user', content: 'Улучши:\n\n' + fieldText }], maxTokens: 600 });
   }
 
-  // ---- UI ------------------------------------------------------------------
+  // ---- UI -------------------------------------------------------------------
   const $ = id => document.getElementById(id);
   const els = {
-    modes: $('modes'), assistant: $('assistant'), feed: $('feed'),
-    singleField: $('singleField'), inputText: $('inputText'),
-    musicFields: $('musicFields'), lyrics: $('lyrics'), musicPrompt: $('musicPrompt'),
+    modes: $('modes'), prompt: $('prompt'), advanced: $('advanced'),
+    lyrics: $('lyrics'), musicPrompt: $('musicPrompt'),
     improveLyrics: $('improveLyrics'), improvePrompt: $('improvePrompt'),
     undoLyrics: $('undoLyrics'), undoPrompt: $('undoPrompt'),
-    vocalQuality: $('vocalQuality'), create: $('create'), status: $('status'),
-    keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave')
+    tags: $('tags'), addBtn: $('addBtn'),
+    assistantChip: $('assistantChip'), assistantName: $('assistantName'), assistantMenu: $('assistantMenu'),
+    modelChip: $('modelChip'), modelName: $('modelName'), modelMenu: $('modelMenu'),
+    durationChip: $('durationChip'), durationName: $('durationName'), durationMenu: $('durationMenu'),
+    vocalChip: $('vocalChip'), tuneToggle: $('tuneToggle'),
+    send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
+    composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave')
   };
 
   let mode = 'chat';
   let quality = 'flash';
-  let history = []; // chat mode: {role, content}
+  let duration = 30;
+  let instrumental = false;
+  let advanced = false;
   let busy = false;
+  let history = []; // chat mode: {role, content}
   let controller = null;
+  const assistantId = { chat: 'mentor', photo: 'art-dir', music: 'producer' };
   const undoBackup = { lyrics: null, musicPrompt: null };
 
   function signalOf() {
@@ -199,11 +214,68 @@
     return controller.signal;
   }
 
-  function setStatus(text) {
-    els.status.hidden = !text;
-    els.status.textContent = text || '';
+  function setStatus(text, isBusy) {
+    els.status.textContent = text || 'готов';
+    els.status.classList.toggle('busy', Boolean(isBusy));
   }
 
+  function currentAssistant() {
+    return ASSISTANTS[mode].find(a => a.id === assistantId[mode]) || ASSISTANTS[mode][0];
+  }
+
+  function meta() {
+    const bits = ['briix.ru', MODE_LABELS[mode]];
+    if (mode === 'music') bits.push(MODEL_LABELS[quality] + ' · ' + duration + ' с');
+    else bits.push(currentAssistant().name.replace(/\s*\(.*\)\s*$/, ''));
+    els.metaLeft.textContent = bits.join(' · ');
+  }
+
+  // ---- дропдауны ------------------------------------------------------------
+  function closeMenus() {
+    document.querySelectorAll('.menu').forEach(m => { m.hidden = true; });
+    document.querySelectorAll('[aria-haspopup="menu"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  }
+
+  function attachMenu(chip, menu, buildItems) {
+    chip.addEventListener('click', e => {
+      e.stopPropagation();
+      const willOpen = menu.hidden;
+      closeMenus();
+      if (!willOpen) return;
+      menu.innerHTML = '';
+      for (const item of buildItems()) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('role', 'menuitem');
+        button.setAttribute('aria-selected', String(item.selected));
+        const label = document.createElement('span');
+        label.textContent = item.label;
+        button.append(label);
+        if (item.sub) { const sub = document.createElement('span'); sub.className = 'sub'; sub.textContent = item.sub; button.append(sub); }
+        button.addEventListener('click', () => { closeMenus(); item.onPick(); });
+        menu.append(button);
+      }
+      menu.hidden = false;
+      chip.setAttribute('aria-expanded', 'true');
+    });
+  }
+  document.addEventListener('click', closeMenus);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
+
+  attachMenu(els.assistantChip, els.assistantMenu, () => ASSISTANTS[mode].map(a => ({
+    label: a.name, selected: a.id === assistantId[mode],
+    onPick: () => { assistantId[mode] = a.id; renderChrome(); }
+  })));
+  attachMenu(els.modelChip, els.modelMenu, () => Object.keys(MUSIC_MODELS).map(q => ({
+    label: MODEL_LABELS[q], sub: MUSIC_MODELS[q], selected: q === quality,
+    onPick: () => { quality = q; renderChrome(); }
+  })));
+  attachMenu(els.durationChip, els.durationMenu, () => DURATIONS.map(d => ({
+    label: d + ' с', selected: d === duration,
+    onPick: () => { duration = d; renderChrome(); }
+  })));
+
+  // ---- карточки ленты ---------------------------------------------------------
   function card(kind, who, text) {
     const div = document.createElement('div');
     div.className = 'card ' + kind;
@@ -229,41 +301,67 @@
     card('error', 'Ошибка', error.message || 'Неизвестная ошибка.');
   }
 
-  function renderMode() {
+  // «Сделать из этого трек»: чат → музыка с подставленным брифом.
+  function addMakeTrackAction(container, brief) {
+    const row = document.createElement('div');
+    row.className = 'actions';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'action make-track';
+    button.textContent = '🎵 Сделать из этого трек';
+    button.addEventListener('click', () => {
+      setMode('music');
+      advanced = false;
+      els.prompt.value = brief.trim().slice(0, 2000);
+      updateEnabled();
+    });
+    row.append(button);
+    container.append(row);
+  }
+
+  // ---- режим/состояния ---------------------------------------------------------
+  function setMode(next) {
+    mode = next;
+    renderChrome();
+  }
+
+  function renderChrome() {
     els.modes.querySelectorAll('.mode').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
-    els.musicFields.hidden = mode !== 'music';
-    els.singleField.hidden = mode === 'music';
-    els.inputText.placeholder = mode === 'photo' ? 'Опишите изображение…' : 'Напишите сообщение…';
-    const current = els.assistant.value;
-    els.assistant.innerHTML = '';
-    for (const a of ASSISTANTS[mode]) {
-      const opt = document.createElement('option');
-      opt.value = a.id;
-      opt.textContent = a.name;
-      els.assistant.append(opt);
-    }
-    const stillThere = ASSISTANTS[mode].some(a => a.id === current);
-    if (stillThere) els.assistant.value = current;
-    updateImproveButtons();
+    const isMusic = mode === 'music';
+    document.querySelectorAll('.music-only').forEach(el => { el.hidden = !isMusic; });
+    els.advanced.hidden = !(isMusic && advanced);
+    els.prompt.hidden = isMusic && advanced;
+    els.prompt.placeholder = PLACEHOLDERS[mode];
+    els.assistantName.textContent = currentAssistant().name.replace(/\s*\(.*\)\s*$/, '');
+    els.modelName.textContent = MODEL_LABELS[quality];
+    els.durationName.textContent = duration + ' с';
+    els.vocalChip.setAttribute('aria-pressed', String(instrumental));
+    els.tuneToggle.setAttribute('aria-pressed', String(advanced));
+    meta();
+    updateEnabled();
   }
 
-  function assistantSystem() {
-    const found = ASSISTANTS[mode].find(a => a.id === els.assistant.value);
-    return found?.system || '';
+  function activePromptEl() {
+    return (mode === 'music' && advanced) ? els.musicPrompt : els.prompt;
   }
 
-  function updateImproveButtons() {
+  function promptValue() {
+    return activePromptEl().value.trim();
+  }
+
+  function updateEnabled() {
+    els.send.disabled = busy || !promptValue();
     els.improveLyrics.disabled = busy || !els.lyrics.value.trim();
     els.improvePrompt.disabled = busy || !els.musicPrompt.value.trim();
   }
 
   function setBusy(v, statusText) {
     busy = v;
-    els.create.disabled = v;
+    els.send.classList.toggle('busy', v);
     els.improveLyrics.classList.toggle('busy', v);
     els.improvePrompt.classList.toggle('busy', v);
-    updateImproveButtons();
-    setStatus(v ? (statusText || 'Работаем…') : '');
+    setStatus(v ? (statusText || 'Работаем…') : '', v);
+    updateEnabled();
   }
 
   function needKey() {
@@ -274,43 +372,47 @@
     return false;
   }
 
+  // ---- потоки -------------------------------------------------------------------
   async function create() {
     if (busy) return;
     if (!needKey()) return;
-    const text = els.inputText.value.trim();
-    if (mode === 'music') return createMusic();
+    const text = promptValue();
     if (!text) return;
     if (mode === 'chat') return createChat(text);
-    return createPhoto(text);
+    if (mode === 'photo') return createPhoto(text);
+    return createMusic(text);
   }
 
   async function createChat(text) {
     history.push({ role: 'user', content: text });
     card('user', 'Вы', text);
-    els.inputText.value = '';
-    const who = ASSISTANTS.chat.find(a => a.id === els.assistant.value)?.name || 'Помощник';
+    els.prompt.value = '';
+    updateEnabled();
+    const who = currentAssistant().name;
     const body = card('assistant', who, '');
     setBusy(true, who + ' печатает…');
     try {
-      const messages = [{ role: 'system', content: assistantSystem() }, ...history];
+      const messages = [{ role: 'system', content: currentAssistant().system }, ...history];
       const full = await chatStream({ messages, onChunk: piece => { body.textContent += piece; body.scrollIntoView({ block: 'nearest' }); } });
       history.push({ role: 'assistant', content: full });
+      addMakeTrackAction(body.closest('.card'), full);
     } catch (error) {
       history.pop(); // неудачный ход не остаётся в истории
-      if (!els.inputText.value.trim()) els.inputText.value = text; // текст сохраняем для правки
+      if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
-    } finally { setBusy(false); }
+    } finally { setBusy(false); updateEnabled(); }
   }
 
   async function createPhoto(text) {
     card('user', 'Вы', text);
-    els.inputText.value = '';
+    els.prompt.value = '';
+    updateEnabled();
     setBusy(true, 'Отправляем задачу…');
     try {
       const id = await submitJob({ type: 'image', prompt: text });
       const stageBody = card('stage', 'Фото', 'В очереди…');
       const result = await pollJob(id, { onStatus: d => { stageBody.textContent = d.stage ? (STAGE_LABELS[d.stage] || d.stage) : 'Генерируем…'; } });
-      els.feed.removeChild(stageBody.closest('.card'));
+      stageBody.closest('.card').remove();
       const item = document.createElement('img');
       item.alt = 'Результат';
       const blob = await fileBlob(result.result_url);
@@ -318,27 +420,41 @@
       const wrap = card('assistant', 'Фото готово', '');
       wrap.textContent = '';
       wrap.append(item);
-    } catch (error) { errorCard(error); } finally { setBusy(false); }
+    } catch (error) {
+      if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
+      errorCard(error);
+    } finally { setBusy(false); updateEnabled(); }
   }
 
-  async function createMusic() {
-    const lyrics = els.lyrics.value.trim();
-    const prompt = els.musicPrompt.value.trim();
-    if (!prompt) { card('notice', 'Музыка', 'Заполните музыкальный промпт — сервер принимает его в prompt.'); return; }
+  async function createMusic(description) {
+    const style = (mode === 'music' && advanced) ? els.musicPrompt.value.trim() : description;
+    const lyrics = advanced ? els.lyrics.value.trim() : '';
+    if (!style && !lyrics) { card('notice', 'Музыка', 'Опишите трек — стиль или лирику.'); return; }
+    if (!advanced) els.prompt.value = '';
+    else els.musicPrompt.value = '';
+    updateEnabled();
     setBusy(true, 'Отправляем задачу…');
     try {
-      const id = await submitJob({ type: 'music', prompt, params: { lyrics, model: MUSIC_MODELS[quality] } });
+      const params = { model: MUSIC_MODELS[quality], duration_seconds: duration };
+      if (instrumental) params.instrumental = true;
+      if (lyrics) params.lyrics = lyrics;
+      const id = await submitJob({ type: 'music', prompt: style || lyrics, params });
       const stageBody = card('stage', 'Музыка', 'В очереди…');
       const result = await pollJob(id, { onStatus: d => { stageBody.textContent = d.stage ? (STAGE_LABELS[d.stage] || d.stage) : 'Генерируем…'; } });
-      els.feed.removeChild(stageBody.closest('.card'));
+      stageBody.closest('.card').remove();
       const audio = document.createElement('audio');
       audio.controls = true;
       const blob = await fileBlob(result.result_url);
       audio.src = URL.createObjectURL(blob);
-      const wrap = card('assistant', 'Трек готов (' + (MUSIC_MODELS[quality] === 'ace-step-pro' ? 'Pro' : 'Flash') + ')', '');
+      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', '');
       wrap.textContent = '';
       wrap.append(audio);
-    } catch (error) { errorCard(error); } finally { setBusy(false); }
+    } catch (error) {
+      // текст остаётся в полях для правки (в т.ч. после 422)
+      if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;
+      if (advanced && !els.musicPrompt.value.trim()) els.musicPrompt.value = style;
+      errorCard(error);
+    } finally { setBusy(false); updateEnabled(); }
   }
 
   async function fileBlob(pathOrUrl) {
@@ -355,12 +471,13 @@
     const original = el.value;
     const button = field === 'lyrics' ? els.improveLyrics : els.improvePrompt;
     setBusy(true, 'Улучшаем через базу владельца…');
+    button.classList.add('busy');
     try {
       const improved = await improveText(original, field);
       undoBackup[field] = original;
       el.value = improved.trim();
       (field === 'lyrics' ? els.undoLyrics : els.undoPrompt).hidden = false;
-    } catch (error) { errorCard(error); } finally { setBusy(false); }
+    } catch (error) { errorCard(error); } finally { button.classList.remove('busy'); setBusy(false); }
   }
 
   function undo(field) {
@@ -368,34 +485,50 @@
     (field === 'lyrics' ? els.lyrics : els.musicPrompt).value = undoBackup[field];
     undoBackup[field] = null;
     (field === 'lyrics' ? els.undoLyrics : els.undoPrompt).hidden = true;
+    updateEnabled();
   }
 
-  // ---- wiring --------------------------------------------------------------
+  function insertTag(tag) {
+    const el = els.lyrics;
+    const at = el.selectionStart ?? el.value.length;
+    const before = el.value.slice(0, at);
+    const after = el.value.slice(el.selectionEnd ?? at);
+    const pad = before && !before.endsWith('\n') ? '\n' : '';
+    el.value = before + pad + tag + (after && !after.startsWith('\n') ? '\n' : '') + after;
+    el.focus();
+    const pos = (before + pad + tag).length;
+    el.setSelectionRange(pos, pos);
+    updateEnabled();
+  }
+
+  // ---- wiring -------------------------------------------------------------------
   els.modes.addEventListener('click', e => {
     const button = e.target.closest('.mode');
     if (!button) return;
-    mode = button.dataset.mode;
-    renderMode();
+    setMode(button.dataset.mode);
   });
 
-  els.assistant.addEventListener('change', () => { /* история общая; system подставляется при следующем ходе */ });
+  els.tuneToggle.addEventListener('click', () => { advanced = !advanced; renderChrome(); });
+  els.vocalChip.addEventListener('click', () => { instrumental = !instrumental; renderChrome(); });
 
-  els.vocalQuality.addEventListener('click', e => {
-    const button = e.target.closest('.seg-btn');
-    if (!button) return;
-    quality = button.dataset.quality;
-    els.vocalQuality.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.quality === quality)));
-  });
-
-  els.create.addEventListener('click', create);
+  els.send.addEventListener('click', create);
   els.improveLyrics.addEventListener('click', () => improve('lyrics'));
   els.improvePrompt.addEventListener('click', () => improve('prompt'));
   els.undoLyrics.addEventListener('click', () => undo('lyrics'));
   els.undoPrompt.addEventListener('click', () => undo('musicPrompt'));
+  els.tags.addEventListener('click', e => {
+    const tag = e.target.closest('.tag');
+    if (tag) insertTag(tag.dataset.tag);
+  });
 
-  els.inputText.addEventListener('input', () => { els.create.disabled = busy ? true : !els.inputText.value.trim() && mode !== 'music'; });
-  els.lyrics.addEventListener('input', updateImproveButtons);
-  els.musicPrompt.addEventListener('input', updateImproveButtons);
+  els.addBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    card('notice', 'Вложения', 'Прикрепление файлов скоро — пока опишите всё текстом.');
+  });
+
+  els.prompt.addEventListener('input', updateEnabled);
+  els.lyrics.addEventListener('input', updateEnabled);
+  els.musicPrompt.addEventListener('input', updateEnabled);
 
   els.keySave.addEventListener('click', () => {
     setToken(els.keyInput.value);
@@ -405,8 +538,8 @@
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && document.activeElement === els.inputText) create();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && document.activeElement === activePromptEl()) create();
   });
 
-  renderMode();
+  renderChrome();
 })();

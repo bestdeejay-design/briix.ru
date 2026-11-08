@@ -99,10 +99,13 @@ jobs:
         env:
           NODE_PATH: /home/badai/briix-ci-deps/node_modules
         run: |
-          node tools/check-live-default.cjs
-          node tools/check-wait-phrases.cjs
-          node tools/check-showcase.cjs
-          node tools/check-published-mode.cjs
+          set -o pipefail
+          {
+          for suite in live-default wait-phrases showcase published-mode; do
+            echo "=== check-$suite ==="
+            node "tools/check-$suite.cjs" || exit 1
+          done
+          } 2>&1 | tee /tmp/briix-ci-extended.log
 
       # Логи job за авторизацией GitHub и не всегда скачиваются. Присылаем хвост
       # вывода прямо в PR, чтобы причина падения была видна без доступа к раннеру.
@@ -139,6 +142,14 @@ jobs:
             echo
             echo '```'
             tail -n 120 /tmp/briix-ci-tests.log 2>/dev/null || echo 'нет лога тестов'
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '<details><summary>Extended suites (хвост)</summary>'
+            echo
+            echo '```'
+            tail -n 90 /tmp/briix-ci-extended.log 2>/dev/null || echo 'нет лога расширенных сюит'
             echo '```'
             echo
             echo '</details>'

@@ -82,7 +82,7 @@
   let storageProtected = false;
   let detailId = null;
   let selectedId = null;
-  let form = { kind: 'instrumental', genre: 'lofi', mood: 'calm', key: 'am', goal: 'social', duration: 20, bpm: 74, project: '', prompt: '', failNext: false, vocalMode: 'flash', lyrics: '', language: 'ru' };
+  let form = { kind: 'instrumental', genre: 'lofi', mood: 'calm', key: 'am', goal: 'social', duration: 20, bpm: 74, project: '', prompt: '', failNext: false, vocalMode: 'flash', lyrics: '', language: 'ru', autoLyrics: false };
   const audio = typeof Audio === 'function' ? new Audio() : null;
   if (audio) { audio.id = 'music-audio'; audio.preload = 'auto'; audio.hidden = true; document.body.append(audio); }
   const cache = new Map();
@@ -337,8 +337,13 @@
     const target = $('#music-preview', root);
     target?.scrollIntoView({ behavior: host?.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
   }
-  function submit() {
+  async function submit() {
     syncForm();
+    // Галочка «Автолирика» снимает главный тупик: без текста сервер песню не примет.
+    if (form.autoLyrics && liveActive() && form.kind === 'song' && !form.lyrics.trim()) {
+      const filled = await improveLyrics({ silent: true });
+      if (!filled) { host?.toast('Автолирика не нашла текст в базе — напишите пару строк вручную.', 'error'); return; }
+    }
     const error = $('#music-form-error', root);
     const input = $('#music-prompt', root);
     if (form.prompt.trim().length < MIN_PROMPT) {
@@ -470,7 +475,7 @@
     $$('.music-tab', root).forEach(b => { const on = b.dataset.id === tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
     container.innerHTML = tab === 'create' ? createMarkup() : tab === 'library' ? libraryMarkup() : tab === 'queue' ? queueMarkup() : tab === 'showcase' ? showcaseMarkup() : modelsMarkup();
     if (tab === 'library') updateLibrary();
-    if (tab === 'create') paintPlayer();
+    if (tab === 'create') { paintPlayer(); paintBaseControls(); renderBaseResults(); }
     if (tab === 'showcase') { paintShowcase(); loadShowcase(); }
     if (typing) restoreTyping(typing);
     else if (focusKey) { const target = focusKey.action ? $$('#music-panel [data-music-action]', root).find(b => b.dataset.musicAction === focusKey.action && b.dataset.id === focusKey.id) : document.getElementById(focusKey.id); target?.focus({ preventScroll: true }); }
@@ -494,9 +499,19 @@
         return `<button type="button" class="music-vocal-mode ${form.vocalMode === m.id ? 'active' : ''} ${ready ? '' : 'unavailable'}" data-music-action="vocal-mode" data-id="${m.id}" aria-pressed="${form.vocalMode === m.id}"><strong>${m.title}</strong><span>${esc(m.sub)}</span><small>до ${m.max} с · ≈${Math.round(seconds / 60 * 10) / 10} мин${ready ? '' : ' · недоступен'}</small></button>`;
       }).join('')}</div><p class="music-mode-timing">${icon('clock')}Тайминги — замер стенда из каталога шины, не обещание: очередь и холодный старт добавляют время.</p></div>` : ''}
       <label class="music-field" for="music-prompt">Опишите задумку</label><textarea id="music-prompt" class="music-prompt" rows="4" maxlength="${MAX_PROMPT}" aria-describedby="music-prompt-hint music-form-error" placeholder="Какое настроение, для чего звук, что должно происходить в треке?">${esc(form.prompt)}</textarea><div class="music-field-hint" id="music-prompt-hint"><span>Бриф для будущей модели и вариант заглушки</span><span id="music-prompt-count">${form.prompt.length} / ${MAX_PROMPT}</span></div>
+      ${hasBase() ? `<div class="music-base-row"><button type="button" class="btn small music-base-btn" data-music-action="base-prompt">${icon('sparkles')}<span>Улучшить промпт</span></button><button type="button" class="btn small music-base-undo" data-music-action="base-prompt-undo" ${basePromptUndo === null ? 'hidden' : ''}>${icon('refresh')}<span>Вернуть мой текст</span></button></div><p class="music-base-source" id="music-prompt-source" ${basePromptSource ? '' : 'hidden'}>${esc(basePromptSource)}</p>` : ''}
       ${isVocalForm() ? `<label class="music-field" for="music-lyrics">Лирика <span class="muted">· обязательна для вокала</span><textarea id="music-lyrics" class="music-lyrics" rows="6" maxlength="${MAX_LYRICS}" placeholder="[verse]\nТёплый вечер за окном\n[chorus]\nМы ещё успеем домой">${esc(form.lyrics)}</textarea></label>
       <div class="music-lyric-tools"><span class="muted">Вставить тег:</span>${LYRIC_TAGS.map(t => `<button type="button" class="music-tag-btn" data-music-action="lyric-tag" data-id="${t}">[${t}]</button>`).join('')}<span class="music-lyrics-count" id="music-lyrics-count">${form.lyrics.length} / ${MAX_LYRICS}</span></div>
+      ${hasBase() ? `<label class="music-check music-auto-lyrics"><input type="checkbox" id="music-auto-lyrics" ${form.autoLyrics ? 'checked' : ''}><span><strong>Автолирика</strong> — подобрать текст из моей базы, если поле пустое</span></label>
+      <div class="music-base-row"><button type="button" class="btn small music-base-btn" data-music-action="base-lyrics">${icon('sparkles')}<span>Улучшить лирику</span></button><button type="button" class="btn small" data-music-action="base-lyrics-again">${icon('route')}<span>Другой вариант</span></button><button type="button" class="btn small music-base-undo" data-music-action="base-lyrics-undo" ${baseLyricsUndo === null ? 'hidden' : ''}>${icon('refresh')}<span>Вернуть мой текст</span></button></div>
+      <p class="music-base-source" id="music-lyrics-source" ${baseLyricsSource ? '' : 'hidden'}>${esc(baseLyricsSource)}</p>` : ''}
       <label class="music-field">Язык вокала<select id="music-language"><option value="ru" ${form.language === 'ru' ? 'selected' : ''}>Русский</option><option value="en" ${form.language === 'en' ? 'selected' : ''}>English</option></select></label>` : ''}
+      ${hasBase() ? `<details class="music-base-browser" id="music-base-browser" ${baseBrowserOpen ? 'open' : ''}><summary>${icon('star')}<span>Моя база промптов и лирики</span><small>DJ1</small></summary><div class="music-base-body">
+        <p class="music-base-note">${icon('info')}<span>Подбор по словам из вашей галереи DJ1 — 8202 трека, 6133 текста. Это ваша база, а не генерация: ничего не выдумывается и никуда не отправляется.</span></p>
+        <label class="music-field" for="music-base-query">Найти в базе<input id="music-base-query" type="search" value="${esc(baseQuery)}" placeholder="Например: ночной город, женский вокал, lo-fi" autocomplete="off"></label>
+        <div id="music-base-results" class="music-base-results"></div>
+      </div></details>` : ''}
+      <p class="music-base-status" id="music-base-status" role="status" hidden></p>
       <div class="music-field"><span id="music-duration-label">${isVocalForm() ? 'Длительность трека' : 'Длительность черновика'}</span><div class="music-durations" role="group" aria-labelledby="music-duration-label">${durationsFor().map(d => `<button type="button" class="${form.duration === d ? 'active' : ''}" aria-pressed="${form.duration === d}" data-music-action="duration" data-id="${d}">${d} с</button>`).join('')}</div></div>
       <details class="music-tuning" id="music-tuning" ${tuningOpen ? 'open' : ''}><summary>${icon('settings')}<span>Тон и темп</span><small>жанр, настроение, тональность, BPM</small></summary><div class="music-tuning-body">
       <label class="music-field">Задача<select id="music-goal">${GOALS.map(([id, name]) => `<option value="${id}" ${form.goal === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
@@ -794,7 +809,7 @@
 
   function reuse(id) {
     const t = track(id); if (!t) return;
-    form = { kind: t.kind, genre: t.genre, mood: t.mood, key: t.key, goal: t.goal, duration: t.duration, bpm: t.bpm, project: t.project, prompt: t.prompt, failNext: false, vocalMode: t.vocalMode || 'flash', lyrics: t.lyrics || '', language: t.language || 'ru' };
+    form = { kind: t.kind, genre: t.genre, mood: t.mood, key: t.key, goal: t.goal, duration: t.duration, bpm: t.bpm, project: t.project, prompt: t.prompt, failNext: false, vocalMode: t.vocalMode || 'flash', lyrics: t.lyrics || '', language: t.language || 'ru', autoLyrics: form.autoLyrics };
     tab = 'create'; renderPanel();
     $('#music-prompt', root)?.focus({ preventScroll: true });
     host.toast('Бриф перенесён в форму. Измените параметры и соберите новый вариант.');
@@ -823,6 +838,115 @@
     const count = $('#music-lyrics-count', root);
     if (count) count.textContent = form.lyrics.length + ' / ' + MAX_LYRICS;
   }
+  // Подсказки из личной базы владельца. Живут отдельно от form: это состояние
+  // подсказки, а не брифа, и в сохранённый трек оно не попадает.
+  let baseStatus = 'idle';
+  let basePromptUndo = null, baseLyricsUndo = null;
+  let basePromptSource = '', baseLyricsSource = '';
+  let basePromptSkip = 0, baseLyricsSkip = 0;
+  let baseQuery = '', baseBrowserOpen = false;
+  const base = () => window.BRIIX_MUSIC_BASE;
+  const hasBase = () => !!window.BRIIX_MUSIC_BASE;
+
+  function setPromptValue(text) {
+    form.prompt = String(text).slice(0, MAX_PROMPT);
+    const el = $('#music-prompt', root); if (el) el.value = form.prompt;
+    const count = $('#music-prompt-count', root); if (count) count.textContent = form.prompt.length + ' / ' + MAX_PROMPT;
+  }
+  function setLyricsValue(text) {
+    form.lyrics = String(text).slice(0, MAX_LYRICS);
+    const el = $('#music-lyrics', root); if (el) el.value = form.lyrics;
+    const count = $('#music-lyrics-count', root); if (count) count.textContent = form.lyrics.length + ' / ' + MAX_LYRICS;
+    const error = $('#music-form-error', root); if (error) error.hidden = true;
+    el?.removeAttribute('aria-invalid');
+  }
+  // Значения подставляются прямо в поля: экран не пересобирается и не дёргается.
+  function paintBaseControls() {
+    if (!root) return;
+    const show = (selector, on) => { const el = $(selector, root); if (el) el.hidden = !on; };
+    show('.music-base-undo[data-music-action="base-prompt-undo"]', basePromptUndo !== null);
+    show('.music-base-undo[data-music-action="base-lyrics-undo"]', baseLyricsUndo !== null);
+    const promptSource = $('#music-prompt-source', root);
+    if (promptSource) { promptSource.textContent = basePromptSource; promptSource.hidden = !basePromptSource; }
+    const lyricsSource = $('#music-lyrics-source', root);
+    if (lyricsSource) { lyricsSource.textContent = baseLyricsSource; lyricsSource.hidden = !baseLyricsSource; }
+    const status = $('#music-base-status', root);
+    if (status) {
+      const text = baseStatus === 'loading' ? 'Загружаю вашу базу: индекс 2,2 МБ, один раз — дальше из кэша браузера.'
+        : baseStatus === 'error' ? 'База не открылась. Подсказки недоступны, остальное работает как обычно.' : '';
+      status.textContent = text; status.hidden = !text;
+    }
+  }
+  async function ensureBase() {
+    if (!hasBase()) return false;
+    if (base().ready()) { baseStatus = 'ready'; paintBaseControls(); return true; }
+    baseStatus = 'loading'; paintBaseControls();
+    try { await base().load(); baseStatus = 'ready'; paintBaseControls(); return true; }
+    catch { baseStatus = 'error'; paintBaseControls(); return false; }
+  }
+  function briefQuery() {
+    return [form.prompt, form.genre, form.mood, form.project].filter(Boolean).join(' ');
+  }
+  async function improvePrompt() {
+    captureDraft();
+    if (!await ensureBase()) { host?.toast('База недоступна — промпт оставлен как есть.', 'error'); return; }
+    const list = base().pick(briefQuery(), { limit: 4, skip: basePromptSkip });
+    const entry = list[0];
+    if (!entry) { host?.toast('В базе нет подходящей записи.', 'error'); return; }
+    const next = base().enrichPrompt(form.prompt, entry, MAX_PROMPT);
+    basePromptSkip += 1;
+    if (next === form.prompt.trim()) { host?.toast('Этот промпт уже насыщен — попробуйте «Улучшить промпт» ещё раз для другой записи.'); return; }
+    if (basePromptUndo === null) basePromptUndo = form.prompt;
+    setPromptValue(next);
+    basePromptSource = 'Приёмы звучания добавлены из вашей базы: ' + base().label(entry);
+    paintBaseControls();
+    host?.toast('Промпт дополнен из базы DJ1. Свой текст сохранён — можно вернуть.');
+  }
+  async function improveLyrics({ advance = false, silent = false } = {}) {
+    captureDraft();
+    if (!await ensureBase()) { if (!silent) host?.toast('База недоступна — лирику можно написать вручную.', 'error'); return false; }
+    if (advance) baseLyricsSkip += 1;
+    const options = { limit: 4, withLyrics: true, lang: form.language, skip: baseLyricsSkip };
+    let entry = base().pick(briefQuery(), options)[0];
+    if (!entry) { baseLyricsSkip = 0; entry = base().pick(briefQuery(), { ...options, skip: 0, lang: null })[0]; }
+    if (!entry) { if (!silent) host?.toast('В базе нет текста для этого брифа.', 'error'); return false; }
+    let text = '';
+    try { text = await base().lyrics(entry); } catch { text = ''; }
+    if (!text) { if (!silent) host?.toast('Текст не открылся — попробуйте другой вариант.', 'error'); return false; }
+    if (baseLyricsUndo === null) baseLyricsUndo = form.lyrics; // исходник один на всю цепочку подсказок
+    setLyricsValue(text);
+    baseLyricsSource = 'Текст из вашей базы: ' + base().label(entry) + ' · язык ' + (entry.lang === 'ru' ? 'русский' : entry.lang === 'en' ? 'английский' : 'смешанный');
+    paintBaseControls();
+    if (!silent) host?.toast('Лирика подставлена из базы DJ1. Прежний текст можно вернуть.');
+    return true;
+  }
+  function renderBaseResults() {
+    const box = $('#music-base-results', root); if (!box || !hasBase()) return;
+    if (!base().ready()) { box.innerHTML = '<p class="music-base-empty">Открою базу по первому запросу.</p>'; return; }
+    const list = base().search(baseQuery || briefQuery(), { limit: 6 });
+    if (!list.length) { box.innerHTML = '<p class="music-base-empty">Ничего не нашлось. Попробуйте другие слова — например, настроение или инструмент.</p>'; return; }
+    box.innerHTML = list.map(entry => `<article class="music-base-card"><strong>${esc(base().label(entry))}</strong><p>${esc(entry.sound.slice(0, 180))}${entry.sound.length > 180 ? '…' : ''}</p><div class="music-base-card-actions"><button type="button" class="btn small" data-music-action="base-take-prompt" data-id="${entry.id}">${icon('sparkles')}<span>Взять промпт</span></button><button type="button" class="btn small" data-music-action="base-take-lyrics" data-id="${entry.id}" ${entry.lyricId < 0 ? 'disabled' : ''}>${icon('mic')}<span>${entry.lyricId < 0 ? 'Без текста' : 'Взять лирику'}</span></button></div></article>`).join('');
+  }
+  async function takeFromBase(id, what) {
+    if (!await ensureBase()) return;
+    const entry = base().byId(id);
+    if (!entry) { host?.toast('Запись не найдена — обновите поиск.', 'error'); return; }
+    if (what === 'prompt') {
+      if (basePromptUndo === null) basePromptUndo = form.prompt;
+      setPromptValue(entry.sound);
+      basePromptSource = 'Промпт целиком из вашей базы: ' + base().label(entry);
+      paintBaseControls(); host?.toast('Промпт взят из базы DJ1.');
+      return;
+    }
+    let text = '';
+    try { text = await base().lyrics(entry); } catch {}
+    if (!text) { host?.toast('У этой записи нет текста.', 'error'); return; }
+    if (baseLyricsUndo === null) baseLyricsUndo = form.lyrics; // исходник один на всю цепочку подсказок
+    setLyricsValue(text);
+    baseLyricsSource = 'Текст из вашей базы: ' + base().label(entry);
+    paintBaseControls(); host?.toast('Лирика взята из базы DJ1.');
+  }
+
   const actions = {
     tab: el => { syncForm(); if (el.dataset.id !== 'showcase') stopShowcase(); tab = el.dataset.id; renderPanel(); },
     kind: el => { syncForm(); form.kind = el.dataset.id; form.duration = isVocalForm() ? vocalMode(form.vocalMode).durations[0] : kind(form.kind).defaultDuration; renderPanel(); },
@@ -836,6 +960,13 @@
       renderPanel();
       const next = $('#music-lyrics', root); if (next) { next.focus(); next.selectionStart = next.selectionEnd = next.value.length; }
     },
+    'base-prompt': () => { improvePrompt(); },
+    'base-prompt-undo': () => { if (basePromptUndo === null) return; setPromptValue(basePromptUndo); basePromptUndo = null; basePromptSource = ''; paintBaseControls(); },
+    'base-lyrics': () => { improveLyrics(); },
+    'base-lyrics-again': () => { improveLyrics({ advance: true }); },
+    'base-lyrics-undo': () => { if (baseLyricsUndo === null) return; setLyricsValue(baseLyricsUndo); baseLyricsUndo = null; baseLyricsSource = ''; paintBaseControls(); },
+    'base-take-prompt': el => { takeFromBase(el.dataset.id, 'prompt'); },
+    'base-take-lyrics': el => { takeFromBase(el.dataset.id, 'lyrics'); },
     'showcase-play': el => { playShowcase(el.dataset.id); },
     'showcase-lyrics': el => { toggleShowcaseLyrics(el.dataset.id); },
     'edit-blocked': () => { liveRefusal = null; live()?.clearRefusal(); renderPanel(); const area = $('#music-prompt', root); area?.focus(); area?.setSelectionRange(area.value.length, area.value.length); },
@@ -870,6 +1001,10 @@
   document.addEventListener('toggle', event => {
     if (event.target?.id === 'music-tuning') tuningOpen = event.target.open;
     if (event.target?.id === 'music-mode-note') modeNoteOpen = event.target.open;
+    if (event.target?.id === 'music-base-browser') {
+      baseBrowserOpen = event.target.open;
+      if (baseBrowserOpen) { renderBaseResults(); if (!base()?.ready()) ensureBase().then(renderBaseResults); }
+    }
   }, true);
   document.addEventListener('input', event => {
     if (!root || !host) return;
@@ -883,6 +1018,10 @@
     }
     if (id === 'music-project') form.project = event.target.value;
     if (id === 'music-bpm') { form.bpm = clampBpm(event.target.value); const out = $('#music-bpm-value', root); if (out) out.textContent = String(form.bpm); }
+    if (id === 'music-base-query') {
+      baseQuery = event.target.value;
+      if (!base()?.ready()) { ensureBase().then(renderBaseResults); } else renderBaseResults();
+    }
     if (id === 'music-library-search') { libraryQuery = event.target.value; updateLibrary(); }
     if (id === 'music-seek') { const t = track(selectedId); if (t && audio && audio.src) { audio.currentTime = Math.min(Number(event.target.value), t.duration); syncTransport(); } }
   });
@@ -901,6 +1040,10 @@
     const id = event.target.id;
     if (['music-genre', 'music-mood'].includes(id)) { syncForm(); form.bpm = suggestedBpm(form.genre, form.mood); renderPanel(); }
     if (['music-goal', 'music-key', 'music-language'].includes(id)) syncForm();
+    if (id === 'music-auto-lyrics') {
+      form.autoLyrics = event.target.checked;
+      if (form.autoLyrics && !form.lyrics.trim()) improveLyrics({ silent: false });
+    }
     if (id === 'music-fail') form.failNext = event.target.checked;
   });
   document.addEventListener('submit', event => { if (event.target.id === 'music-brief-form') { event.preventDefault(); submit(); } });

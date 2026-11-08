@@ -11,7 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const ROOT = path.resolve(__dirname, '..');
-const PORT = 8390;
+const PORT = 8321; // 8390 = боевой media-bff на runner-хосте A — EADDRINUSE
 const HOST = (() => {
   for (const list of Object.values(os.networkInterfaces())) {
     for (const a of list || []) if (a.family === 'IPv4' && !a.internal) return a.address;

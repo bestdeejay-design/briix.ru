@@ -603,3 +603,32 @@ dialog { color: var(--ink); }
   .message-actions .icon-btn.small { width: 40px; height: 40px; }
   .chat-page .message { font-size: 14px; line-height: 1.75; }
 }
+
+/* Телефон: списки творчества — помощники, промпты, избранное.
+   Шапка ужата, фильтры листаются пальцем, карточки компактнее, действия крупные. */
+@media (max-width: 650px) {
+  .page > .page-header { margin-bottom: 16px; }
+  .page-header h1 { font-size: 22px; letter-spacing: -.5px; margin: 4px 0 0; }
+  .page-header p { display: none; }
+  .page-header .eyebrow { font-size: 9px; }
+
+  .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; margin: 0 -17px 14px; padding: 0 17px 2px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { display: inline-flex; align-items: center; flex-shrink: 0; min-height: 44px; padding: 0 14px; font-size: 13px; }
+  .inline-search { min-height: 48px; padding: 8px 13px; }
+  .inline-search input { font-size: 16px; }
+
+  .assistant-grid, .prompt-grid { grid-template-columns: 1fr; gap: 12px; }
+  .assistant-card, .prompt-card, .saved-card { padding: 15px; border-radius: 13px; }
+  .assistant-card-top, .prompt-card-top { margin-bottom: 12px; }
+  .assistant-card h2, .prompt-card h3 { font-size: 15px; }
+  .assistant-card p, .prompt-card p { font-size: 13px; line-height: 1.65; }
+  .assistant-card-actions .btn, .prompt-card-bottom .btn, .saved-card-actions .btn { min-height: 44px; font-size: 13px; }
+  .assistant-card .icon-btn, .prompt-card .icon-btn, .saved-card .icon-btn { width: 44px; height: 44px; }
+  .prompt-card-bottom { gap: 10px; flex-wrap: wrap; }
+  .prompt-card-bottom .text-btn { min-height: 44px; }
+  .saved-card-body { font-size: 13px; line-height: 1.7; }
+  .saved-card-actions { flex-wrap: wrap; gap: 8px; }
+  .empty-state { padding: 28px 18px; }
+  .empty-state .btn { min-height: 44px; }
+}

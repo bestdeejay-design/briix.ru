@@ -325,12 +325,29 @@
   }
   function emptyMarkup(ic, title, text, button, action) { return `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">${icon(ic)}</div><h2>${title}</h2><p>${text}</p>${button ? `<button class="btn primary" data-action="${action}">${button}${icon('arrowRight')}</button>` : ''}</div>`; }
   /* Conversations */
+  function captureComposer() {
+    const el = $('#prompt-input'); if (!el) return null;
+    return { value: el.value, start: el.selectionStart, end: el.selectionEnd, focused: document.activeElement === el, scrollTop: el.scrollTop, pageScroll: main.scrollTop };
+  }
+  function restoreComposer(draft) {
+    if (!draft) return;
+    const el = $('#prompt-input'); if (!el) return;
+    if (draft.value && !el.value) el.value = draft.value;
+    el.scrollTop = draft.scrollTop;
+    if (draft.focused) {
+      el.focus({ preventScroll: true });
+      try { el.setSelectionRange(draft.start, draft.end); } catch {}
+    }
+    main.scrollTop = draft.pageScroll;
+    updateComposerState();
+  }
   function renderChat() {
+    const draft = captureComposer();
     const chat = currentChat();
     if (!chat) { main.innerHTML = `<section class="page">${emptyMarkup('chat', 'Этот диалог не сохранён', 'Возможно, он был удалён, история отключена или ссылка открыта в другом браузере.', 'Начать новый диалог', 'new-chat')}</section>`; return; }
     const a = assistant(chat.assistantId);
     main.innerHTML = `<section class="chat-page" aria-label="${esc(chat.title)}"><div id="chat-live-banner" class="storage-banner live-mode-banner" role="status" hidden><span data-live-banner-text></span><a class="text-btn" href="#/settings" data-live-settings aria-label="Ключ в Настройках" title="Ключ в Настройках" hidden>${icon('settings')}<span>Ключ в Настройках</span></a></div><div class="chat-meta"><div class="chat-meta-left">${avatar(a, 'small')}<span>${esc(a.name)}</span><span class="badge">${chat.isExample ? 'Пример диалога' : 'Локальный диалог'}</span></div><div class="chat-meta-actions"><button class="icon-btn ${chat.favorite ? 'active' : ''}" data-action="favorite-chat" data-id="${esc(chat.id)}" aria-label="${chat.favorite ? 'Убрать диалог из избранного' : 'Диалог в избранное'}" aria-pressed="${chat.favorite}" title="Избранное">${icon('star')}</button><button class="icon-btn" data-action="rename-chat" data-id="${esc(chat.id)}" aria-label="Переименовать диалог" title="Переименовать">${icon('edit')}</button><button class="icon-btn" data-action="export-chat" data-id="${esc(chat.id)}" aria-label="Экспортировать диалог" title="Скачать Markdown">${icon('download')}</button><button class="icon-btn" data-action="delete-chat" data-id="${esc(chat.id)}" aria-label="Удалить диалог" title="Удалить">${icon('trash')}</button></div></div><div class="messages" id="messages" role="log" aria-label="Сообщения" aria-live="off">${chat.messages.map(m => messageMarkup(m, chat)).join('')}</div>${followupMarkup(chat)}<div class="chat-composer-wrap">${composerMarkup(chat)}<div class="chat-disclaimer">${chatLiveActive() ? 'Отвечает ваша модель через приватный туннель. Проверяйте важные факты.' : 'Сценарные ответы для проверки интерфейса. Не используйте демо для важных решений.'}</div></div></section>`;
-    renderAttachments(); updateComposerState();
+    renderAttachments(); updateComposerState(); restoreComposer(draft);
   }
   function messageMarkup(m, chat) {
     if (m.role === 'user') return `<article class="message user" data-message-id="${esc(m.id)}" aria-label="Ваше сообщение"><div><div class="user-bubble">${esc(m.content)}</div>${m.attachments?.length ? `<div class="attachment-list" style="margin-top:8px;justify-content:flex-end">${m.attachments.map(f => `<span class="attachment-chip" title="Демо-вложение, содержимое не читается">${icon('file')}<span class="attachment-name">${esc(f.name)}</span><span class="faint">${fileSize(f.size)}</span></span>`).join('')}</div>` : ''}</div></article>`;
@@ -355,6 +372,22 @@
     const old = $('.followups'); if (old) old.remove();
     const wrap = $('.chat-composer-wrap'); if (wrap) wrap.insertAdjacentHTML('beforebegin', followupMarkup(chat));
     if (scroll) scrollToBottom();
+  }
+  // Пока человек печатает следующий вопрос, ответ не имеет права трогать его вид.
+  function composerBusy() {
+    const el = document.activeElement;
+    return !!el && (el.id === 'prompt-input' || !!el.closest?.('.chat-composer-wrap'));
+  }
+  function readerAtBottom() {
+    return main.scrollHeight - main.scrollTop - main.clientHeight < 60;
+  }
+  // Рисуем только тело текущего ответа. Раньше на каждый кусок SSE пересобирались
+  // все сообщения и заново вставлялся блок подсказок — от этого экран и трясло.
+  function paintStreamingMessage(message) {
+    const holder = $(`[data-message-id="${message.id}"] .message-content`);
+    if (!holder) { refreshMessages(); return; }
+    const html = `<div class="prose" data-prose-id="${message.id}">${markdown(message.content)}<span class="streaming-caret" aria-hidden="true"></span></div>`;
+    if (holder.innerHTML !== html) holder.innerHTML = html;
   }
   function scrollToBottom(force = false) {
     if (route().page !== 'chat') return;
@@ -413,7 +446,12 @@
     if (chatLiveActive()) {
       stream.abort = window.BRIIX_CHAT_LIVE.respond({
         chat, message, prompt,
-        onChunk: () => { if (route().page === 'chat' && route().id === chat.id) { refreshMessages(); scrollToBottom(); } },
+        onChunk: () => {
+          if (route().page !== 'chat' || route().id !== chat.id) return;
+          const follow = readerAtBottom() && !composerBusy();
+          paintStreamingMessage(message);
+          if (follow) main.scrollTop = main.scrollHeight;
+        },
         onFinish: status => finish(status),
         persist: () => persist()
       });
@@ -428,12 +466,12 @@
         if (stream.cancelled) return;
         stream.index = Math.min(fullText.length, stream.index + 18 + Math.floor(Math.random() * 14));
         message.content = fullText.slice(0, stream.index);
-        const nearBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 220;
+        const follow = readerAtBottom() && !composerBusy();
         const visibleContent = message.status === 'error' ? '' : message.content;
         if (route().page === 'chat' && route().id === chat.id) {
           const holder = $(`[data-message-id="${message.id}"] .message-content`);
           if (holder) holder.innerHTML = `<div class="prose" data-prose-id="${message.id}">${markdown(visibleContent)}<span class="streaming-caret" aria-hidden="true"></span></div>`;
-          if (nearBottom) scrollToBottom(true);
+          if (follow) main.scrollTop = main.scrollHeight;
         }
         if (stream.index >= fullText.length) finish('complete'); else stream.timer = setTimeout(tick, 28);
       }; tick();

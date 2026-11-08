@@ -128,6 +128,7 @@ async function measure(page, primary, creative) {
 
   const findings = [];
   const results = [];
+  let screenCount = 0;
   const ok = (name, data = {}) => { results.push({ name, ...data }); console.log('PASS', name, JSON.stringify(data)); };
   const flag = (screen, kind, detail) => findings.push({ screen, kind, detail });
 
@@ -156,6 +157,7 @@ async function measure(page, primary, creative) {
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       if (axe.violations.length) flag(screen.id, 'axe', axe.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target).slice(0, 6) })));
 
+      screenCount++;
       await page.screenshot({ path: path.join(SHOTS, screen.id.replace('/', '-') + '.png') });
       console.log('SCREEN', screen.id, JSON.stringify({ overflow: m.overflow, controls: m.controlCount, small: m.smallTargets.length, clipped: m.clipped.length, tabsOff: m.tabsOffscreen.length, tinyFields: m.tinyFields.length, primary: m.primary ? m.primary.visibleWithoutScroll : null, creativeTop: m.creativeTop, axe: axe.violations.length }));
     }
@@ -185,7 +187,7 @@ async function measure(page, primary, creative) {
 
   if (!REPORT_ONLY) {
     assert.deepEqual(findings, [], 'мобильный контракт нарушен: ' + findings.length + ' находок (подробности выше)');
-    ok('mobile contract holds across every section', { screens: results.length });
+    ok('mobile contract holds across every section', { screens: screenCount, checks: ['overflow', 'clipping', 'targets>=40', 'primary>=44', 'inputs>=16', 'tabs-fit', 'axe'] });
   }
   console.log(REPORT_ONLY ? 'REPORT DONE' : 'DONE');
   await browser.close();

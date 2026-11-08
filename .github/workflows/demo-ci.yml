@@ -92,11 +92,10 @@ jobs:
           done
           } 2>&1 | tee /tmp/briix-ci-tests.log
 
-      # Сквозной мобильный контракт по всем разделам. Пока наблюдение: разделы
-      # чинятся по одному, и краснить гейт раньше времени нельзя. Станет гейтом,
-      # когда все экраны пройдут (см. audits/mobile-ui-390x844.md).
-      - name: Mobile UI contract (observational)
-        continue-on-error: true
+      # Сквозной мобильный контракт по всем разделам. Был наблюдательным, пока
+      # разделы чинились по одному; все экраны прошли — теперь это гейт.
+      # Разбор находок: audits/mobile-ui-390x844.md.
+      - name: Mobile UI contract (all sections)
         env:
           NODE_PATH: /home/badai/briix-ci-deps/node_modules
         run: |

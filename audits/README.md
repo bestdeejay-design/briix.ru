@@ -36,8 +36,16 @@
 - `2026-11-08-mobile-app-roadmap.md` — подробный план: mobile web → PWA → iOS/Android-оболочки → beta/store submission; gates, backlog, риски, безопасность и контракты шины.
 - `evidence/2026-11-08-mobile-app-roadmap-check.json` — локальные проверки плана; не mobile E2E, не store approval и не проверка стендов.
 
+### Живой контур: аудит конфига media-bff
+
+- `2026-11-08-bff-config-audit.md` — аудит снапшота PR #30 и клиента PR #29: 13 находок, 2 воспроизведённых бага, блокер vocal-route, протокол приёмки вокала.
+- `evidence/2026-11-08-bff-config-audit.json` — находки, хеши снапшота, вывод репро; не проверка стенда и не прослушивание аудио.
+- `evidence/2026-11-08-bff-threadbudget-probe.py`, `evidence/2026-11-08-bff-sse-cors-probe.py` — исполняемые репро находок F-01 и F-02 (dev-only, сайт их не загружает).
+
 ### Разделы «Изображения» и «Музыка» в демо
 
+- `task-26-phase2-live-music-chat.md` — фаза 2 шины: музыка (WAV из `type=music`) и чат (SSE) в приватном live-режиме, честный откат при F-02, 99 проверок; раздел «что осталось непроверенным».
+- `evidence/2026-11-08-phase2-checks.json` — логи семи сюит, хеши файлов, две гонки в `check-media-live`, список непроверенного.
 - `task-music-demo-section.md` — реализация раздела «Музыка» (`#/music`), переименование «Медиа-студии» в «Изображения», помощник и промпты; что мок, что работает, и что не проверено.
 - `evidence/2026-11-08-music-demo-check.json` — браузерные и статические проверки: music 23 PASS, demo 20 PASS, media 25 PASS; не live-приёмка моделей.
 

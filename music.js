@@ -55,6 +55,7 @@
   const $$ = (s, scope = document) => [...scope.querySelectorAll(s)];
   let host = null;
   let root = null;
+  let liveBannerText = '';
   let tab = 'create';
   let libraryFilter = 'all';
   let libraryQuery = '';
@@ -70,6 +71,10 @@
   const cache = new Map();
   const synths = new Map();
   let playing = false;
+  const live = () => window.BRIIX_MUSIC_LIVE || null;
+  const liveActive = () => !!(live() && live().active());
+  const originLabel = () => liveActive() ? 'Приватный live' : 'Локальный мок';
+  const LIVE_STATUSES = ['queued', 'running', 'ready', 'error', 'cancelled', 'interrupted', 'expired'];
   const kind = id => KINDS.find(k => k.id === id) || KINDS[1];
   const genre = id => GENRES.find(g => g.id === id) || GENRES[0];
   const mood = id => MOODS.find(m => m.id === id) || MOODS[0];
@@ -87,7 +92,10 @@
     if (!raw || raw.version !== 1 || !Array.isArray(raw.tracks) || raw.tracks.length > MAX_TRACKS) throw new Error('Неверный формат музыкального хранилища.');
     const ids = new Set();
     return { version: 1, tracks: raw.tracks.map(t => {
-      if (!t || typeof t.id !== 'string' || !/^[\w-]{1,100}$/.test(t.id) || ids.has(t.id) || !KINDS.some(k => k.id === t.kind) || !GENRES.some(g => g.id === t.genre) || !MOODS.some(m => m.id === t.mood) || !KEYS.some(k => k.id === t.key) || typeof t.prompt !== 'string' || typeof t.project !== 'string' || !['queued', 'running', 'ready', 'error', 'cancelled'].includes(t.status)) throw new Error('Повреждена музыкальная задача.');
+      const isLive = t.mode === 'live';
+      const statuses = isLive ? LIVE_STATUSES : ['queued', 'running', 'ready', 'error', 'cancelled'];
+      if (!t || typeof t.id !== 'string' || !/^[\w-]{1,100}$/.test(t.id) || ids.has(t.id) || !KINDS.some(k => k.id === t.kind) || !GENRES.some(g => g.id === t.genre) || !MOODS.some(m => m.id === t.mood) || !KEYS.some(k => k.id === t.key) || typeof t.prompt !== 'string' || typeof t.project !== 'string' || !statuses.includes(t.status)) throw new Error('Повреждена музыкальная задача.');
+      if (isLive && (typeof t.serverJobId !== 'string' || !/^[\w-]{1,100}$/.test(t.serverJobId))) throw new Error('Повреждена live-задача: нет serverJobId.');
       ids.add(t.id);
       return {
         id: t.id, kind: t.kind, genre: t.genre, mood: t.mood, key: t.key,
@@ -98,7 +106,19 @@
         progress: t.status === 'ready' ? 100 : 0, favorite: !!t.favorite,
         seed: Number.isSafeInteger(t.seed) && t.seed >= 0 ? t.seed >>> 0 : seedFrom(t.prompt + t.genre + t.bpm),
         createdAt: Number.isFinite(t.createdAt) && t.createdAt > 0 && t.createdAt <= 8640000000000000 ? t.createdAt : Date.now(),
-        fail: false
+        fail: false,
+        ...(isLive ? {
+          mode: 'live', serverJobId: t.serverJobId,
+          resultUrl: typeof t.resultUrl === 'string' && /^\/files\/[\w-]{1,100}$/.test(t.resultUrl) ? t.resultUrl : null,
+          stage: typeof t.stage === 'string' ? t.stage.slice(0, 40) : null,
+          error: typeof t.error === 'string' ? t.error.slice(0, 300) : null,
+          provenance: t.provenance && typeof t.provenance === 'object' ? {
+            model: typeof t.provenance.model === 'string' ? t.provenance.model.slice(0, 80) : null,
+            capability: typeof t.provenance.capability === 'string' ? t.provenance.capability.slice(0, 40) : null,
+            wall_clock_ms: Number.isFinite(t.provenance.wall_clock_ms) ? t.provenance.wall_clock_ms : null,
+            queued_ms: Number.isFinite(t.provenance.queued_ms) ? t.provenance.queued_ms : null
+          } : null
+        } : { mode: 'mock' })
       };
     }) };
   }
@@ -220,6 +240,7 @@
   }
   function ensureAudio(t) {
     if (cache.has(t.id)) return Promise.resolve(cache.get(t.id));
+    if (t.mode === 'live') return live() ? live().ensureAudio(t).then(entry => entry || null) : Promise.resolve(null);
     return new Promise(resolve => {
       const synth = createSynth(t);
       const run = () => {
@@ -240,10 +261,11 @@
     if (selectedId === id) { stopPlayback(); selectedId = null; }
   }
   /* Queue: progress reflects real local synthesis of the placeholder, not a model. */
-  function ensureTimer() { if (!timer && state.tracks.some(t => t.status === 'queued')) timer = setInterval(tick, 220); }
+  function ensureTimer() { if (!timer && state.tracks.some(t => t.status === 'queued' && t.mode !== 'live')) timer = setInterval(tick, 220); }
   function tick() {
     let changed = false;
     for (const t of state.tracks) {
+      if (t.mode === 'live') continue;
       if (t.status === 'queued') {
         if (state.tracks.filter(x => x.status === 'running').length >= MAX_ACTIVE) continue;
         if (t.fail) { t.status = 'error'; t.progress = 0; t.fail = false; changed = true; persist(); continue; }
@@ -273,7 +295,7 @@
       if (tab === 'create' && matchMedia('(max-width: 1150px)').matches) $('#music-preview', root)?.scrollIntoView({ behavior: host.reducedMotion?.matches ? 'auto' : 'smooth', block: 'start' });
     }
     updateCounts();
-    if (!state.tracks.some(t => ['queued', 'running'].includes(t.status))) { clearInterval(timer); timer = null; }
+    if (!state.tracks.some(t => t.mode !== 'live' && ['queued', 'running'].includes(t.status))) { clearInterval(timer); timer = null; }
   }
   function updateProgressRow(t) {
     const bar = $(`[data-music-progress="${t.id}"]`, root || document);
@@ -293,6 +315,11 @@
     if (activeCount() >= MAX_ACTIVE) { host?.toast('Одновременно собирается до четырёх черновиков. Дождитесь очереди.', 'error'); return; }
     if (error) error.hidden = true;
     input?.removeAttribute('aria-invalid');
+    if (liveActive()) {
+      if (form.kind === 'song') { host.toast('Вокал не подключён: в live-режиме песня не отправляется.', 'error'); return; }
+      live().submit({ kind: form.kind, prompt: form.prompt.trim(), project: form.project.trim(), duration: form.duration, genre: form.genre, mood: form.mood, key: form.key, bpm: form.bpm });
+      return;
+    }
     const t = {
       id: uid(), kind: form.kind, genre: form.genre, mood: form.mood, key: form.key, goal: form.goal,
       duration: form.duration, bpm: clampBpm(form.bpm), project: form.project.slice(0, 80), prompt: form.prompt.slice(0, MAX_PROMPT),
@@ -305,6 +332,9 @@
     host?.toast('Задача в очереди. Собираем локальную заглушку.');
   }
   function statusLabel(t) {
+    if (t.mode === 'live') {
+      return ({ queued: 'В очереди на сервере', running: t.stage === 'generating' ? 'Генерация на сервере' : 'Сервер греет модель', ready: 'Готово · live', error: 'Ошибка сервера', cancelled: 'Остановлено', interrupted: 'Прервано: связь с сервером потеряна', expired: 'Результат истёк на сервере' })[t.status] || t.status;
+    }
     return ({ queued: 'В очереди', running: 'Собираем звук · ' + t.progress + '%', ready: 'Готово', error: 'Демо-ошибка', cancelled: 'Остановлено' })[t.status];
   }
   function date(value) { return new Date(value).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
@@ -319,8 +349,11 @@
     });
   }
   function heading() {
-    return `<div class="page-header music-heading"><div><div class="eyebrow">Звуковая мастерская</div><h1>Музыка</h1><p>От идеи до чернового звучания. Спокойно, наглядно, в одном месте.</p></div><button class="btn music-help" data-music-action="help">${icon('help')}<span>Как это работает</span></button></div>
-      <div class="music-mode-note">${icon('flask')}<span><strong>Локальный мок, не нейросеть.</strong> Звук собирается в браузере из простых тонов и шума по жанру, темпу и настроению. Текст брифа влияет только на вариант заглушки. <strong>Вокал в демо не синтезируется:</strong> для песни вы получите минусовку и структуру трека. Без API, кредитов и загрузки файлов.</span></div>
+    return `<div class="page-header music-heading"><div><div class="eyebrow">Звуковая мастерская</div><h1>Музыка</h1><p>От идеи до чернового звучания. Спокойно, наглядно, в одном месте.</p></div><div class="music-heading-actions"><button class="btn music-live-toggle ${liveActive() ? 'active' : ''}" data-music-action="live" aria-pressed="${liveActive()}">${icon('route')}<span>${liveActive() ? 'Приватный live включён' : 'Приватный live (эксперимент)'}</span></button><button class="btn music-help" data-music-action="help">${icon('help')}<span>Как это работает</span></button></div></div>
+      <div id="music-live-banner" class="storage-banner" role="status" ${liveBannerText ? '' : 'hidden'}>${esc(liveBannerText)}</div>
+      <div class="music-mode-note">${icon(liveActive() ? 'route' : 'flask')}<span>${liveActive()
+        ? `<strong>Приватный live: считает ваш сервер.</strong> Инструментал и джингл уходят в шину моделей (type=music) и возвращаются настоящим WAV. Длительность задаёт модель: текущий MusicGen даёт около 15 секунд, параметр duration отправляется, но бэкендом пока не учитывается. <strong>Вокал не подключён</strong> — «Песня с вокалом» честно недоступна.`
+        : `<strong>Локальный мок, не нейросеть.</strong> Звук собирается в браузере из простых тонов и шума по жанру, темпу и настроению. Текст брифа влияет только на вариант заглушки. <strong>Вокал в демо не синтезируется:</strong> для песни вы получите минусовку и структуру трека. Без API, кредитов и загрузки файлов.`}</span></div>
       <div id="music-storage-notice" class="storage-banner" role="status" hidden></div>
       <div class="music-tabs" role="tablist" aria-label="Разделы музыкальной мастерской">${[['create', 'Создание', 'sparkles'], ['library', 'Треки', 'music'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route']].map(([id, label, ic]) => `<button id="music-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="music-panel" tabindex="${tab === id ? 0 : -1}" class="music-tab ${tab === id ? 'active' : ''}" data-music-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="music-count" id="music-library-count">${readyTracks().length}</span>` : id === 'queue' ? `<span class="music-count" id="music-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="music-panel" role="tabpanel" aria-labelledby="music-tab-${tab}" tabindex="0"><div id="music-panel-content"></div></section>`;
   }
@@ -342,6 +375,7 @@
   }
   function createMarkup() {
     const k = kind(form.kind);
+    const vocalBlocked = liveActive() && form.kind === 'song';
     const current = track(selectedId) || readyTracks()[0] || null;
     if (current && current.status === 'ready') selectedId = current.id;
     return `<div class="music-create-layout"><form id="music-brief-form" class="music-brief" novalidate>
@@ -356,20 +390,23 @@
       <div class="music-field"><span id="music-duration-label">Длительность черновика</span><div class="music-durations" role="group" aria-labelledby="music-duration-label">${DURATIONS.map(d => `<button type="button" class="${form.duration === d ? 'active' : ''}" aria-pressed="${form.duration === d}" data-music-action="duration" data-id="${d}">${d} с</button>`).join('')}</div></div>
       <details class="music-extra"><summary>Дополнительно</summary><label class="music-check"><input type="checkbox" id="music-fail" ${form.failNext ? 'checked' : ''}><span>Смоделировать ошибку очереди — чтобы проверить повтор</span></label><p class="music-extra-note">Заглушка собирается локально и занимает несколько секунд. Одновременно — до четырёх задач, в библиотеке — до 24 черновиков.</p></details>
       <div id="music-form-error" class="music-form-error" role="alert" hidden></div>
-      <button type="submit" class="btn primary music-submit" id="music-generate">${icon('sparkles')}Собрать черновик</button>
-      <p class="music-submit-note">${icon('lock')}Ничего не отправляется наружу: ни текст, ни звук.</p>
+      ${vocalBlocked ? `<div class="music-unavailable" id="music-vocal-unavailable">${icon('mic')}<div><strong>Песня с вокалом пока недоступна</strong><p>Каталог шины отдаёт <code>song.vocal: unavailable</code>. Инструментальные модели вокал не заменяют, поэтому задача не отправляется и подменять её минусовкой в live-режиме мы не будем.</p></div></div>` : ''}
+      <button type="submit" class="btn primary music-submit" id="music-generate" ${vocalBlocked ? 'disabled aria-disabled="true"' : ''}>${icon(vocalBlocked ? 'mic' : 'sparkles')}${vocalBlocked ? 'Вокал не подключён' : liveActive() ? 'Отправить на сервер' : 'Собрать черновик'}</button>
+      <p class="music-submit-note">${icon('lock')}${liveActive() ? 'На ваш сервер уходит только бриф. Токен живёт в этом браузере.' : 'Ничего не отправляется наружу: ни текст, ни звук.'}</p>
     </form>
     <div class="music-output" id="music-preview">${previewMarkup(current)}</div></div>`;
   }
   function previewMarkup(t) {
     if (!t || t.status !== 'ready') {
       const pending = state.tracks.find(x => ['queued', 'running'].includes(x.status));
-      return `<div class="music-empty">${icon(pending ? 'clock' : 'music')}<h2>${pending ? 'Собираем черновик' : 'Здесь появится черновик'}</h2><p>${pending ? 'Заглушка собирается прямо в браузере. Прогресс — реальная локальная работа, не скорость модели.' : 'Заполните бриф слева и нажмите «Собрать черновик». Результат можно послушать, скачать и сохранить в библиотеку.'}</p>${pending ? `<div class="music-progress" role="progressbar" aria-label="Сборка локальной заглушки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pending.progress}"><span data-music-progress="${pending.id}" style="width:${pending.progress}%"></span></div><p class="music-empty-status" data-music-inline="${pending.id}">${statusLabel(pending)}</p>` : ''}</div>`;
+      const serverPending = pending?.mode === 'live';
+      return `<div class="music-empty">${icon(pending ? 'clock' : 'music')}<h2>${pending ? 'Собираем черновик' : 'Здесь появится черновик'}</h2><p>${pending ? (serverPending ? 'Задача выполняется на вашем сервере. Ждём готовый WAV — прогресс показывает стадия сервера, а не проценты.' : 'Заглушка собирается прямо в браузере. Прогресс — реальная локальная работа, не скорость модели.') : 'Заполните бриф слева и нажмите «Собрать черновик». Результат можно послушать, скачать и сохранить в библиотеку.'}</p>${pending ? `<div class="music-progress" role="progressbar" aria-label="Сборка локальной заглушки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pending.progress}"><span data-music-progress="${pending.id}" style="width:${pending.progress}%"></span></div><p class="music-empty-status" data-music-inline="${pending.id}">${statusLabel(pending)}</p>` : ''}</div>`;
     }
     const k = kind(t.kind);
     return `<article class="music-player-card">
-      <div class="music-preview-head"><div><span class="eyebrow">02 / Черновик</span><h2>${esc(t.project || k.title)}</h2><p>${esc(metaLine(t))}</p></div><span class="badge music-mock-badge">${icon('flask')}Мок</span></div>
-      ${t.kind === 'song' ? `<div class="music-vocal-note">${icon('mic')}<span><strong>Это минусовка.</strong> Вокал, текст и живое исполнение появятся, когда к шине подключат модель с capability <code>song.vocal</code>.</span></div>` : ''}
+      <div class="music-preview-head"><div><span class="eyebrow">02 / Черновик</span><h2>${esc(t.project || k.title)}</h2><p>${esc(metaLine(t))}</p></div><span class="badge ${t.mode === 'live' ? 'music-live-badge' : 'music-mock-badge'}">${icon(t.mode === 'live' ? 'route' : 'flask')}${t.mode === 'live' ? 'Live' : 'Мок'}</span></div>
+      ${t.mode === 'live' ? provenanceMarkup(t) : ''}
+      ${t.kind === 'song' && t.mode !== 'live' ? `<div class="music-vocal-note">${icon('mic')}<span><strong>Это минусовка.</strong> Вокал, текст и живое исполнение появятся, когда к шине подключат модель с capability <code>song.vocal</code>.</span></div>` : ''}
       <div class="music-wave" id="music-wave" aria-hidden="true"><div class="music-wave-bars" data-music-bars></div><div class="music-wave-fill" id="music-wave-fill"><div class="music-wave-bars" data-music-bars></div></div></div>
       <div class="music-transport"><button class="music-play" data-music-action="play" data-id="${t.id}" aria-label="Прослушать черновик" aria-pressed="false">${icon('play')}</button><div class="music-seek"><label class="sr-only" for="music-seek">Позиция воспроизведения</label><input id="music-seek" type="range" min="0" max="${t.duration}" step="0.1" value="0"><div class="music-time"><span id="music-time-current">0:00</span><span id="music-time-total">${time(t.duration)}</span></div></div></div>
       <p class="music-player-note" id="music-player-status" role="status">Нажмите кнопку воспроизведения, чтобы послушать заглушку. Звук синтезируется локально.</p>
@@ -377,6 +414,12 @@
       <div class="music-structure"><h3>Структура черновика</h3><ol>${structure(t).map(p => `<li><span>${esc(p.name)}</span><span class="music-structure-time">${p.from}–${p.to}</span></li>`).join('')}</ol><p class="music-structure-note">Разметка рассчитана по длительности и типу задачи. Это план для будущей модели, а не результат анализа звука.</p></div>
       <div class="music-next"><h3>Что дальше</h3><ul><li>Уточните жанр, темп и настроение в брифе.</li><li>Соберите два-три варианта и сравните направление.</li><li>Скачайте WAV и покажите команде как референс настроения.</li></ul></div>
     </article>`;
+  }
+  function provenanceMarkup(t) {
+    const p = t.provenance || {};
+    const seconds = Number.isFinite(p.wall_clock_ms) ? (p.wall_clock_ms / 1000).toFixed(1) + ' с' : '—';
+    const queued = Number.isFinite(p.queued_ms) ? (p.queued_ms / 1000).toFixed(1) + ' с' : '—';
+    return `<div class="music-provenance" data-music-provenance="${esc(t.id)}"><span class="eyebrow">Provenance · сервер</span><dl><div><dt>Модель</dt><dd>${esc(p.model || '—')}</dd></div><div><dt>Тип</dt><dd>${esc(p.capability || 'instrumental')}</dd></div><div><dt>Генерация</dt><dd>${seconds}</dd></div><div><dt>В очереди</dt><dd>${queued}</dd></div></dl><p class="music-provenance-note">${icon('route')}Файл получен с вашего сервера по bearer-токену и живёт в памяти вкладки. В хранилище браузера — только бриф и эти метаданные.</p></div>`;
   }
   function libraryMarkup() {
     return `<div class="music-library-head"><div><h2>Библиотека черновиков</h2><p>Всё живёт в этом браузере. Звук пересобирается по сохранённому брифу — файлы не хранятся в хранилище.</p></div><div class="music-library-actions"><button class="btn small" data-music-action="export">${icon('download')}Экспорт брифов</button><button class="btn small" data-music-action="clear">${icon('trash')}Очистить</button></div></div>
@@ -411,7 +454,7 @@
     const draw = peaks => { holders.forEach(holder => { holder.innerHTML = peaks.map(p => `<span style="height:${p}%"></span>`).join(''); }); };
     const cached = cache.get(t.id);
     if (cached) draw(cached.peaks);
-    else ensureAudio(t).then(result => { if (selectedId === t.id) draw(result.peaks); });
+    else ensureAudio(t).then(result => { if (result && selectedId === t.id) draw(result.peaks); });
     syncTransport();
   }
   function syncTransport() {
@@ -436,6 +479,7 @@
     const status = $('#music-player-status', root || document);
     if (selectedId !== id) { stopPlayback(); selectedId = id; if (tab === 'create') renderPanel(); }
     const entry = cache.get(id) || await ensureAudio(t);
+    if (!entry) { host?.toast('Звук недоступен: файл не получен с сервера.', 'error'); return; }
     if (audio.src !== entry.url) { audio.src = entry.url; audio.currentTime = 0; }
     try {
       await audio.play();
@@ -479,13 +523,24 @@
     const t = track(id); if (!t || t.status !== 'ready') return;
     const cached = cache.get(id);
     if (cached) { saveBlob(cached, t); return; }
-    ensureAudio(t).then(entry => saveBlob(entry, t));
+    ensureAudio(t).then(entry => { if (entry) saveBlob(entry, t); else host?.toast('Скачивание недоступно: файл не получен с сервера.', 'error'); });
   }
   function exportBriefs() {
-    const payload = { exportedAt: new Date().toISOString(), notice: 'Local mock briefs. No model inference, no vocals, no provider requests.', tracks: state.tracks.map(({ id, kind: k, genre: g, mood: m, key: kk, goal, duration, bpm, project, prompt, seed, favorite, status, createdAt }) => ({ id, kind: k, genre: g, mood: m, key: kk, goal, duration, bpm, project, prompt, seed, favorite, status, createdAt })) };
+    const hasLive = state.tracks.some(t => t.mode === 'live');
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      notice: hasLive
+        ? 'Mixed export: local mock briefs plus private-live jobs from your own server. Live records carry server provenance; audio files are never exported.'
+        : 'Local mock briefs. No model inference, no vocals, no provider requests.',
+      tracks: state.tracks.map(({ id, kind: k, genre: g, mood: m, key: kk, goal, duration, bpm, project, prompt, seed, favorite, status, createdAt, mode, serverJobId, provenance }) => ({
+        id, kind: k, genre: g, mood: m, key: kk, goal, duration, bpm, project, prompt, seed, favorite, status, createdAt,
+        mode: mode || 'mock', ...(mode === 'live' ? { serverJobId, provenance: provenance || null } : {})
+      }))
+    };
     host.download('briix-music-briefs.json', JSON.stringify(payload, null, 2), 'application/json');
     host.toast('Брифы выгружены в JSON.');
   }
+
   function reuse(id) {
     const t = track(id); if (!t) return;
     form = { kind: t.kind, genre: t.genre, mood: t.mood, key: t.key, goal: t.goal, duration: t.duration, bpm: t.bpm, project: t.project, prompt: t.prompt, failNext: false };
@@ -495,7 +550,7 @@
   }
   function remove(id) {
     const t = track(id); if (!t) return;
-    host.openModal('Удалить черновик?', `<div class="music-modal"><p>«${esc(t.project || kind(t.kind).title)}» будет удалён из этого браузера вместе с брифом. Скачанные файлы останутся на устройстве.</p></div>`, [{ label: 'Отмена', action: host.closeModal }, { label: 'Удалить', danger: true, action: () => { synths.delete(id); releaseAudio(id); state.tracks = state.tracks.filter(x => x.id !== id); persist(); host.closeModal(); renderPanel(); updateCounts(); host.toast('Черновик удалён.'); } }]);
+    host.openModal('Удалить черновик?', `<div class="music-modal"><p>«${esc(t.project || kind(t.kind).title)}» будет удалён из этого браузера вместе с брифом. Скачанные файлы останутся на устройстве.</p></div>`, [{ label: 'Отмена', action: host.closeModal }, { label: 'Удалить', danger: true, action: () => { synths.delete(id); live()?.release(id); releaseAudio(id); state.tracks = state.tracks.filter(x => x.id !== id); persist(); host.closeModal(); renderPanel(); updateCounts(); host.toast('Черновик удалён.'); } }]);
   }
   function clearAll() {
     host.openModal('Очистить музыкальную мастерскую?', `<div class="music-modal"><p>Будут удалены все треки, брифы и отметки избранного. Активные задачи остановятся. Диалоги и изображения не затрагиваются.</p></div>`, [{ label: 'Отмена', action: host.closeModal }, { label: 'Скачать брифы', action: exportBriefs }, { label: 'Очистить', danger: true, action: () => { clearInterval(timer); timer = null; synths.clear(); [...cache.keys()].forEach(releaseAudio); stopPlayback(); selectedId = null; state = fresh(); storageProtected = false; storageOkay = true; persist(); host.closeModal(); render(); host.toast('Музыкальная мастерская очищена.'); } }]);
@@ -522,6 +577,7 @@
     'reset-filter': () => { libraryFilter = 'all'; libraryQuery = ''; renderPanel(); },
     new: () => { tab = 'create'; renderPanel(); $('#music-prompt', root)?.focus({ preventScroll: true }); },
     help,
+    live: () => { if (live()) live().toggle(); else host.toast('Live-модуль не загрузился. Обновите страницу.', 'error'); },
     play: el => togglePlayback(el.dataset.id),
     open: el => { selectedId = el.dataset.id; tab = 'create'; renderPanel(); togglePlayback(el.dataset.id); },
     favorite: el => { const t = track(el.dataset.id); if (!t) return; t.favorite = !t.favorite; persist(); renderPanel(); host.toast(t.favorite ? 'Черновик в избранном' : 'Черновик убран из избранного'); },
@@ -531,8 +587,8 @@
     delete: el => remove(el.dataset.id),
     export: exportBriefs,
     clear: clearAll,
-    cancel: el => { const t = track(el.dataset.id); if (!t) return; synths.delete(t.id); t.status = 'cancelled'; t.progress = 0; persist(); renderPanel(); updateCounts(); host.toast('Задача остановлена.'); },
-    retry: el => { const t = track(el.dataset.id); if (!t) return; t.status = 'queued'; t.progress = 0; t.fail = false; persist(); renderPanel(); updateCounts(); ensureTimer(); }
+    cancel: el => { const t = track(el.dataset.id); if (!t) return; if (t.mode === 'live') { live()?.cancel(t); return; } synths.delete(t.id); t.status = 'cancelled'; t.progress = 0; persist(); renderPanel(); updateCounts(); host.toast('Задача остановлена.'); },
+    retry: el => { const t = track(el.dataset.id); if (!t) return; if (t.mode === 'live') { live()?.resubmit(t); return; } t.status = 'queued'; t.progress = 0; t.fail = false; persist(); renderPanel(); updateCounts(); ensureTimer(); }
   };
   document.addEventListener('click', event => {
     const el = event.target.closest?.('[data-music-action]');
@@ -570,13 +626,36 @@
   window.addEventListener('pageshow', () => { if (state.tracks.some(t => t.status === 'queued')) ensureTimer(); });
   function suspend() {
     stopPlayback(); clearInterval(timer); timer = null; synths.clear();
-    state.tracks.forEach(t => { if (t.status === 'running') { t.status = 'queued'; t.progress = 0; } });
+    state.tracks.forEach(t => { if (t.mode !== 'live' && t.status === 'running') { t.status = 'queued'; t.progress = 0; } });
     persist();
   }
   window.BRIIX_MUSIC = {
-    render(main, services) { host = services; root = main; render(); ensureTimer(); },
+    render(main, services) { host = services; root = main; render(); ensureTimer(); live()?.onHostReady(); },
     pause: stopPlayback,
     suspend,
-    validate
+    validate,
+    // Narrow internal surface for music-live.js (optional live mode).
+    _api: {
+      toast: (text, kind) => host?.toast(text, kind),
+      liveActive,
+      originLabel,
+      setLiveBanner: text => { liveBannerText = text || ''; const el = $('#music-live-banner', root || document); if (!el) return; el.hidden = !liveBannerText; el.textContent = liveBannerText; },
+      readTracks: () => state.tracks.map(t => ({ ...t })),
+      addTrack(data) {
+        const t = validate({ version: 1, tracks: [{ ...data, mode: 'live', favorite: false, seed: seedFrom(data.prompt || ''), createdAt: Date.now(), progress: 0 }] }).tracks[0];
+        state.tracks.unshift(t); persist(); updateCounts(); renderPanel();
+        return t;
+      },
+      patchTrack(id, patch) {
+        const t = track(id); if (!t) return null;
+        Object.assign(t, patch);
+        if (t.status === 'ready') t.progress = 100;
+        persist(); updateCounts();
+        return t;
+      },
+      setAudio(id, entry) { cache.set(id, entry); if (selectedId === id) paintPlayer(); },
+      openPlayer(id) { selectedId = id; tab = 'create'; renderPanel(); },
+      refresh() { if (root) { render(); updateCounts(); updateNotice(); } }
+    }
   };
 })();

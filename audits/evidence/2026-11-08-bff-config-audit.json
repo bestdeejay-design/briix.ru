@@ -1,0 +1,172 @@
+{
+  "date": "2026-11-08",
+  "audit": "PR #30 media-bff config snapshot + PR #29 client contract",
+  "branch": "arena/a50c9bcb-briix-ru",
+  "audited_refs": {
+    "pr30": "ff3867ceafc07b42f4159763e4d9fb2c464237cc",
+    "pr29": "5857d1e60cb6f2a2921706d0eb28f5f6370f7a2a"
+  },
+  "method": "source review of the published snapshot; two executable probes run locally. No access to stand A, no live requests.",
+  "environment": {
+    "probe_python": "3.11.2",
+    "aiohttp_for_sse_probe": "3.14.5 (same as versions.txt on stand A)"
+  },
+  "snapshot_sha256": {
+    "README.md": "f7bec97c91f005bc50a3fc03f344d56d4d5f959faddfe68652457bf1062490dc",
+    "bff-errors-tail.txt": "c41916f12b6a8e14d77752c21c2a26eebfac49eb6fde83a22f31d843699738d5",
+    "bff.py": "0aff95a5077caf23453c92930400154c4847c8cdcaa7fef189f4be1a0d76f42f",
+    "cron-cleanup": "2484a309ec058185ebbbd2cc81fa3fe77c66c2fb7c9f98080adeb8561782699e",
+    "health-sample.json": "c3f12ce6aecf68881143d2794d311ad618db8af5cb2687d4093ed7c88c4dae55",
+    "host-cpu.txt": "2825d67a2351efd8fbd3474bea873c2d988858eb66ea4ed8e9854dc44ab18b1e",
+    "jobs-schema-sample.json": "8b39ef71b66e95d83e7228be6bf890fa77b2be831c5fe8d2611bdd335e823bed",
+    "manifest.txt": "8eb00869d57b2b643b724b4325a171f84ee800fad084429e2a47f9d6b4c75422",
+    "musicgen-cli.py": "8105d704e18aeaa89f1d81fcaf4d535beafa573e16eab1e593acc9853dc3a363",
+    "ru30.json": "5af748ccf0d4670190f15e9f59b1e4a4ce5ebeaffa2fd09b58ddce61e82c33e3",
+    "units-and-env.txt": "75271a2fa38a6cd49c4440f54280edfcef34f5370ce60bdfa725c786d766dee0",
+    "v1-models-snapshot.json": "7a28fcf638024ad9a039d39dcfcc5f72f5d41dbf6dea3afcb2409365c0c89d26",
+    "versions.txt": "a84f4c1f0e78c4049d8251222bb965a808bebca3f0a18a30cff30c845d72fb63"
+  },
+  "probes": [
+    {
+      "id": "F-01",
+      "script": "audits/evidence/2026-11-08-bff-threadbudget-probe.py",
+      "output": [
+        "after_cancel: {'held': 4, 'free_tokens': 2}",
+        "after_full_release: {'held': -2, 'free_tokens': 8}",
+        "warmup_gate_blocked: True",
+        "expected_after_fix: {'held': 0, 'free_tokens': 8}"
+      ],
+      "verdict": "bug confirmed: held=-2 while semaphore fully free"
+    },
+    {
+      "id": "F-02",
+      "script": "audits/evidence/2026-11-08-bff-sse-cors-probe.py",
+      "output": [
+        "/bff-pattern: Access-Control-Allow-Origin present = False",
+        "/fixed: Access-Control-Allow-Origin present = True"
+      ],
+      "verdict": "bug confirmed: ACAO absent with bff ordering, present when set before prepare"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-01",
+      "kind": "bug",
+      "severity": "medium",
+      "summary": "ThreadBudget.held уходит в минус при отмене посреди acquire; warmup-гейт залипает, логи врут",
+      "verification": "reproduced"
+    },
+    {
+      "id": "F-02",
+      "kind": "bug",
+      "severity": "high-for-browser-chat",
+      "summary": "CORS-заголовок SSE ставится после prepare() и не уходит клиенту",
+      "verification": "reproduced"
+    },
+    {
+      "id": "F-03",
+      "kind": "contract",
+      "severity": "blocker-for-vocal",
+      "summary": "provenance.capability жёстко instrumental; нет типа/валидации для song.vocal",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-04",
+      "kind": "contract",
+      "severity": "medium",
+      "summary": "/v1/models статический: status не связан с backend_available; latency measured при seconds=null",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-05",
+      "kind": "contract",
+      "severity": "medium",
+      "summary": "limits.max_duration_seconds = таймаут джоба, а не длительность результата",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-06",
+      "kind": "quota",
+      "severity": "medium",
+      "summary": "бюджет = admission control, не лимит потоков ОС; host-cpu.txt: 11 и 15-16 NLWP",
+      "verification": "snapshot-evidence"
+    },
+    {
+      "id": "F-07",
+      "kind": "consistency",
+      "severity": "low",
+      "summary": "text_worker num_thread=4 хардкод; нет валидации TEXT_BUDGET<=THREAD_BUDGET",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-08",
+      "kind": "footgun",
+      "severity": "medium",
+      "summary": "bff.py cleanup при живом сервисе перезаписывает jobs.json из отдельного процесса",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-09",
+      "kind": "client",
+      "severity": "medium",
+      "summary": "поллинг не останавливается на 404; клиент не шлёт Idempotency-Key",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-10",
+      "kind": "perf",
+      "severity": "low",
+      "summary": "/files/{id} читает файл целиком, блокирует loop, нет Range",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-11",
+      "kind": "hardening",
+      "severity": "low",
+      "summary": "сравнение токена не constant-time; /health без auth (принято контрактом)",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-12",
+      "kind": "observability",
+      "severity": "low",
+      "summary": "в логе только тип ошибки: нельзя отличить смоделированный сбой от реального",
+      "verification": "code-review"
+    },
+    {
+      "id": "F-13",
+      "kind": "limitation",
+      "severity": "low",
+      "summary": "retention спит 3600 перед первым проходом; IDEM не персистится",
+      "verification": "code-review"
+    }
+  ],
+  "totals": {
+    "findings": 13,
+    "reproduced": 2,
+    "blockers_for_vocal_route": 1
+  },
+  "positives": [
+    "bearer auth до роутинга",
+    "единый envelope без путей и стектрейсов",
+    "killpg по отмене и таймауту",
+    "interrupted после рестарта",
+    "params whitelist до скаляров",
+    "blob-URL вместо base64 в localStorage",
+    "CORS allow-list без wildcard",
+    "queue cap + Retry-After",
+    "systemd hardening drop-ins и Linger"
+  ],
+  "not_verified": [
+    "состояние юнитов, hardening и autossh на стенде A",
+    "замеры 88с/2мин/261с/80с",
+    "аудио и спектрограммы вокала (файл недоступен, прослушивание не выполнялось)",
+    "поведение под реальной нагрузкой",
+    "лицензии весов ACE-Step / GGUF / Qwen3-Embedding"
+  ],
+  "owner_decisions_left": [
+    "merge PR #29",
+    "vocal quality verdict and opening song.vocal",
+    "apply PR #30 fixes"
+  ]
+}

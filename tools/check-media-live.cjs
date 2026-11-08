@@ -123,12 +123,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await sleep(400);
   await p.locator('#media-prompt').fill('Live-бриф: керамическая чашка на камне, мягкий свет.');
   await p.locator('#media-generate').click();
-  await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('briix-media-v1') || '{"jobs":[]}'); return s.jobs.some(j => j.mode === 'live' && j.status === 'ready'); }, {}, { timeout: 15000 });
-  const live = (await read(p)).jobs.find(j => j.mode === 'live');
+  // Общий контекст: pagehide предыдущей страницы успевает вернуть её состояние в
+  // localStorage, поэтому ищем именно только что отправленный бриф, а не «первый live».
+  const LIVE_PROMPT = 'Live-бриф: керамическая чашка';
+  await p.waitForFunction(prefix => { const s = JSON.parse(localStorage.getItem('briix-media-v1') || '{"jobs":[]}'); return s.jobs.some(j => j.mode === 'live' && j.prompt.startsWith(prefix) && j.status === 'ready'); }, LIVE_PROMPT, { timeout: 15000 });
+  const live = (await read(p)).jobs.find(j => j.mode === 'live' && j.prompt.startsWith(LIVE_PROMPT));
+  assert.ok(live, 'just-submitted live job is present');
   assert.equal(live.serverJobId, 'job-abc');
   assert.ok(live.resultUrl.startsWith(`http://127.0.0.1:${BFF_PORT}/files/`));
   await p.waitForFunction(() => { const img = document.querySelector('.media-preview-frame img'); return img && img.src.startsWith('blob:'); }, {}, { timeout: 10000 });
-  const stored = await p.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('briix-media-v1')).jobs.find(j => j.mode === 'live')));
+  const stored = await p.evaluate(prefix => JSON.stringify(JSON.parse(localStorage.getItem('briix-media-v1')).jobs.find(j => j.mode === 'live' && j.prompt.startsWith(prefix))), LIVE_PROMPT);
   assert.ok(!stored.includes('data:'), 'no base64 in localStorage');
   assert.ok(stored.length < 2000, 'storage record stays tiny');
   assert.deepEqual(errors, []);
@@ -137,6 +141,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   // ---- Т4: reload during running → recovery by polling ----
   p = await freshPage({ version: 2, jobs: [liveRecord({ provenance: live.provenance })] });
   await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('briix-media-v1')); return s.jobs.find(j => j.mode === 'live')?.status === 'ready'; }, {}, { timeout: 15000 });
+  // Статус ready наступает раньше, чем долетает GET /files и создаётся blob:
+  // ждём именно blob, как в проверке Т4/Т5 выше, иначе тест гонится с fetch.
+  await p.waitForFunction(() => (document.querySelector('.media-preview-frame img')?.src || '').startsWith('blob:'), {}, { timeout: 10000 });
   const blob = await p.evaluate(() => document.querySelector('.media-preview-frame img')?.src || '');
   assert.ok(blob.startsWith('blob:'), 'blob preview restored after reload');
   ok('Т4 reload during running recovered by polling', { blobPreview: blob.slice(0, 18) + '…' });

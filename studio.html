@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BRIIX Студия</title>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<main class="studio">
+  <header class="studio-head">
+    <h1>BRIIX Студия</h1>
+    <p class="sub">Отдельный рабочий экран: чат, фото, музыка.</p>
+  </header>
+
+  <nav class="modes" id="modes" aria-label="Что создаём">
+    <button class="mode" data-mode="chat" aria-pressed="true">💬 Чат</button>
+    <button class="mode" data-mode="photo" aria-pressed="false">🖼 Фото</button>
+    <button class="mode" data-mode="music" aria-pressed="false">🎵 Музыка</button>
+  </nav>
+
+  <label class="field-label" for="assistant">Помощник</label>
+  <div class="assistant-row">
+    <select id="assistant" class="assistant"></select>
+  </div>
+
+  <section id="feed" class="feed" aria-live="polite"></section>
+
+  <section class="composer">
+    <!-- Одиночное поле (чат / фото) -->
+    <div class="single-field" id="singleField">
+      <textarea id="inputText" class="ta" rows="3"
+        placeholder="Напишите сообщение…"></textarea>
+    </div>
+
+    <!-- Музыка: два поля -->
+    <div class="music-fields" id="musicFields" hidden>
+      <div class="music-block">
+        <div class="music-head">
+          <span class="field-label">Лирика</span>
+          <button id="improveLyrics" class="improve" disabled>✨ Улучшить</button>
+        </div>
+        <textarea id="lyrics" class="ta" rows="5" placeholder="Текст песни…"></textarea>
+        <button id="undoLyrics" class="undo" hidden>↩ Вернуть как было</button>
+      </div>
+      <div class="music-block">
+        <div class="music-head">
+          <span class="field-label">Музыкальный промпт</span>
+          <button id="improvePrompt" class="improve" disabled>✨ Улучшить</button>
+        </div>
+        <textarea id="musicPrompt" class="ta" rows="5" placeholder="Стиль, темп, вокал, инструменты…"></textarea>
+        <button id="undoPrompt" class="undo" hidden>↩ Вернуть как было</button>
+      </div>
+      <div class="music-head">
+        <span class="field-label">Качество модели</span>
+        <div class="seg" id="vocalQuality" role="radiogroup" aria-label="Качество модели">
+          <button class="seg-btn" data-quality="flash" aria-pressed="true">Flash</button>
+          <button class="seg-btn" data-quality="pro" aria-pressed="false">Pro</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-actions">
+      <button id="create" class="create">Создать</button>
+    </div>
+    <p id="status" class="status" hidden></p>
+  </section>
+
+  <!-- Инлайн-ввод ключа -->
+  <section id="keyCard" class="key-card" hidden>
+    <label class="field-label" for="keyInput">Ключ приватного стенда</label>
+    <div class="key-row">
+      <input id="keyInput" type="password" autocomplete="off" placeholder="briix-media-live-token">
+      <button id="keySave" class="create small">Сохранить</button>
+    </div>
+    <p class="hint">Тот же ключ, что в Настройках демо. Хранится только в этом браузере.</p>
+  </section>
+</main>
+<script src="studio.js"></script>
+</body>
+</html>

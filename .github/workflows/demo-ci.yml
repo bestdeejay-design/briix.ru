@@ -26,18 +26,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Static server for non-live tests (127.0.0.1:8320)
+      # Порт 8320 на общем раннере может быть занят посторонним сервером: тогда наш
+      # http.server падает с «Address already in use», а curl отвечает успехом — его
+      # обслуживает чужой процесс со СТАРОЙ статикой. Тесты при этом едут против
+      # чужого дерева и падают на вкладке, которой в нём нет. Поэтому: свободный порт,
+      # BRIIX_URL через GITHUB_ENV и сверка md5 отданного файла с файлом checkout.
+      - name: Static server for non-live tests (free port, identity checked)
         run: |
-          python3 -m http.server 8320 --bind 127.0.0.1 >/tmp/briix-ci-http.log 2>&1 &
+          set -euo pipefail
+          if [ -f /tmp/briix-ci-http.pid ]; then
+            kill "$(cat /tmp/briix-ci-http.pid)" 2>/dev/null || true
+            rm -f /tmp/briix-ci-http.pid
+          fi
+          PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1]); s.close()")
+          python3 -m http.server "$PORT" --bind 127.0.0.1 >/tmp/briix-ci-http.log 2>&1 &
           echo $! > /tmp/briix-ci-http.pid
-          sleep 1
-          curl -sf -o /dev/null http://127.0.0.1:8320/index.html
+          URL="http://127.0.0.1:$PORT"
+          echo "BRIIX_URL=$URL" >> "$GITHUB_ENV"
+          for i in 1 2 3 4 5; do
+            curl -sf -o /dev/null "$URL/index.html" && break
+            sleep 1
+          done
+          SERVED=$(curl -sf "$URL/media.js" | python3 -c "import hashlib,sys; print(hashlib.md5(sys.stdin.buffer.read()).hexdigest())")
+          LOCAL=$(python3 -c "import hashlib; print(hashlib.md5(open('media.js','rb').read()).hexdigest())")
+          echo "served media.js: $SERVED"
+          echo "checkout media.js: $LOCAL"
+          if [ "$SERVED" != "$LOCAL" ]; then
+            echo "::error::Статический сервер отдаёт чужое дерево ($SERVED != $LOCAL). Тесты против него бессмысленны."
+            cat /tmp/briix-ci-http.log || true
+            exit 1
+          fi
+          echo "статика подтверждена: $URL serve этот checkout"
 
       # Диагностика окружения: печатает то, что реально отдает статический сервер.
       # Без этого падение локатора на раннере приходится угадывать по номеру строки.
       - name: Environment diagnostics
         env:
-          BRIIX_URL: http://127.0.0.1:8320
           NODE_PATH: /home/badai/briix-ci-deps/node_modules
         run: |
           set -o pipefail
@@ -58,7 +82,6 @@ jobs:
 
       - name: Headless tests
         env:
-          BRIIX_URL: http://127.0.0.1:8320
           NODE_PATH: /home/badai/briix-ci-deps/node_modules
         run: |
           set -o pipefail
@@ -75,7 +98,6 @@ jobs:
       - name: Extended suites (observational)
         continue-on-error: true
         env:
-          BRIIX_URL: http://127.0.0.1:8320
           NODE_PATH: /home/badai/briix-ci-deps/node_modules
         run: |
           node tools/check-live-default.cjs
@@ -102,6 +124,14 @@ jobs:
             echo
             echo '```'
             tail -n 40 /tmp/briix-ci-env.log 2>/dev/null || echo 'нет лога окружения'
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '<details><summary>Static server log</summary>'
+            echo
+            echo '```'
+            tail -n 15 /tmp/briix-ci-http.log 2>/dev/null || echo 'нет лога сервера'
             echo '```'
             echo
             echo '</details>'

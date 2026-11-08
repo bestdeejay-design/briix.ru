@@ -47,10 +47,25 @@ function discoverToken() {
     const m = out.match(/MEDIA_BFF_TOKEN=([^\s"]+)/);
     if (m) return { token: m[1], via: 'systemctl --user show media-bff' };
   } catch {}
-  for (const file of [
-    path.join(os.homedir(), '.config/systemd/user/media-bff.service'),
-    '/etc/systemd/user/media-bff.service'
-  ]) {
+  // Токен часто лежит не в самом юните, а в drop-in'е переопределения.
+  const homes = [...new Set([os.homedir(), '/home/badai', '/root'])];
+  const candidates = [];
+  for (const home of homes) {
+    const dir = path.join(home, '.config/systemd/user');
+    candidates.push(path.join(dir, 'media-bff.service'));
+    try {
+      for (const f of fs.readdirSync(path.join(dir, 'media-bff.service.d'))) {
+        if (f.endsWith('.conf')) candidates.push(path.join(dir, 'media-bff.service.d', f));
+      }
+    } catch {}
+  }
+  candidates.push('/etc/systemd/user/media-bff.service');
+  try {
+    for (const f of fs.readdirSync('/etc/systemd/user/media-bff.service.d')) {
+      if (f.endsWith('.conf')) candidates.push(path.join('/etc/systemd/user/media-bff.service.d', f));
+    }
+  } catch {}
+  for (const file of candidates) {
     try {
       const text = fs.readFileSync(file, 'utf8');
       const m = text.match(/MEDIA_BFF_TOKEN=([^\s"]+)/);
@@ -306,7 +321,18 @@ function fakeBus() {
     const found = discoverToken();
     TOKEN = found.token;
     console.log('Шина:', BUS, '· токен:', found.token ? 'найден через ' + found.via : 'НЕ НАЙДЕН');
-    if (!TOKEN) { console.error('Нет токена шины: аудит невозможен. Задайте BRIIX_BUS_TOKEN или запустите на стенде A.'); process.exit(2); }
+    if (!TOKEN) {
+      // Молча падать нельзя: отчёт нужен даже когда аудит не смог начаться.
+      const where = ['env BRIIX_BUS_TOKEN / MEDIA_BFF_TOKEN', 'systemctl --user show media-bff',
+        '~/.config/systemd/user/media-bff.service и его drop-in (*.conf)', '/home/badai/.config/systemd/user/...', '/etc/systemd/user/...', '/proc/<pid>/environ'];
+      record('J0 доступ к шине', 'fail', { reason: 'токен шины не найден', tried: where, bus: BUS });
+      finding('L-TOKEN', 'Аудит не смог начать: токен шины не найден ни в окружении, ни в юните. Задайте BRIIX_BUS_TOKEN в окружении раннера или запустите на стенде A.', 'блокер аудита');
+      fs.mkdirSync(OUT, { recursive: true });
+      fs.writeFileSync(path.join(OUT, 'live-audit.json'), JSON.stringify({ rows, findings, failed: 1, bus: BUS }, null, 2));
+      fs.writeFileSync(path.join(OUT, 'live-audit.md'), ['# Живой аудит стенда', '', '**Аудит не начался:** токен шины не найден.', '', 'Проверено: ' + where.join(', ') + '.', '', 'Шина: `' + BUS + '`. Токен в отчёт не попадает.'].join('\n'));
+      console.error('Нет токена шины: аудит невозможен. Задайте BRIIX_BUS_TOKEN или запустите на стенде A.');
+      process.exit(2);
+    }
   }
   const started = Date.now();
   try {

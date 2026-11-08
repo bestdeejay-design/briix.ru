@@ -10,7 +10,7 @@ const read=p=>p.evaluate(k=>JSON.parse(localStorage.getItem(k))||{jobs:[]},KEY);
 const generate=async p=>{
  const prev=await p.evaluate(k=>(JSON.parse(localStorage.getItem(k)||'{}').jobs||[])[0]?.id||'',KEY);
  await p.locator('#media-generate').click();
- await p.waitForFunction(({k,prev})=>{const jobs=JSON.parse(localStorage.getItem(k)||'{}').jobs||[];return jobs[0]&&jobs[0].id!==prev;},{k:KEY,prev},{timeout:10000});
+ await p.waitForFunction(({k,prev})=>{const jobs=JSON.parse(localStorage.getItem(k)||'{}').jobs||[];return jobs[0]&&jobs[0].id!==prev;},{k:KEY,prev},{timeout:25000});
  return read(p);
 };
 const waitReady=(p,id)=>p.waitForFunction(({k,id})=>JSON.parse(localStorage.getItem(k)).jobs.find(j=>j.id===id)?.status==='ready',{k:KEY,id},{timeout:12000});

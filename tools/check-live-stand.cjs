@@ -70,15 +70,25 @@ function discoverToken() {
       const text = fs.readFileSync(file, 'utf8');
       const m = text.match(/MEDIA_BFF_TOKEN=([^\s"]+)/);
       if (m) return { token: m[1], via: 'unit:' + file };
-      const envFile = text.match(/EnvironmentFile=([^\s]+)/);
-      if (envFile) {
-        const inner = fs.readFileSync(envFile[1].replace(/^-\//, '/'), 'utf8').match(/MEDIA_BFF_TOKEN=([^\s"]+)/);
-        if (inner) return { token: inner[1], via: 'envfile:' + envFile[1] };
+      // EnvironmentFile бывает с ведущим '-', с %h и в кавычках — разбираем все виды.
+      for (const m of text.matchAll(/EnvironmentFile=(-?)([^\s]+)/g)) {
+        const file2 = m[2].replace(/^["']|["']$/g, '').replace(/%h/g, os.homedir());
+        try {
+          const inner = fs.readFileSync(file2, 'utf8').match(/MEDIA_BFF_TOKEN=([^\s"']+)/);
+          if (inner) return { token: inner[1], via: 'envfile:' + file2 };
+        } catch {}
+      }
+      // Иногда токен лежит рядом с адаптером в обычном .env.
+      for (const envPath of ['/home/badai/briix-media/media-bff/.env', path.join(os.homedir(), 'briix-media/media-bff/.env')]) {
+        try {
+          const inner = fs.readFileSync(envPath, 'utf8').match(/MEDIA_BFF_TOKEN=([^\s"']+)/);
+          if (inner) return { token: inner[1], via: 'dotenv:' + envPath };
+        } catch {}
       }
     } catch {}
   }
   try {
-    const pids = execFileSync('pgrep', ['-f', 'media-bff/bff.py'], { encoding: 'utf8', timeout: 5000 }).trim().split('\n').filter(Boolean);
+    const pids = execFileSync('pgrep', ['-f', 'bff.py'], { encoding: 'utf8', timeout: 5000 }).trim().split('\n').filter(Boolean);
     for (const pid of pids) {
       const env = fs.readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0');
       const hit = env.find(x => x.startsWith('MEDIA_BFF_TOKEN='));
@@ -330,11 +340,27 @@ function fakeBus() {
         diag.busReachable = res.status === 200;
         diag.busHealth = (await res.json())?.backends || null;
       } catch (e) { diag.busReachable = false; diag.busError = String(e.message || e).slice(0, 80); }
-      diag.unitFilesPresent = ['/home/badai/.config/systemd/user/media-bff.service',
+      diag.unitFilesPresent = [...new Set(['/home/badai/.config/systemd/user/media-bff.service',
         path.join(os.homedir(), '.config/systemd/user/media-bff.service'),
-        '/etc/systemd/user/media-bff.service'].filter(f => fs.existsSync(f));
+        '/etc/systemd/user/media-bff.service'])].filter(f => fs.existsSync(f));
+      // Только ИМЕНА переменных и пути — значения не читаем в отчёт никогда.
+      diag.unitEnvNames = []; diag.unitEnvFiles = []; diag.procReadable = null;
+      for (const f of diag.unitFilesPresent) {
+        try {
+          const text = fs.readFileSync(f, 'utf8');
+          for (const m of text.matchAll(/Environment="?([A-Z_][A-Z0-9_]*)=/g)) diag.unitEnvNames.push(m[1]);
+          for (const m of text.matchAll(/EnvironmentFile=(-?)([^\s]+)/g)) diag.unitEnvFiles.push(m[2]);
+        } catch { diag.unitEnvNames.push('(нечитаем)'); }
+      }
       try { diag.bffProcesses = execFileSync('pgrep', ['-f', 'bff.py'], { encoding: 'utf8', timeout: 5000 }).trim().split('\n').filter(Boolean).length; }
       catch { diag.bffProcesses = 0; }
+      if (diag.bffProcesses) {
+        try {
+          const pid = execFileSync('pgrep', ['-f', 'bff.py'], { encoding: 'utf8', timeout: 5000 }).trim().split('\n')[0];
+          fs.readFileSync(`/proc/${pid}/environ`, 'utf8');
+          diag.procReadable = true;
+        } catch (e) { diag.procReadable = String(e.code || e.message).slice(0, 40); }
+      }
       record('J0 здоровье шины без токена', diag.busReachable ? 'pass' : 'fail', diag);
       const auth = await api('/v1/models').catch(() => ({ status: 0 }));
       record('J10 каталог закрыт без токена', auth.status === 401 ? 'pass' : 'warn', { status: auth.status });
@@ -355,7 +381,10 @@ function fakeBus() {
         '| Пользователь раннера | `' + diag.user + '` |',
         '| HOME раннера | `' + diag.home + '` |',
         '| Файлы юнита найдены | ' + (diag.unitFilesPresent.length ? diag.unitFilesPresent.map(x => '`' + x + '`').join(', ') : 'нет') + ' |',
-        '| Процессов bff.py видно | ' + diag.bffProcesses + ' |', '',
+        '| Процессов bff.py видно | ' + diag.bffProcesses + ' |',
+        '| environ процесса читаем | ' + String(diag.procReadable) + ' |',
+        '| Имена переменных в юните | `' + (diag.unitEnvNames || []).join(', ') + '` |',
+        '| EnvironmentFile в юните | `' + (diag.unitEnvFiles || []).join(', ') + '` |', '',
         '## Что нужно сделать', '',
         diag.busReachable
           ? 'Добавить секрет репозитория **`BRIIX_BUS_TOKEN`**: Settings → Secrets and variables → Actions → New repository secret. Значение — тот же `MEDIA_BFF_TOKEN`, что в юните `media-bff`. Workflow уже передаёт его инструменту.'

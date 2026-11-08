@@ -316,6 +316,13 @@
     if (bar) { bar.style.width = t.progress + '%'; bar.parentElement?.setAttribute('aria-valuenow', String(t.progress)); }
     const inline = $(`[data-music-inline="${t.id}"]`, root || document);
     if (inline) inline.textContent = statusLabel(t);
+    const row = $(`[data-music-row="${t.id}"]`, root || document) || root;
+    const wait = row ? $('[data-wait]', row) : null;
+    if (wait) {
+      const zone = t.progress < 34 ? 'start' : t.progress < 75 ? 'middle' : 'final';
+      if (wait.dataset.waitZone !== zone) wait.dataset.waitZone = zone;
+      if (t.mode === 'live' && (wait.dataset.waitStage || '') !== (t.stage || '')) wait.dataset.waitStage = t.stage || '';
+    }
   }
   function submit() {
     syncForm();
@@ -378,7 +385,7 @@
         ? `<strong>Приватный live: считает ваш сервер.</strong> Три режима: инструментал и джингл (MusicGen), песня <strong>Flash</strong> (ACE-Step LM 1.7B, до 30 с) и песня <strong>Pro</strong> (LM 4B, до 150 с, полная структура). Вокалу нужна лирика — она уходит в <code>params.lyrics</code>. Результат приходит <strong>M4A (AAC 192k) с обложкой и встроенным текстом</strong>. Длительность инструментала задаёт модель: MusicGen даёт около 15 секунд, параметр отправляется, но бэкендом пока не учитывается. Доступность режимов и тайминги — из каталога шины.`
         : `<strong>Локальный мок, не нейросеть.</strong> Звук собирается в браузере из простых тонов и шума по жанру, темпу и настроению. Текст брифа влияет только на вариант заглушки. <strong>Вокал в демо не синтезируется:</strong> для песни вы получите минусовку и структуру трека. Без API, кредитов и загрузки файлов.`}</span></div>
       <div id="music-storage-notice" class="storage-banner" role="status" hidden></div>
-      <div class="music-tabs" role="tablist" aria-label="Разделы музыкальной мастерской">${[['create', 'Создание', 'sparkles'], ['library', 'Треки', 'music'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route']].map(([id, label, ic]) => `<button id="music-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="music-panel" tabindex="${tab === id ? 0 : -1}" class="music-tab ${tab === id ? 'active' : ''}" data-music-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="music-count" id="music-library-count">${readyTracks().length}</span>` : id === 'queue' ? `<span class="music-count" id="music-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="music-panel" role="tabpanel" aria-labelledby="music-tab-${tab}" tabindex="0"><div id="music-panel-content"></div></section>`;
+      <div class="music-tabs" role="tablist" aria-label="Разделы музыкальной мастерской">${[['create', 'Создание', 'sparkles'], ['library', 'Треки', 'music'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route'], ['showcase', 'Галерея стенда', 'star']].map(([id, label, ic]) => `<button id="music-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="music-panel" tabindex="${tab === id ? 0 : -1}" class="music-tab ${tab === id ? 'active' : ''}" data-music-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="music-count" id="music-library-count">${readyTracks().length}</span>` : id === 'queue' ? `<span class="music-count" id="music-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="music-panel" role="tabpanel" aria-labelledby="music-tab-${tab}" tabindex="0"><div id="music-panel-content"></div></section>`;
   }
   function render() {
     if (!root || !host) return;
@@ -391,9 +398,10 @@
     const focusKey = focused?.closest('#music-panel [data-music-action]') ? { action: focused.dataset.musicAction, id: focused.dataset.id } : focused?.id ? { id: focused.id } : null;
     const panel = $('#music-panel', root); panel?.setAttribute('aria-labelledby', 'music-tab-' + tab);
     $$('.music-tab', root).forEach(b => { const on = b.dataset.id === tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
-    container.innerHTML = tab === 'create' ? createMarkup() : tab === 'library' ? libraryMarkup() : tab === 'queue' ? queueMarkup() : modelsMarkup();
+    container.innerHTML = tab === 'create' ? createMarkup() : tab === 'library' ? libraryMarkup() : tab === 'queue' ? queueMarkup() : tab === 'showcase' ? showcaseMarkup() : modelsMarkup();
     if (tab === 'library') updateLibrary();
     if (tab === 'create') paintPlayer();
+    if (tab === 'showcase') { paintShowcase(); loadShowcase(); }
     if (focusKey) { const target = focusKey.action ? $$('#music-panel [data-music-action]', root).find(b => b.dataset.musicAction === focusKey.action && b.dataset.id === focusKey.id) : document.getElementById(focusKey.id); target?.focus({ preventScroll: true }); }
   }
   function createMarkup() {
@@ -436,7 +444,7 @@
     if (!t || t.status !== 'ready') {
       const pending = state.tracks.find(x => ['queued', 'running'].includes(x.status));
       const serverPending = pending?.mode === 'live';
-      return `<div class="music-empty">${icon(pending ? 'clock' : 'music')}<h2>${pending ? 'Собираем черновик' : 'Здесь появится черновик'}</h2><p>${pending ? (serverPending ? 'Задача выполняется на вашем сервере. Ждём готовый WAV — прогресс показывает стадия сервера, а не проценты.' : 'Заглушка собирается прямо в браузере. Прогресс — реальная локальная работа, не скорость модели.') : 'Заполните бриф слева и нажмите «Собрать черновик». Результат можно послушать, скачать и сохранить в библиотеку.'}</p>${pending ? `<div class="music-progress" role="progressbar" aria-label="Сборка локальной заглушки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pending.progress}"><span data-music-progress="${pending.id}" style="width:${pending.progress}%"></span></div><p class="music-empty-status" data-music-inline="${pending.id}">${statusLabel(pending)}</p>` : ''}</div>`;
+      return `<div class="music-empty">${icon(pending ? 'clock' : 'music')}<h2>${pending ? 'Собираем черновик' : 'Здесь появится черновик'}</h2><p>${pending ? (serverPending ? 'Задача выполняется на вашем сервере. Ждём готовый WAV — прогресс показывает стадия сервера, а не проценты.' : 'Заглушка собирается прямо в браузере. Прогресс — реальная локальная работа, не скорость модели.') : 'Заполните бриф слева и нажмите «Собрать черновик». Результат можно послушать, скачать и сохранить в библиотеку.'}</p>${pending ? `<div class="music-progress" role="progressbar" aria-label="Сборка локальной заглушки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pending.progress}"><span data-music-progress="${pending.id}" style="width:${pending.progress}%"></span></div><p class="music-empty-status" data-music-inline="${pending.id}">${statusLabel(pending)}</p>${waitLine(pending)}` : ''}</div>`;
     }
     const k = kind(t.kind);
     return `<article class="music-player-card">
@@ -472,7 +480,7 @@
   }
   function queueMarkup() {
     const rows = state.tracks.filter(t => t.status !== 'ready');
-    return `<div class="music-queue-intro"><div><h2>Очередь сборки</h2><p>Прогресс показывает реальную локальную сборку заглушки. Это не скорость музыкальной модели.</p></div><button class="btn" data-music-action="new">${icon('plus')}Новый черновик</button></div><div class="music-queue-list">${rows.length ? rows.map(t => `<article class="music-queue-card" data-music-row="${t.id}"><span class="avatar tone-${t.kind === 'song' ? 'violet' : 'teal'}">${icon(kind(t.kind).icon)}</span><div class="music-queue-main"><div class="music-queue-title"><strong>${esc(t.project || kind(t.kind).title)}</strong><span class="badge ${t.status === 'error' ? 'music-status-error' : ''}" data-music-inline="${t.id}">${statusLabel(t)}</span></div><p>${esc(metaLine(t))} · ${date(t.createdAt)}</p>${['queued', 'running'].includes(t.status) ? `<div class="music-progress" role="progressbar" aria-label="Сборка локальной заглушки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${t.progress}"><span data-music-progress="${t.id}" style="width:${t.progress}%"></span></div>` : `<p class="music-queue-note">${t.status === 'error' ? 'Демо-ошибка специально смоделирована. Повтор соберёт черновик заново.' : 'Задача остановлена. Бриф сохранён — можно повторить.'}</p>`}</div><div class="music-queue-actions">${['queued', 'running'].includes(t.status) ? `<button class="btn small" data-music-action="cancel" data-id="${t.id}">${icon('stop')}Остановить</button>` : `<button class="btn small" data-music-action="retry" data-id="${t.id}">${icon('refresh')}Повторить</button>`}<button class="icon-btn small" data-music-action="delete" data-id="${t.id}" aria-label="Удалить задачу" title="Удалить">${icon('trash')}</button></div></article>`).join('') : `<div class="music-empty">${icon('check')}<h2>Очередь пуста</h2><p>Все черновики собраны. Новые задачи появятся здесь.</p></div>`}</div>`;
+    return `<div class="music-queue-intro"><div><h2>Очередь сборки</h2><p>Прогресс показывает реальную локальную сборку заглушки. Это не скорость музыкальной модели.</p></div><button class="btn" data-music-action="new">${icon('plus')}Новый черновик</button></div><div class="music-queue-list">${rows.length ? rows.map(t => `<article class="music-queue-card" data-music-row="${t.id}"><span class="avatar tone-${t.kind === 'song' ? 'violet' : 'teal'}">${icon(kind(t.kind).icon)}</span><div class="music-queue-main"><div class="music-queue-title"><strong>${esc(t.project || kind(t.kind).title)}</strong><span class="badge ${t.status === 'error' ? 'music-status-error' : ''}" data-music-inline="${t.id}">${statusLabel(t)}</span></div><p>${esc(metaLine(t))} · ${date(t.createdAt)}</p>${['queued', 'running'].includes(t.status) ? `<div class="music-progress" role="progressbar" aria-label="Сборка локальной заглушки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${t.progress}"><span data-music-progress="${t.id}" style="width:${t.progress}%"></span></div>${waitLine(t)}` : `<p class="music-queue-note">${t.status === 'error' ? 'Демо-ошибка специально смоделирована. Повтор соберёт черновик заново.' : 'Задача остановлена. Бриф сохранён — можно повторить.'}</p>`}</div><div class="music-queue-actions">${['queued', 'running'].includes(t.status) ? `<button class="btn small" data-music-action="cancel" data-id="${t.id}">${icon('stop')}Остановить</button>` : `<button class="btn small" data-music-action="retry" data-id="${t.id}">${icon('refresh')}Повторить</button>`}<button class="icon-btn small" data-music-action="delete" data-id="${t.id}" aria-label="Удалить задачу" title="Удалить">${icon('trash')}</button></div></article>`).join('') : `<div class="music-empty">${icon('check')}<h2>Очередь пуста</h2><p>Все черновики собраны. Новые задачи появятся здесь.</p></div>`}</div>`;
   }
   function modelsMarkup() {
     return `<div class="music-model-intro"><div><h2>Модель — инструмент, а не весь продукт</h2><p>Справочный каталог направлений. Ни одна модель не подключена к демо. Вокал и инструментал — разные задачи и разные модели; условия лицензий проверяют по карточкам весов перед пилотом.</p></div><a class="btn" href="audits/task-23-model-bus-request.md" download>${icon('download')}Запрос к шине</a></div>
@@ -552,6 +560,127 @@
   function slug(value) {
     return String(value).toLowerCase().split('').map(ch => Object.hasOwn(TRANSLIT, ch) ? TRANSLIT[ch] : ch).join('').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'draft';
   }
+  /* ---- Галерея стенда: сохранённые результаты, не live ---- */
+  let showcase = { loaded: false, loading: false, error: '', items: [], meta: null, current: null, tags: {} };
+  // Плеер галереи живёт вне перерисовываемой разметки: карточки обновляются, звук не рвётся.
+  let showcaseAudio = null;
+  function galleryAudio() {
+    if (!showcaseAudio) { showcaseAudio = new Audio(); showcaseAudio.preload = 'none'; }
+    return showcaseAudio;
+  }
+
+  function loadShowcase() {
+    if (showcase.loaded || showcase.loading || !window.BRIIX_SHOWCASE) return;
+    showcase.loading = true;
+    window.BRIIX_SHOWCASE.load().then(result => {
+      showcase.loading = false; showcase.loaded = true;
+      showcase.items = (result?.items || []).filter(i => i.kind === 'audio');
+      showcase.meta = result?.meta || null;
+      showcase.error = result?.found ? '' : 'Каталог сохранённых результатов не найден.';
+      if (tab === 'showcase') { renderPanel(); }
+    }).catch(() => {
+      showcase.loading = false; showcase.loaded = true;
+      showcase.error = 'Не удалось прочитать каталог галереи.';
+      if (tab === 'showcase') renderPanel();
+    });
+  }
+
+  function showcaseMarkup() {
+    const S = window.BRIIX_SHOWCASE;
+    if (!S) return `<div class="music-empty">${icon('info')}<h2>Галерея не подключена</h2><p>Модуль галереи не загрузился. Обновите страницу.</p></div>`;
+    if (showcase.loading && !showcase.items.length) return `<div class="music-empty">${icon('clock')}<h2>Читаем каталог</h2><p>Смотрим, какие результаты сохранены на стенде.</p></div>`;
+    if (!showcase.items.length) return `<div class="music-empty">${icon('star')}<h2>Пока пусто</h2><p>${esc(showcase.error || 'Сохранённых треков стенда ещё нет.')} Как только координатор выгрузит файлы в <code>assets/media/showcase/</code>, они появятся здесь — с моделью, датой и промптом.</p></div>`;
+    return `<div class="showcase-intro"><div><h2>Галерея стенда</h2><p>${esc(S.badge)}. Это сохранённые файлы: они не считаются заново и не зависят от того, включён ли live. Формат — ${esc(showcase.meta?.format || 'M4A')}.</p></div><span class="badge showcase-badge">${icon('star')}Не live</span></div>
+      <div class="showcase-grid">${showcase.items.map(item => {
+        const tags = showcase.tags[item.id];
+        const playing = showcase.current === item.id;
+        return `<article class="showcase-card ${playing ? 'playing' : ''}" data-showcase-card="${esc(item.id)}">
+          <div class="showcase-cover">${tags?.cover ? `<img src="${tags.cover}" alt="Обложка трека ${esc(item.title)}">` : `<span class="showcase-cover-fallback">${icon('music')}<small>BRIIX</small></span>`}</div>
+          <div class="showcase-body"><strong>${esc(item.title)}</strong>
+            <p class="showcase-meta"><span class="badge">${esc(item.model)}</span><span>${S.fmtDate(item.date)}</span><span>${S.fmtTime(item.duration)}</span>${item.bytes ? `<span>${S.fmtSize(item.bytes)}</span>` : ''}</p>
+            <div class="showcase-actions"><button type="button" class="btn small ${playing ? 'primary' : ''}" data-music-action="showcase-play" data-id="${esc(item.id)}" aria-pressed="${playing}">${icon(playing ? 'stop' : 'play')}${playing ? 'Стоп' : 'Слушать'}</button><button type="button" class="btn small" data-music-action="showcase-lyrics" data-id="${esc(item.id)}">${icon('file')}Текст</button><a class="btn small" href="${esc(item.url)}" download>${icon('download')}M4A</a></div>
+            <div class="showcase-progress" data-showcase-progress="${esc(item.id)}" hidden><span></span></div>
+            <div class="showcase-lyrics" data-showcase-lyrics="${esc(item.id)}" hidden></div>
+            <details class="showcase-prompt"><summary>Промпт и происхождение</summary><p>${esc(item.prompt)}</p><dl><dt>Модель</dt><dd>${esc(item.model)}</dd><dt>Дата генерации</dt><dd>${S.fmtDate(item.date)}</dd><dt>Файл</dt><dd><code>${esc(item.file)}</code></dd>${item.lyricsSource ? `<dt>Источник лирики</dt><dd>${esc(item.lyricsSource)}</dd>` : ''}<dt>Текст в файле</dt><dd>${esc(item.lyricsEmbedded || 'не указан')}</dd>${showcase.meta?.license ? `<dt>Лицензия</dt><dd>${esc(showcase.meta.license)}</dd>` : ''}</dl></details>
+          </div></article>`;
+      }).join('')}</div>
+      <p class="showcase-note">${icon('info')}Файлы отдаются этим же сайтом из <code>assets/media/showcase/</code>. Обложка и текст читаются из самого M4A (атомы covr и ©lyr) — сторонних библиотек тегов нет.</p>`;
+  }
+
+  function showcaseItem(id) { return showcase.items.find(i => i.id === id) || null; }
+
+  function stopShowcase() {
+    if (showcaseAudio) { showcaseAudio.pause(); showcaseAudio.removeAttribute('src'); showcaseAudio.load(); }
+    showcase.current = null;
+  }
+
+  async function playShowcase(id) {
+    const item = showcaseItem(id);
+    if (!item) return;
+    const audio = galleryAudio();
+    if (showcase.current === id) { stopShowcase(); renderPanel(); return; }
+    stopPlayback();                      // плеер черновиков и галерея не звучат одновременно
+    showcase.current = id;
+    audio.src = item.url;
+    audio.ontimeupdate = paintShowcase;
+    audio.onended = () => { showcase.current = null; renderPanel(); };
+    audio.onerror = () => { host?.toast('Файл галереи не открылся. Проверьте assets/media/showcase/.', 'error'); showcase.current = null; renderPanel(); };
+    try { await audio.play(); }
+    catch { host?.toast('Браузер не дал воспроизвести файл. Нажмите «Слушать» ещё раз.', 'error'); showcase.current = null; }
+    renderPanel();
+    paintShowcase();
+    ensureShowcaseTags(id);
+  }
+
+  async function ensureShowcaseTags(id) {
+    if (showcase.tags[id] || !window.BRIIX_SHOWCASE) return;
+    const item = showcaseItem(id);
+    const tags = await window.BRIIX_SHOWCASE.tagsFor(item);
+    if (!tags) return;
+    showcase.tags[id] = tags;
+    if (tab === 'showcase') { renderPanel(); paintShowcase(); }
+  }
+
+  async function toggleShowcaseLyrics(id) {
+    const box = $(`[data-showcase-lyrics="${id}"]`, root || document);
+    if (!box) return;
+    if (!box.hidden) { box.hidden = true; return; }
+    const item = showcaseItem(id);
+    box.hidden = false;
+    box.textContent = 'Читаем текст из файла…';
+    await ensureShowcaseTags(id);
+    // Чтение тегов перерисовывает карточки — берём живой узел, а не сохранённый.
+    const live = $(`[data-showcase-lyrics="${id}"]`, root || document);
+    if (!live) return;
+    live.hidden = false;
+    const tags = showcase.tags[id];
+    const text = tags?.lyrics || '';
+    live.innerHTML = text
+      ? `<p class="showcase-lyrics-text">${esc(text)}</p><span class="showcase-lyrics-source">Источник: тег ©lyr файла ${esc(item.file)}${item?.lyricsSource ? ' · ' + esc(item.lyricsSource) : ''}</span>`
+      : `<p class="showcase-lyrics-empty">${item?.kind === 'audio' && /musicgen/.test(item.model) ? 'Это инструментал: текста у трека нет.' : 'Текст в файле не найден.'} ${item?.lyricsSource ? 'Источник лирики по каталогу: ' + esc(item.lyricsSource) : ''}</p>`;
+  }
+
+  function paintShowcase() {
+    const audio = showcaseAudio;
+    if (!audio) return;
+    for (const bar of $$('[data-showcase-progress]', root || document)) {
+      const active = bar.dataset.showcaseProgress === showcase.current;
+      bar.hidden = !active;
+      if (active && Number.isFinite(audio.duration) && audio.duration > 0) {
+        bar.firstElementChild.style.width = Math.min(100, audio.currentTime / audio.duration * 100) + '%';
+      }
+    }
+  }
+
+  /* Живое ожидание: мелкая строка под прогрессом. Стадия — только настоящая, из сервера;
+   * у локального мока свои честные зоны по прогрессу, без обещаний студии. */
+  function waitLine(t) {
+    if (!['queued', 'running'].includes(t.status)) return '';
+    const live = t.mode === 'live';
+    const zone = t.progress < 34 ? 'start' : t.progress < 75 ? 'middle' : 'final';
+    return `<p class="wait-line" data-wait data-wait-type="music" data-wait-stage="${live ? esc(t.stage || '') : ''}" data-wait-mock="${live ? '0' : '1'}" data-wait-zone="${zone}" aria-live="off"></p>`;
+  }
+
   // Название формата — из фактического ответа сервера, а не из привычки: стенд отдаёт M4A.
   function extOf(mime) { return /mp4|m4a|aac/.test(mime || '') ? 'm4a' : /mpeg|mp3/.test(mime || '') ? 'mp3' : 'wav'; }
   function fileLabel(t) { return t.mode === 'live' ? extOf(t.serverMime || 'audio/mp4').toUpperCase() : 'WAV'; }
@@ -620,7 +749,7 @@
     if (count) count.textContent = form.lyrics.length + ' / ' + MAX_LYRICS;
   }
   const actions = {
-    tab: el => { syncForm(); tab = el.dataset.id; renderPanel(); },
+    tab: el => { syncForm(); if (el.dataset.id !== 'showcase') stopShowcase(); tab = el.dataset.id; renderPanel(); },
     kind: el => { syncForm(); form.kind = el.dataset.id; form.duration = isVocalForm() ? vocalMode(form.vocalMode).durations[0] : kind(form.kind).defaultDuration; renderPanel(); },
     'vocal-mode': el => { syncForm(); form.vocalMode = el.dataset.id; const d = vocalMode(form.vocalMode).durations; if (!d.includes(form.duration)) form.duration = d[0]; renderPanel(); },
     'lyric-tag': el => {
@@ -632,6 +761,8 @@
       renderPanel();
       const next = $('#music-lyrics', root); if (next) { next.focus(); next.selectionStart = next.selectionEnd = next.value.length; }
     },
+    'showcase-play': el => { playShowcase(el.dataset.id); },
+    'showcase-lyrics': el => { toggleShowcaseLyrics(el.dataset.id); },
     'edit-blocked': () => { liveRefusal = null; live()?.clearRefusal(); renderPanel(); const area = $('#music-prompt', root); area?.focus(); area?.setSelectionRange(area.value.length, area.value.length); },
     duration: el => { syncForm(); form.duration = Number(el.dataset.id); renderPanel(); },
     'library-filter': el => { libraryFilter = el.dataset.id; renderPanel(); },
@@ -686,7 +817,7 @@
   });
   $('#modal')?.addEventListener('close', () => { detailId = null; });
   window.addEventListener('pageshow', () => { if (state.tracks.some(t => t.status === 'queued')) ensureTimer(); });
-  function suspend() {
+  function suspend() { stopShowcase();
     stopPlayback(); clearInterval(timer); timer = null; synths.clear();
     state.tracks.forEach(t => { if (t.mode !== 'live' && t.status === 'running') { t.status = 'queued'; t.progress = 0; } });
     persist();
@@ -702,6 +833,7 @@
       liveActive,
       originLabel,
       setRefusal: value => { liveRefusal = value || null; },
+      showcaseState: () => ({ current: showcase.current, items: showcase.items.map(i => i.id), paused: showcaseAudio?.paused ?? true, currentTime: showcaseAudio?.currentTime || 0, duration: Number.isFinite(showcaseAudio?.duration) ? showcaseAudio.duration : null, tags: Object.fromEntries(Object.entries(showcase.tags).map(([id, t]) => [id, { lyrics: (t?.lyrics || '').length, cover: !!t?.cover }])) }),
       setLiveBanner: text => {
         liveBannerText = text || '';
         const el = $('#music-live-banner', root || document); if (!el) return;

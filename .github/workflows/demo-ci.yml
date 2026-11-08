@@ -1,0 +1,71 @@
+name: demo-ci
+
+# Self-hosted runner на стенде A fonotext (t-ai), label `briix-ci`.
+# PR — только тесты. Push в main — тесты + автодеплой демо в /home/badai/briix-demo.
+# A — production fonotext: лёгкие headless-тесты, одна	job за раз (concurrency group).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: briix-demo-ci
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: [self-hosted, briix-ci]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static server for non-live tests (127.0.0.1:8320)
+        run: |
+          python3 -m http.server 8320 --bind 127.0.0.1 >/tmp/briix-ci-http.log 2>&1 &
+          echo $! > /tmp/briix-ci-http.pid
+          sleep 1
+          curl -sf -o /dev/null http://127.0.0.1:8320/index.html
+
+      - name: Headless tests
+        env:
+          BRIIX_URL: http://127.0.0.1:8320
+          NODE_PATH: /home/badai/briix-ci-deps/node_modules
+        run: |
+          node tools/check-media.cjs
+          node tools/check-music.cjs
+          node tools/check-demo.cjs
+          node tools/check-media-live.cjs
+          node tools/check-music-live.cjs
+          node tools/check-chat-live.cjs
+
+      - name: Stop static server
+        if: always()
+        run: |
+          [ -f /tmp/briix-ci-http.pid ] && kill "$(cat /tmp/briix-ci-http.pid)" 2>/dev/null || true
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, briix-ci]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Раннер живёт на A, деплой — полная синхронизация дерева в staging + атомарная подмена.
+      - name: Deploy demo to /home/badai/briix-demo
+        run: |
+          set -euo pipefail
+          STAGE=/home/badai/briix-demo.new
+          OLD=/home/badai/briix-demo.old
+          rm -rf "$STAGE" "$OLD"
+          mkdir -p "$STAGE"
+          # Полное дерево репо (включая вложенные: site/, assets/), кроме служебного.
+          tar --exclude=./tools --exclude=./audits --exclude=./.git --exclude=./.github \
+              -cf - . | (cd "$STAGE" && tar xf -)
+          if [ -d /home/badai/briix-demo ]; then
+            mv /home/badai/briix-demo "$OLD"
+          fi
+          mv "$STAGE" /home/badai/briix-demo
+          rm -rf "$OLD"
+          echo "deployed: $(git rev-parse --short HEAD) → /home/badai/briix-demo"

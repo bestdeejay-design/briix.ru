@@ -53,7 +53,11 @@
     constructor(code, message, status = 0) { super(message || code); this.code = code; this.status = status; }
   }
 
-  const server = () => { try { return JSON.parse(localStorage.getItem(SERVER_KEY)) || DEFAULT_SERVER; } catch { return DEFAULT_SERVER; } };
+  const server = () => {
+    const host = location.hostname;
+    if (host !== '127.0.0.1' && host !== 'localhost') return location.origin + '/api';
+    try { return JSON.parse(localStorage.getItem(SERVER_KEY)) || DEFAULT_SERVER; } catch { return DEFAULT_SERVER; }
+  };
   function setServer(value) {
     const v = String(value || '').trim().replace(/\/+$/, '');
     if (v) localStorage.setItem(SERVER_KEY, JSON.stringify(v)); else localStorage.removeItem(SERVER_KEY);

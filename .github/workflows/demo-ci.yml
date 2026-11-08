@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Раннер живёт на A, деплой — локальный cp в staging + атомарная подмена.
+      # Раннер живёт на A, деплой — полная синхронизация дерева в staging + атомарная подмена.
       - name: Deploy demo to /home/badai/briix-demo
         run: |
           set -euo pipefail
@@ -60,10 +60,9 @@ jobs:
           OLD=/home/badai/briix-demo.old
           rm -rf "$STAGE" "$OLD"
           mkdir -p "$STAGE"
-          cp -r index.html demo.css demo.js demo-data.js \
-             media.js media.css music.js music.css live.css \
-             bus-live.js chat-live.js media-live.js music-live.js \
-             assets robots.txt "$STAGE"/
+          # Полное дерево репо (включая вложенные: site/, assets/), кроме служебного.
+          tar --exclude=./tools --exclude=./audits --exclude=./.git --exclude=./.github \
+              -cf - . | (cd "$STAGE" && tar xf -)
           if [ -d /home/badai/briix-demo ]; then
             mv /home/badai/briix-demo "$OLD"
           fi

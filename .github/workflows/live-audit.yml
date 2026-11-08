@@ -1,0 +1,100 @@
+name: Live stand audit
+
+# Сквозной путь пользователя по ЖИВОМУ стенду: картинки, инструментал, песня,
+# модерация, отмена, чат. Едет на раннере briix-ci — это и есть стенд A, поэтому
+# шина доступна на 127.0.0.1:8390, а токен лежит в systemd-юните media-bff.
+#
+# Отдельно от demo-ci: PR-тесты должны оставаться быстрыми, а живой прогон
+# занимает минуты и занимает GPU. Отчёт приходит в issue #46 и в job summary.
+#
+# Токен нигде не печатается: инструмент сообщает только способ его находки.
+
+on:
+  # Первый реальный прогон — на этом же PR: workflow_dispatch доступен только
+  # с дефолтной ветки, а ждать мержа, чтобы узнать состояние стенда, незачем.
+  # Дальше запуск ручной или недельный, на чужие PR эта тяжесть не поедет.
+  pull_request:
+    paths:
+      - 'tools/check-live-stand.cjs'
+      - '.github/workflows/live-audit.yml'
+  workflow_dispatch:
+    inputs:
+      phases:
+        description: 'Фазы через запятую (catalog,image,instrumental,song-flash,song-pro,moderation,cancel,chat или all)'
+        required: false
+        default: 'catalog,image,instrumental,song-flash,moderation,cancel,chat'
+      bus_url:
+        description: 'Адрес шины'
+        required: false
+        default: 'http://127.0.0.1:8390'
+  schedule:
+    # Раз в неделю, ночью по UTC: полный путь без долгого Pro.
+    - cron: '0 2 * * 1'
+
+concurrency:
+  group: briix-live-audit
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: [self-hosted, briix-ci]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Live stand audit (real generations)
+        id: audit
+        continue-on-error: true
+        env:
+          BRIIX_BUS_URL: ${{ github.event.inputs.bus_url || 'http://127.0.0.1:8390' }}
+          BRIIX_LIVE_PHASES: ${{ github.event.inputs.phases || 'catalog,image,instrumental,song-flash,moderation,cancel,chat' }}
+          BRIIX_TEST_OUT: ${{ github.workspace }}/live-audit-out
+        run: |
+          set -o pipefail
+          node tools/check-live-stand.cjs 2>&1 | tee /tmp/briix-live-audit.log
+
+      - name: Report to the tracking issue and job summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT: ${{ github.workspace }}/live-audit-out/live-audit.md
+        run: |
+          {
+            echo "## Прогон $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            if [ -f "$REPORT" ]; then
+              cat "$REPORT"
+            else
+              echo "Отчёт не создан — упало раньше аудита. Хвост лога:"
+              echo '```'
+              tail -40 /tmp/briix-live-audit.log 2>/dev/null || true
+              echo '```'
+            fi
+          } > /tmp/briix-live-report.md
+          cat /tmp/briix-live-report.md >> "$GITHUB_STEP_SUMMARY"
+          gh api "repos/${{ github.repository }}/issues/46/comments" -X POST -F body=@/tmp/briix-live-report.md >/dev/null \
+            && echo "Отчёт отправлен в #46" \
+            || echo "Не удалось отправить отчёт в #46 — он остаётся в job summary"
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-audit-${{ github.run_id }}
+          path: live-audit-out/
+          if-no-files-found: warn
+          retention-days: 30
+
+      # Провал аудита не роняет workflow сразу: сначала отчёт должен уйти в issue.
+      - name: Verdict
+        if: always()
+        run: |
+          if [ "${{ steps.audit.outcome }}" != "success" ]; then
+            echo "Аудит нашёл проблемы — таблица в issue #46 и в job summary."
+            exit 1
+          fi
+          echo "Все проверенные пути пользователя прошли."

@@ -89,3 +89,11 @@
 ## Showcase — реальные генерации стенда A
 
 `assets/media/showcase/` — MP3 192k с обложками и брендинг-тегами, manifest.json (title/prompt/model/date/duration/license demo-only). Источники: реальные прогоны стенда (ACE-Step ru-баллада 30с/60с, Room 7 No Knock, musicgen lofi/ambient/jingle). Room 7: лирика — chats-audit репо владельца (автор DeepSeek-чат владельца).
+
+## Формат раздачи → M4A со встроенными текстами (08.11, волна 3)
+
+- music_package: WAV → **M4A (AAC 192k)** с обложкой (attached_pic) и **тегом lyrics (©lyr)** — полный текст песни из `params.lyrics` (vocal-джобы; у musicgen-инструменталов текста нет). result_url отдаёт `.m4a` (audio/mp4); fallback в get_file: .mp3 → .wav (legacy).
+- Проверено ffprobe на живом джобе: `codec_name=aac`, `png + attached_pic=1`, `TAG:lyrics=<полный текст>`; size 1.3 MB при 30с-треке.
+- Нюанс mp4-муксера: тег `url` не пишется, а с `-movflags use_metadata_tags` url пишется, но теряется attached_pic — поэтому адрес вшит в comment. Обложка важнее.
+- **UI-заметка для Арены (два варианта показа текста)**: (а) читать ©lyr прямо из m4a (jsmediatags умеет MP4 ilst); (б) брать текст из `assets/media/showcase/manifest.json` / GET /jobs/{id} provenance.params.lyrics.
+- Showcase пересобран в m4a: room7/ballad30/ballad60 — со встроенными текстами, lofi/ambient/jingle — инструменталы без текста.

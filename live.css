@@ -28,3 +28,55 @@
   .music-heading-actions { flex-direction: column; align-items: stretch; }
   .composer-context .chat-live-toggle { align-self: flex-start; }
 }
+
+/* Wave A: three music routes, lyrics input, content-policy refusal. */
+.music-vocal-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.music-vocal-mode { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 11px 13px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.music-vocal-mode:hover { border-color: var(--accent); }
+.music-vocal-mode.active { border-color: var(--accent); background: var(--accent-soft); }
+.music-vocal-mode strong { font-size: 12px; }
+.music-vocal-mode span { font-size: 10px; color: var(--muted); }
+.music-vocal-mode small { font-size: 9px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.music-vocal-mode.unavailable small { color: var(--warning); }
+.music-mode-timing { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0 0; font-size: 9px; line-height: 1.7; color: var(--faint); }
+.music-mode-timing .icon { width: 12px; height: 12px; margin-top: 1px; flex-shrink: 0; }
+.music-lyrics { font-family: var(--mono); font-size: 11px; line-height: 1.8; resize: vertical; min-height: 110px; }
+.music-lyrics[aria-invalid="true"] { border-color: var(--danger); }
+.music-lyric-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -6px 0 14px; font-size: 9px; }
+.music-tag-btn { font-family: var(--mono); font-size: 9px; padding: 3px 7px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.music-tag-btn:hover { border-color: var(--accent); color: var(--accent-ink); }
+.music-lyrics-count { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; }
+.music-lyrics-view { white-space: pre-wrap; font-family: var(--mono); font-size: 10px; line-height: 1.8; color: var(--muted); }
+.music-refusal, .media-refusal { display: flex; gap: 10px; align-items: flex-start; padding: 13px 15px; margin: 0 0 14px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: 10px; background: var(--surface-2); }
+.music-refusal > .icon, .media-refusal > .icon { width: 17px; height: 17px; color: var(--accent); margin-top: 2px; flex-shrink: 0; }
+.music-refusal strong, .media-refusal strong { display: block; font-size: 12px; margin-bottom: 4px; }
+.music-refusal p, .media-refusal p { margin: 0 0 9px; color: var(--muted); font-size: 10px; line-height: 1.75; }
+.music-cover-row { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+.music-cover-fallback { width: 62px; height: 62px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--faint); }
+.music-cover-fallback .icon { width: 20px; height: 20px; }
+.music-cover-fallback span { font-size: 8px; letter-spacing: .12em; }
+.music-cover-note { margin: 0; font-size: 9px; line-height: 1.75; color: var(--faint); }
+.chat-policy-note { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+@media (max-width: 540px) {
+  .music-vocal-modes { grid-template-columns: 1fr; }
+  .music-cover-row { align-items: flex-start; }
+}
+.music-lyrics-block { margin: 0 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 10px 13px; }
+.music-lyrics-block summary { cursor: pointer; font-size: 11px; color: var(--ink); }
+.music-lyrics-block p { margin: 9px 0 0; }
+
+/* Фаза 3, п.1: один ключ на все разделы, режим всегда виден. */
+.live-mode-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+.live-mode-banner [data-live-settings] { flex-shrink: 0; }
+.stand-key-row { align-items: flex-start; }
+.stand-key-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.stand-key-controls input { min-width: 240px; font-family: var(--mono); font-size: 12px; }
+.stand-key-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#stand-server { min-width: 240px; font-family: var(--mono); font-size: 12px; }
+.stand-status { margin: 12px 0 0; padding: 10px 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font-size: 11px; line-height: 1.7; }
+.stand-status[data-state="ok"] { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.stand-status[data-state="error"] { border-color: var(--warning); color: var(--ink); background: var(--warning-soft); }
+@media (max-width: 640px) {
+  .stand-key-controls, .stand-key-actions { width: 100%; }
+  .stand-key-controls input, #stand-server { min-width: 0; flex: 1; width: 100%; }
+}

@@ -13,6 +13,7 @@
   let active = false;
   let current = null;         // {controller, messageId}
   let bannerText = '';
+  let autoCheckedAt = 0;
   let model = null;
 
   function load() {
@@ -32,11 +33,11 @@
           };
         }
       }
-      return { enabled: !!raw.enabled, provenance };
-    } catch { return { enabled: false, provenance: {} }; }
+      return { enabled: !!raw.enabled, manualOff: !!raw.manualOff, provenance };
+    } catch { return { enabled: false, manualOff: false, provenance: {} }; }
   }
   function persist() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ enabled: store.enabled, provenance: store.provenance })); }
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ enabled: store.enabled, manualOff: store.manualOff, provenance: store.provenance })); }
     catch { /* provenance is optional; chat history is owned by demo.js */ }
   }
   const bus = () => window.BRIIX_BUS;
@@ -47,34 +48,69 @@
   function setBanner(text) {
     bannerText = text || '';
     const el = document.querySelector('#chat-live-banner');
-    if (el) { el.hidden = !bannerText; el.textContent = bannerText; }
+    if (!el) return;
+    el.hidden = !bannerText;
+    const slot = el.querySelector('[data-live-banner-text]');
+    if (slot) slot.textContent = bannerText; else el.textContent = bannerText;
+    const link = el.querySelector('[data-live-settings]');
+    if (link) link.hidden = !/Настройках/.test(bannerText);
   }
 
-  function askToken() {
-    const value = window.prompt('Bearer-токен media-bff (хранится только в этом браузере, ключ briix-media-live-token):');
-    if (value && value.trim()) { bus().setToken(value); toast('Токен сохранён локально.'); }
+  // Ключ живёт в Настройках: никаких window.prompt посреди диалога.
+  function goSettings() {
+    setBanner(bus()?.mockBanner('no_token') || 'Мок: вставьте ключ стенда в Настройках.');
+    refresh();
+    location.hash = '#/settings';
+    setTimeout(() => document.querySelector('#stand-token')?.focus(), 60);
   }
 
   async function toggle() {
     if (active) {
       current?.controller.abort();
-      active = false; store.enabled = false; persist(); setBanner('');
+      active = false; store.enabled = false; store.manualOff = true; persist();
+      setBanner(bus().mockBanner('manual_off') + ' Ответы сценарные.');
       refresh(); toast('Live-чат выключен. Ответы снова сценарные.');
       return;
     }
+    if (!bus().hasToken()) { goSettings(); return; }
+    store.manualOff = false; persist();
+    const started = await autoStart({ force: true });
+    if (started) toast('Live-чат включён. Отвечает ' + (model || 'ваш сервер') + '.');
+    else toast('Live-чат не включился: смотрите пояснение над диалогом.', 'error');
+  }
+
+  /* Live по умолчанию: ключ есть и стенд здоров — раздел живёт сам, без кликов.
+   * Любой отказ объясняется баннером, сценарный режим никогда не выдаётся за live. */
+  async function autoStart({ force = false } = {}) {
+    if (!bus()) return false;
+    if (!force && Date.now() - autoCheckedAt < 10000) { setBanner(bannerText); return active; }
+    autoCheckedAt = Date.now();
+    if (store.manualOff && !force) { active = false; setBanner(bus().mockBanner('manual_off') + ' Ответы сценарные.'); refresh(); return false; }
+    if (!bus().hasToken()) { active = false; setBanner(bus().mockBanner('no_token') + ' Ответы сценарные.'); refresh(); return false; }
     const health = await bus().health();
-    if (!health) { setBanner('Live-чат недоступен: сервер не отвечает. Проверьте туннель (tools/briix-media-live-up.sh). Ответы остаются сценарными.'); refresh(); toast('Сервер не отвечает по /health.', 'error'); return; }
-    if (!bus().hasToken()) { askToken(); if (!bus().hasToken()) return; }
+    if (!health) {
+      active = false; store.enabled = false; persist();
+      setBanner('Мок: стенд недоступен — ответы остаются сценарными. Проверьте ключ и адрес шины в Настройках.');
+      refresh(); return false;
+    }
     let capability;
     try { capability = await bus().capability('chat', true); }
-    catch { setBanner('Каталог моделей не получен: проверьте bearer-токен. Ответы остаются сценарными.'); refresh(); return; }
+    catch (error) {
+      active = false; store.enabled = false; persist();
+      setBanner(error?.code === 'unauthorized'
+        ? bus().mockBanner('unauthorized') + ' Ответы сценарные.'
+        : 'Мок: каталог моделей не получен — ответы остаются сценарными. Проверьте ключ в Настройках.');
+      refresh(); return false;
+    }
     if (capability.status !== 'ready') {
-      setBanner('Текстовый бэкенд на сервере недоступен (chat: unavailable). Ответы остаются сценарными.');
-      refresh(); toast('Сервер ответил, но chat помечен unavailable.', 'error'); return;
+      active = false; store.enabled = false; persist();
+      setBanner('Текстовый бэкенд на стенде недоступен (chat: unavailable). Ответы остаются сценарными.');
+      refresh(); return false;
     }
     model = capability.model;
-    active = true; store.enabled = true; persist(); setBanner('');
-    refresh(); toast('Live-чат включён. Отвечает ' + (model || 'ваш сервер') + '.');
+    active = true; store.enabled = true; store.manualOff = false; persist(); setBanner('');
+    refresh();
+    return true;
   }
 
   function buildMessages(chat, prompt) {
@@ -127,6 +163,23 @@
       finish('complete');
     }).catch(error => {
       if (error?.name === 'AbortError') { finish('stopped'); return; }
+      if (error?.code === 'content_blocked') {
+        // Отказ политики — полноценный ответ, а не ошибка: статус complete, без «повторить».
+        message.content = 'Этот запрос я генерировать не буду — политика контента briix.ru.'
+          + (error.message ? '\n\n' + error.message : '')
+          + '\n\nХудожественная нагота допустима, порнография — нет. Переформулируйте запрос — и продолжим.';
+        delete message.liveError;
+        store.provenance[message.id] = {
+          model, wallMs: Date.now() - started, streamed: false, contentBlocked: true,
+          policyMessage: error.message || null, at: Date.now()
+        };
+        persist();
+        setBanner('Запрос не прошёл проверку контента на сервере. Это ответ политики, а не сбой: измените формулировку и отправьте снова.');
+        persistChat();
+        refresh();
+        finish('complete');
+        return;
+      }
       const reason = error?.code === 'unauthorized' ? 'Сервер отклонил токен.'
         : error?.code === 'unavailable' ? 'Текстовый бэкенд недоступен.'
         : error?.code === 'network' ? 'Связь с сервером потеряна.'
@@ -151,6 +204,7 @@
     const p = store.provenance[message.id];
     if (!p) return '';
     const seconds = Number.isFinite(p.wallMs) ? (p.wallMs / 1000).toFixed(1) + ' с' : '—';
+    if (p.contentBlocked) return `<div class="chat-live-provenance chat-policy-note" data-chat-provenance="${esc(message.id)}">Проверка контента · отказ сервера · ${seconds} · это не ошибка связи</div>`;
     return `<div class="chat-live-provenance" data-chat-provenance="${esc(message.id)}">${esc(p.model || 'модель сервера')} · ${seconds} · ${p.streamed ? 'поток SSE' : 'ответ целиком' + (p.fallbackReason ? ' (' + esc(p.fallbackReason) + ')' : '')} · приватный live</div>`;
   }
 
@@ -164,20 +218,14 @@
   window.BRIIX_CHAT_LIVE = {
     errorNote,
     active: () => active,
-    toggle, respond, badge, provenanceMarkup, setBanner,
+    toggle, respond, badge, provenanceMarkup, setBanner, autoStart, goSettings,
     bannerText: () => bannerText,
     stop: () => current?.controller.abort(),
     provenanceFor: id => store.provenance[id] || null,
     onHostReady() {
-      if (!store.enabled || !bus()) return;
-      bus().health().then(async health => {
-        if (!health || !bus().hasToken()) { store.enabled = false; persist(); setBanner('Мок-режим: сервер не отвечает после перезагрузки. Ответы снова сценарные.'); refresh(); return; }
-        try {
-          const capability = await bus().capability('chat', true);
-          if (capability.status !== 'ready') { store.enabled = false; persist(); setBanner('Текстовый бэкенд недоступен — ответы снова сценарные.'); refresh(); return; }
-          model = capability.model; active = true; refresh();
-        } catch { store.enabled = false; persist(); refresh(); }
-      });
+      if (!bus()) return;
+      setBanner(bannerText);          // баннер живёт в разметке страницы — восстанавливаем текст
+      autoStart();
     }
   };
 })();

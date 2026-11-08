@@ -48,6 +48,7 @@
   let storageOkay = true;
   let storageProtected = false;
   let references = [];
+  let liveRefusal = null;   // отказ модерации: показываем карточкой, не тостом
   let form = { type: 'image', recipe: 'product-photo', asset: 'ceramic', goal: 'product', ratio: '1:1', project: '', prompt: RECIPES[0].prompt, failNext: false };
   let detailId = null;
   const uid = () => 'media-' + (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
@@ -140,7 +141,7 @@
     return `<div class="page-header media-heading"><div><div class="eyebrow">Визуальная мастерская</div><h1>Изображения</h1><p>От идеи до визуального черновика: фото и видео. Спокойно, наглядно, в одном месте.</p></div><span><button class="btn media-help" data-media-action="help">${icon('help')}<span>Как это работает</span></button></span> <button class="btn ${liveActive() ? 'primary' : ''} media-live-toggle" data-media-action="live" aria-pressed="${liveActive()}">${icon('terminal')}${liveActive() ? '<span>Live включён</span>' : '<span>Приватный live (эксперимент)</span>'}</button></div>
       <div class="media-mode-note">${icon('flask')}<span><strong>Локальный мок, не нейросеть.</strong> Фото выбраны из готовой коллекции; видео — плавная анимация кадра. Бриф сохраняется, но не управляет пикселями. Без API, кредитов и загрузки файлов.</span></div>
       <div id="media-storage-notice" class="storage-banner" role="status" hidden></div>
-      <div id="media-live-banner" class="storage-banner" role="status" hidden></div>
+      <div id="media-live-banner" class="storage-banner live-mode-banner" role="status" hidden><span data-live-banner-text></span><a class="text-btn" href="#/settings" data-live-settings hidden>${icon('settings')}Ключ в Настройках</a></div>
       <div class="media-tabs" role="tablist" aria-label="Разделы мастерской изображений">${[['create', 'Создание', 'sparkles'], ['library', 'Медиатека', 'image'], ['queue', 'Очередь', 'clock'], ['models', 'Модели и рецепты', 'route']].map(([id, label, ic]) => `<button id="media-tab-${id}" role="tab" aria-selected="${tab === id}" aria-controls="media-panel" tabindex="${tab === id ? 0 : -1}" class="media-tab ${tab === id ? 'active' : ''}" data-media-action="tab" data-id="${id}">${icon(ic)}<span>${label}</span>${id === 'library' ? `<span class="media-count" id="media-library-count">${readyJobs().length}</span>` : id === 'queue' ? `<span class="media-count" id="media-queue-count">${activeCount()}</span>` : ''}</button>`).join('')}</div><section id="media-panel" role="tabpanel" aria-labelledby="media-tab-${tab}" tabindex="0"></section>`;
 
   }
@@ -174,7 +175,7 @@
       <div class="media-reference-note">${icon('info')}<span>Видео в демо: 5 секунд, без звука. Выбранный референс задаёт готовый локальный исходник.</span></div>
       <details class="media-extra"><summary>Референсы с устройства <span>необязательно</span></summary><p>Как и в диалогах, сохраняются только имя и размер. Содержимое не читается и не влияет на мок.</p><button type="button" class="btn" data-media-action="reference">${icon('paperclip')}Выбрать изображения</button><input type="file" id="media-reference-input" accept="image/png,image/jpeg,image/webp" multiple hidden><div id="media-reference-list" class="media-reference-list">${referenceMarkup()}</div></details>
       <label class="media-error-test"><input type="checkbox" id="media-fail" ${form.failNext ? 'checked' : ''}><span>Проверить ошибку на следующей задаче</span></label>
-      <p id="media-form-error" class="media-form-error" role="alert" hidden></p><button type="submit" class="btn primary media-generate" id="media-generate" ${activeCount() >= MAX_ACTIVE ? 'disabled' : ''}>${icon('sparkles')}<span>${form.type === 'image' ? 'Создать фото-мок' : 'Создать видео-мок'}</span>${icon('arrowRight')}</button><div class="media-safe-note">${icon('lock')}Без регистрации и расходов · до 6 задач в очереди</div>
+      <p id="media-form-error" class="media-form-error" role="alert" hidden></p>${liveRefusal ? `<div class="media-refusal" id="media-refusal" role="status">${icon('shield')}<div><strong>Не пройдена проверка контента</strong><p>${esc(liveRefusal.message || 'Запрос нарушает политику контента.')} Художественная нагота допустима, порнография — нет.</p><button type="button" class="btn small" data-media-action="edit-blocked">${icon('edit')}Изменить промпт</button></div></div>` : ''}<button type="submit" class="btn primary media-generate" id="media-generate" ${activeCount() >= MAX_ACTIVE ? 'disabled' : ''}>${icon('sparkles')}<span>${form.type === 'image' ? 'Создать фото-мок' : 'Создать видео-мок'}</span>${icon('arrowRight')}</button><div class="media-safe-note">${icon('lock')}Без регистрации и расходов · до 6 задач в очереди</div>
     </form><div class="media-workspace"><div class="media-section-title"><span class="eyebrow">02 / Визуальное направление</span><span class="media-local-label"><span></span>${originLabel()}</span></div>
       <div class="media-recipes" role="group" aria-label="Готовые рецепты">${RECIPES.filter(r => r.type === form.type).map(r => `<button class="media-recipe ${form.recipe === r.id ? 'active' : ''}" aria-pressed="${form.recipe === r.id}" data-media-action="recipe" data-id="${r.id}"><img src="${asset(r.asset).image}" alt="" loading="lazy" width="160" height="110"><span class="media-recipe-copy"><strong>${r.title}</strong><small>${r.subtitle}</small></span><span class="media-recipe-check">${icon('check')}</span></button>`).join('')}</div>
       <div id="media-preview" class="media-preview">${previewMarkup(latest)}</div><div id="media-inline-queue" class="media-inline-queue">${inlineQueueMarkup()}</div>
@@ -356,6 +357,7 @@
   const actions = {
     tab: el => { syncForm(); tab = el.dataset.id; renderPanel(); if (tab === 'library') updateLibrary(); },
     type: el => setType(el.dataset.id),
+    'edit-blocked': () => { liveRefusal = null; renderPanel(); const area = $('#media-prompt', root); area?.focus(); area?.setSelectionRange(area.value.length, area.value.length); },
     recipe: el => { syncForm(); const r = recipe(el.dataset.id); if (r.type !== form.type) return; form.recipe = r.id; form.asset = r.asset; form.goal = r.goal; form.prompt = r.prompt; renderPanel(); },
     ratio: el => { syncForm(); form.ratio = el.dataset.id; renderPanel(); },
     reference: () => $('#media-reference-input', root).click(),
@@ -401,7 +403,13 @@
     // Narrow internal surface for media-live.js (optional live mode).
     _api: {
       liveActive,
-      setLiveBanner: text => { const el = $('#media-live-banner', root || document); if (!el) return; el.hidden = !text; el.textContent = text || ''; },
+      setRefusal: value => { liveRefusal = value || null; },
+      setLiveBanner: text => {
+        const el = $('#media-live-banner', root || document); if (!el) return;
+        el.hidden = !text;
+        const slot = $('[data-live-banner-text]', el); if (slot) slot.textContent = text || ''; else el.textContent = text || '';
+        const link = $('[data-live-settings]', el); if (link) link.hidden = !/Настройках/.test(text || '');
+      },
       addJob: jobData => {
         if (!window.BRIIX_MEDIA_LIVE || !window.BRIIX_MEDIA_LIVE.active()) return null;
         try { const j = validateLiveJob({ ...jobData, mode: 'live', favorite: false, createdAt: Date.now() }, new Set(state.jobs.map(x => x.id))); state.jobs.unshift(j); trimCapacity(); persist(); updateCounts(); if (root) { renderPanel(); if (tab === 'library') updateLibrary(); } return j; }

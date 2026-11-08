@@ -14,6 +14,20 @@
   const polls = new Map();      // serverJobId -> timer
   let active = false;
   let host = null;
+  let autoCheckedAt = 0;
+  const OFF_KEY = 'briix-live-off-v1';
+  // Тот же ключ, что у bus-live.js, но модуль остаётся самостоятельным.
+  function isOff() { try { return !!JSON.parse(localStorage.getItem(OFF_KEY) || '{}').media; } catch { return false; } }
+  function setOff(off) {
+    let map = {}; try { map = JSON.parse(localStorage.getItem(OFF_KEY) || '{}') || {}; } catch { map = {}; }
+    if (off) map.media = true; else delete map.media;
+    try { localStorage.setItem(OFF_KEY, JSON.stringify(map)); } catch { /* приватный режим */ }
+  }
+  const MOCK = {
+    no_token: 'Мок: стенд не подключён — вставьте ключ в Настройках, и раздел сразу перейдёт на live.',
+    unreachable: 'Мок: стенд недоступен — проверьте ключ и адрес шины в Настройках.',
+    manual_off: 'Мок: live выключен вручную. Включите кнопкой «Приватный live» в заголовке раздела.'
+  };
 
   const api = () => window.BRIIX_MEDIA && window.BRIIX_MEDIA._api;
   const server = () => { try { return JSON.parse(localStorage.getItem('briix-media-live-server')) || DEFAULT_SERVER; } catch { return DEFAULT_SERVER; } };
@@ -37,8 +51,16 @@
 
   function banner(text) { host && host.setLiveBanner(text || ''); }
 
+  function goSettings() {
+    banner(MOCK.no_token);
+    host?.refresh();
+    location.hash = '#/settings';
+    setTimeout(() => document.querySelector('#stand-token')?.focus(), 60);
+  }
+
   async function submit({ type, prompt, project, ratio }) {
-    if (!token()) { askToken(); return; }
+    if (!token()) { goSettings(); return; }
+    api().setRefusal(null);
     banner('');
     let payload;
     try {
@@ -46,7 +68,19 @@
         method: 'POST', headers: headers(),
         body: JSON.stringify({ type, prompt, params: ratio && type === 'image' ? { ratio } : {} })
       });
-      if (r.status === 401) { api().toast('Сервер отклонил токен. Проверьте bearer-токен в настройках live-режима.', 'error'); askToken(); return; }
+      if (r.status === 401) { api().toast('Стенд отклонил ключ. Обновите его в Настройках.', 'error'); goSettings(); return; }
+      // 422 — вердикт модерации, а не сбой: карточка с текстом сервера, без мока и без retry.
+      if (r.status === 422 || r.status === 400) {
+        let payload = null;
+        try { payload = await r.json(); } catch { /* пустое тело */ }
+        if (r.status === 422 || payload?.error?.code === 'content_blocked') {
+          api().setRefusal({ message: payload?.error?.message || 'Запрос нарушает политику контента.', prompt, type, at: Date.now() });
+          host.refresh();
+          return;
+        }
+        api().toast(payload?.error?.message || 'Сервер отклонил параметры запроса.', 'error');
+        return;
+      }
       if (r.status === 429) { api().toast('Очередь сервера заполнена. Попробуйте позже.', 'error'); return; }
       if (r.status === 503) { api().toast('Сервер или нужный бэкенд недоступен.', 'error'); return; }
       if (!r.ok) { api().toast('Сервер не принял задачу (' + r.status + ').', 'error'); return; }
@@ -189,27 +223,39 @@
     startPoll(j.id, payload.job_id);
   }
 
-  function askToken() {
-    host.toast('Для live-режима нужен bearer-токен вашего сервера (media-bff .env). Он хранится только в этом браузере.', 'error');
-    const value = window.prompt('Bearer-токен media-bff (хранится только в этом браузере, ключ ' + TOKEN_KEY + '):');
-    if (value && value.trim()) { setToken(value); api().toast('Токен сохранён локально.'); }
-  }
+  // Ключ вводится один раз в Настройках, window.prompt больше не используется.
+  function askToken() { goSettings(); }
 
   async function toggle() {
     if (!active) {
-      const health = await checkHealth();
-      if (!health) { goMock('Live недоступен: сервер не отвечает. Проверьте туннель (tools/briix-media-live-up.sh).'); return; }
-      if (!token()) { askToken(); if (!token()) return; }
-      active = true;
-      banner('');
-      api().toast('Live-режим включён. Бэкенды: ' + Object.entries(health.backends).map(([k, v]) => k + '=' + (v ? 'ok' : 'нет')).join(', '));
-      recover();
+      if (!token()) { goSettings(); return; }
+      setOff(false);
+      const ok = await autoStart({ force: true });
+      if (ok) api().toast('Live-режим включён. Изображения считает ваш стенд.');
+      else api().toast('Live не включился: смотрите пояснение в разделе.', 'error');
     } else {
       active = false;
+      setOff(true);
       stopAllPolls();
+      banner(MOCK.manual_off);
       api().toast('Live-режим выключен. Студия вернулась в локальный мок.');
     }
     host.refresh();
+  }
+
+  /* Live по умолчанию: ключ есть и стенд здоров — раздел живёт сам, без кликов. */
+  async function autoStart({ force = false } = {}) {
+    if (!force && Date.now() - autoCheckedAt < 10000) { host?.refresh(); return active; }
+    autoCheckedAt = Date.now();
+    if (isOff() && !force) { active = false; banner(MOCK.manual_off); host?.refresh(); return false; }
+    if (!token()) { active = false; banner(MOCK.no_token); host?.refresh(); return false; }
+    const health = await checkHealth();
+    if (!health) { active = false; banner(MOCK.unreachable); host?.refresh(); return false; }
+    active = true;
+    banner('');
+    host?.refresh();
+    recover();
+    return true;
   }
 
   function recover() {
@@ -236,16 +282,14 @@
     settings: () => ({ server: server(), hasToken: !!token() }),
     setToken,
     askToken,
+    autoStart,
+    goSettings,
     onHostReady() {
       host = window.BRIIX_MEDIA._api;
-      // After reload with live previously active, resume automatically (Т4).
       const hadLive = readJobs().some(j => j.mode === 'live' && ['queued', 'running'].includes(j.status));
-      if (hadLive) {
-        checkHealth().then(h => {
-          if (h && token()) { active = true; recover(); host.refresh(); }
-          else goMock('Мок-режим (live недоступен): сервер не отвечает после перезагрузки страницы.');
-        });
-      }
+      autoStart().then(ok => {
+        if (!ok && hadLive) goMock('Мок-режим (live недоступен): стенд не подтвердил режим после перезагрузки страницы.');
+      });
     }
   };
 })();

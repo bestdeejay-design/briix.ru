@@ -15,7 +15,8 @@ const PIECES = ['ОТВЕТ-МОДЕЛИ: ', 'первый ', 'второй ', '
 const WHOLE = PIECES.join('');
 
 let state;
-function resetBff() { state = { up: true, chatReady: true, mode: 'sse', calls: [], aborted: 0 }; }
+function resetBff() { state = { up: true, chatReady: true, mode: 'sse', calls: [], aborted: 0, blocked: false }; }
+const POLICY_MESSAGE = 'Запрос нарушает политику контента: откровенный материал не генерируется.';
 resetBff();
 
 function staticServer(port) {
@@ -50,6 +51,7 @@ function bffServer(port) {
         req.on('end', () => {
           const body = JSON.parse(raw || '{}');
           state.calls.push(body);
+          if (state.blocked) { send(422, { error: { code: 'content_blocked', message: POLICY_MESSAGE } }); return; }
           const chunk = (delta, extra = {}) => 'data: ' + JSON.stringify({ id: 'chatcmpl-1', object: 'chat.completion.chunk', model: 'qwen3:4b-instruct', choices: [{ index: 0, delta, finish_reason: null }], ...extra }) + '\n\n';
           if (!body.stream) { send(200, { id: 'chatcmpl-1', object: 'chat.completion', model: 'qwen3:4b-instruct', choices: [{ index: 0, message: { role: 'assistant', content: WHOLE }, finish_reason: 'stop' }], usage: { prompt_tokens: 42, completion_tokens: 12 } }); return; }
           if (state.mode === 'json-only') { send(200, { id: 'chatcmpl-1', choices: [{ message: { role: 'assistant', content: WHOLE } }] }); return; }
@@ -100,9 +102,9 @@ function bffServer(port) {
     await p.waitForSelector('#prompt-input');
     return p;
   }
+  // Фаза 3: ключ в браузере → чат отвечает моделью сразу, без тоггла.
   const enableLive = async p => {
-    await p.locator('[data-action="toggle-chat-live"]').click();
-    await p.waitForFunction(() => window.BRIIX_CHAT_LIVE.active(), {}, { timeout: 10000 });
+    await p.waitForFunction(() => window.BRIIX_CHAT_LIVE.active(), {}, { timeout: 15000 });
   };
   const send = async (p, text) => { await p.locator('#prompt-input').fill(text); await p.locator('#send-button').click(); };
   const lastMessage = p => p.evaluate(() => {
@@ -217,8 +219,7 @@ function bffServer(port) {
   // Dead tunnel at switch-on: the scripted demo stays scripted and says so.
   resetBff(); state.up = false;
   p = await page();
-  await p.locator('[data-action="toggle-chat-live"]').click();
-  await p.waitForFunction(() => !window.BRIIX_CHAT_LIVE.active() && !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 10000 });
+  await p.waitForFunction(() => !window.BRIIX_CHAT_LIVE.active() && !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 15000 });
   assert.match(await p.locator('#chat-live-banner').innerText(), /сценарными/);
   assert.equal(await p.locator('[data-action="toggle-chat-live"]').getAttribute('aria-pressed'), 'false');
   await send(p, 'Что ты умеешь?');
@@ -233,11 +234,30 @@ function bffServer(port) {
   // Backend marked unavailable must not switch the chat to live.
   resetBff(); state.chatReady = false;
   p = await page();
-  await p.locator('[data-action="toggle-chat-live"]').click();
-  await p.waitForFunction(() => !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 10000 });
+  await p.waitForFunction(() => !document.querySelector('#chat-live-banner').hidden, {}, { timeout: 15000 });
   assert.equal(await p.evaluate(() => window.BRIIX_CHAT_LIVE.active()), false);
   assert.match(await p.locator('#chat-live-banner').innerText(), /unavailable/);
   ok('catalog unavailable keeps chat scripted', {});
+  await p.close();
+
+  // 422 in chat is a polite refusal with status complete — not an error, not a retry button.
+  resetBff(); state.blocked = true;
+  p = await page();
+  await enableLive(p);
+  const callsBefore = state.calls.length;
+  await send(p, 'Запрос, который сервер отклонит по политике контента.');
+  await waitAssistant(p, 'complete');
+  msg = await lastMessage(p);
+  assert.equal(msg.status, 'complete');
+  assert.match(msg.content, /Этот запрос я генерировать не буду — политика контента briix\.ru/);
+  assert.ok(msg.content.includes(POLICY_MESSAGE), 'server explanation kept verbatim');
+  assert.ok(!msg.liveError, 'refusal is not a live error');
+  assert.equal(state.calls.length, callsBefore + 1, 'no non-stream retry after a policy verdict');
+  assert.equal(await p.locator('.message-error').count(), 0);
+  assert.equal(await p.locator('[data-action="regenerate"]').count(), 0, 'no "another variant" on a refusal');
+  assert.match(await p.locator('.chat-policy-note').innerText(), /Проверка контента/);
+  assert.equal(await p.evaluate(() => window.BRIIX_CHAT_LIVE.active()), true, 'chat stays live');
+  ok('422 in chat: complete refusal, server text, no retry, live intact', {});
   await p.close();
 
   assert.deepEqual(errors, [], 'page errors');

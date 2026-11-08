@@ -33,7 +33,6 @@
   const server = () => {
     const host = location.hostname;
     if (host !== '127.0.0.1' && host !== 'localhost') return location.origin + '/api';
-    if (location.hostname !== '127.0.0.1' && location.hostname !== 'localhost') return location.origin + '/api';
     try { return JSON.parse(localStorage.getItem('briix-media-live-server')) || DEFAULT_SERVER; } catch { return DEFAULT_SERVER; }
   };
   const token = () => localStorage.getItem(TOKEN_KEY) || '';

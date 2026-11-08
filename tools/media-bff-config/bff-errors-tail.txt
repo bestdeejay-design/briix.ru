@@ -1,0 +1,11 @@
+ноя 08 00:13:45 t-ai python[2083546]: 2026-11-08 00:13:45 failed job-0ac11cf8ccc8f2c0: RuntimeError
+ноя 08 00:14:55 t-ai python[2083546]: 2026-11-08 00:14:55 failed job-a3c796724c051e18: RuntimeError
+ноя 08 00:15:07 t-ai python[2083546]: 2026-11-08 00:15:07 failed job-c249794a19a2f8d4: RuntimeError
+ноя 08 00:15:13 t-ai python[2083546]: 2026-11-08 00:15:13 failed job-302f37546dbec8fa: RuntimeError
+ноя 08 00:15:17 t-ai python[2083546]: 2026-11-08 00:15:17 failed job-724f43c4c22c6531: RuntimeError
+ноя 08 00:15:44 t-ai python[2084222]: 2026-11-08 00:15:44 failed job-69a8b459916fc57f: RuntimeError
+ноя 08 00:16:53 t-ai python[2084461]: 2026-11-08 00:16:53 failed job-107c688167fc68ed: RuntimeError
+ноя 08 00:17:21 t-ai python[2084461]: 2026-11-08 00:17:21 failed job-eef570a62eacea11: RuntimeError
+ноя 08 00:32:43 t-ai python[2086450]: 2026-11-08 00:32:43 failed job-8d383a174776e001: RuntimeError
+ноя 08 01:13:45 t-ai python[2106605]: 2026-11-08 01:13:45 failed job-d981dadcaa6349fe: RuntimeError
+ноя 08 01:15:07 t-ai python[2107645]: 2026-11-08 01:15:07 failed job-0678dc78b3458a34: RuntimeError

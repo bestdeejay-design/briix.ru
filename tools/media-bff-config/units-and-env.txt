@@ -1,0 +1,60 @@
+media-bff.service
+ollama-briix.service
+MEDIA_BFF_TOKEN=<REDACTED>
+LISTEN 0      128        127.0.0.1:8390       0.0.0.0:*    users:(("python",pid=2107645,fd=6)) 
+LISTEN 0      4096       127.0.0.1:11436      0.0.0.0:*    users:(("ollama",pid=2073123,fd=3)) 
+[Unit]
+Description=BRIIX media-bff (aiohttp, 127.0.0.1:8390)
+After=default.target ollama-briix.service
+
+[Service]
+ExecStart=/home/badai/briix-media/adapter-venv/bin/python /home/badai/briix-media/media-bff/bff.py
+WorkingDirectory=/home/badai/briix-media/media-bff
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+===
+[Unit]
+Description=Ollama text instance for BRIIX media-bff (127.0.0.1:11436)
+After=default.target
+
+[Service]
+ExecStart=/home/badai/ollama/bin/ollama serve
+Environment=OLLAMA_HOST=127.0.0.1:11436
+Environment=OLLAMA_MODELS=/home/badai/briix-media/ollama-models
+Environment=OLLAMA_NUM_PARALLEL=1
+Environment=OLLAMA_KEEP_ALIVE=5m
+Environment=OLLAMA_LOAD_TIMEOUT=600s
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+
+# Обновление 08.11.2026 (волна фиксов, см. README):
+# - cron-строка `30 * * * * cron-cleanup` УДАЛЕНА из crontab (гонка с in-process retention bff);
+#   скрипт cron-cleanup оставлен как артефакт.
+# - systemd hardening (drop-in *.service.d/hardening.conf, оба юнита): NoNewPrivileges,
+#   ProtectSystem=strict, ReadWritePaths=/home/badai/briix-media (+~/.ollama для ollama),
+#   PrivateTmp, PrivateDevices, ProtectKernel*, RestrictAddressFamilies, RestrictNamespaces,
+#   RestrictRealtime, LockPersonality, SystemCallArchitectures=native, UMask=0077.
+#   MemoryDenyWriteExecute НЕ ставится (torch требует exec-память).
+# - media-bff: явные Environment=THREAD_BUDGET=8 / Environment=TEXT_BUDGET=4.
+# - bff.py: chat_completions идёт через ThreadBudget (F1), acquire атомарен при отмене (F2),
+#   warmup ждёт освобождения бюджета, токены 64→128 (F5), musicgen-cli --threads (F6),
+#   save_jobs() после stage-апдейтов (F7).
+
+# Волна 2 (08.11, решение владельца):
+# - Vocal-route ОТКРЫТ: POST /jobs type=music + params.model=ace-step-flash (LM 1.7B,
+#   max 30с, таймаут 300с) | ace-step-pro (LM 4B, max 150с, таймаут 900с); пайплайн
+#   ace-lm -> ace-synth, stages writing-lyrics|synthesizing, capability song.vocal.
+#   Грабля acestep.cpp учтена: ace-lm пишет выходной json как <input>+0.
+# - Брендинг-пакет: после music-джоба — обложка (sd-cli) + ffmpeg mux WAV -> MP3 192k
+#   с attached_pic и ID3v2 (artist BRIIX, album BRIIX Generative Music, comment
+#   "Generated on briix.ru — локальные AI-модели", url https://briix.ru).
+#   result_url отдаёт MP3, WAV внутренний.
+# - Модерация: 2 ступени (regex-блэклист -> qwen3-классификатор safe|suggestive|explicit,
+#   num_thread 2, timeout 15с, fail-open при падении ollama), кэш 30 мин по sha256,
+#   лог prompt-hash+verdict в moderation.log. explicit/422, suggestive/safe — проход.

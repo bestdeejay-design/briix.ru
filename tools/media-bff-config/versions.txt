@@ -1,0 +1,8 @@
+# Версии стенда A, снято 08.11.2026
+ollama: 0.40.8 (~/ollama/bin/ollama serve)
+adapter-venv python: Python 3.13.5 (aiohttp 3.14.5)
+musicgen-venv python: Python 3.13.5 (torch 2.15.0+cpu, transformers 5.22.2)
+systemd: 257 (257.13-1~deb13u1)
+loginctl show-user badai -p Linger: Linger=yes
+acestep.cpp: 07abf07 (2026-11-06)
+stable-diffusion.cpp: master-1056-9234ad8 (AVX2)

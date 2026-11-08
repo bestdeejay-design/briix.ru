@@ -1,0 +1,7 @@
+#!/bin/bash
+# Hourly retention for media-bff: delete results older than 24h, mark expired jobs.
+# Idempotent: safe to run any number of times.
+set -euo pipefail
+mkdir -p "$HOME/briix-media/media-bff/logs"
+"$HOME/briix-media/adapter-venv/bin/python" "$HOME/briix-media/media-bff/bff.py" cleanup \
+  >> "$HOME/briix-media/media-bff/logs/cleanup.log" 2>&1

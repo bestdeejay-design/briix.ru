@@ -1,0 +1,8 @@
+# Стенд A (t-ai) — CPU/RAM контура media-bff, снято 08.11.2026
+CPU(s): 20
+Model name: Intel(R) Xeon(R) CPU E5-2699 v4 @ 2.20GHz
+Thread(s) per core: 1
+Core(s) per socket: 1
+NUMA node0 CPU(s): 0-19
+RAM: 94 GiB total, ~78 GiB available (free -g)
+Пиковые треды контура (замер 08.11): sd-cli 11 NLWP (image), bff python 2, ollama-briix 15-16; budget сериализует image/music (8) и text (4) — наложения нет.

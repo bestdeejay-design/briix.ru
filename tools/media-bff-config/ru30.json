@@ -1,0 +1,12 @@
+{
+    "lm_model": "acestep-5Hz-lm-0.6B-Q8_0.gguf",
+    "synth_model": "acestep-v15-turbo-Q4_K_M.gguf",
+    "caption": "Тёплая акустическая баллада с мягкой гитарой и спокойным вокалом",
+    "lyrics": "[verse]\nТихий вечер за окном,\nМы с тобою вдвоём,\nСвет фар в тишине ночной,\nЯ держу тебя рукой.\n[chorus]\nПой, луна, пой со мной,\nМир пусть подождёт за стеной,\nМы с тобой — одна семья,\nПой, душа моя, пой!",
+    "vocal_language": "ru",
+    "duration": 30,
+    "inference_steps": 8,
+    "guidance_scale": 1.0,
+    "shift": 3.0,
+    "output_format": "wav16"
+}

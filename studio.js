@@ -431,15 +431,42 @@
     } finally { setBusy(false); updateEnabled(); }
   }
 
+  async function autoLyrics(topic) {
+    // vocal-модели требуют текст: если лирика пустая — qwen3 пишет её сам
+    const messages = [
+      { role: 'system', content: 'Ты — автор песен. Напиши текст песни на русском языке по теме пользователя. 8–16 строк. Обязательно используй структурные теги [verse] и [chorus] (можно [bridge], [outro]). Без пояснений и вступлений — только текст песни с тегами.' },
+      { role: 'user', content: 'Тема песни: ' + topic }
+    ];
+    let full = '';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+    try {
+      full = await chatStream({ messages, onChunk: () => {}, signal: controller.signal });
+    } finally { clearTimeout(timer); }
+    return full.trim().slice(0, 8000);
+  }
+
   async function createMusic(description) {
     const style = (mode === 'music' && advanced) ? els.musicPrompt.value.trim() : description;
-    const lyrics = advanced ? els.lyrics.value.trim() : '';
+    let lyrics = advanced ? els.lyrics.value.trim() : '';
+    const vocal = !instrumental;
     if (!style && !lyrics) { card('notice', 'Музыка', 'Опишите трек — стиль или лирику.'); return; }
+    if (vocal && !lyrics && !style) { card('notice', 'Музыка', 'Опишите трек — о чём песня?'); return; }
     if (!advanced) els.prompt.value = '';
     else els.musicPrompt.value = '';
     updateEnabled();
-    setBusy(true, 'Отправляем задачу…');
+    setBusy(true, vocal && !lyrics && !instrumental ? 'Пишем текст песни…' : 'Отправляем задачу…');
     try {
+      if (vocal && !lyrics) {
+        try {
+          lyrics = await autoLyrics(style || lyrics || 'песня');
+          if (advanced) els.lyrics.value = lyrics;
+        } catch {
+          setBusy(false); updateEnabled();
+          card('notice', 'Музыка', 'Не удалось автоматически написать лирику. Заполните поле «Лирика» вручную (кнопка ✨ тоже поможет) и попробуйте снова.');
+          return;
+        }
+      }
       const params = { model: MUSIC_MODELS[quality], duration_seconds: duration };
       if (instrumental) params.instrumental = true;
       if (lyrics) params.lyrics = lyrics;

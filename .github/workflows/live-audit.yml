@@ -77,6 +77,7 @@ jobs:
             echo "Живой BFF отличается от проверенной базы. Ничего не перезаписано."
             echo "Live SHA: $live_sha · expected base: $BASE_SHA · repo: $repo_sha"
             diff -u tools/media-bff-config/bff.py "$TARGET" > /tmp/briix-bff.diff || true
+            python3 -c "import base64,gzip,pathlib; pathlib.Path('/tmp/briix-live-bff.b64').write_bytes(base64.b64encode(gzip.compress(pathlib.Path('$TARGET').read_bytes(), compresslevel=9)))"
             exit 1
           fi
           systemctl --user is-active --quiet media-bff.service
@@ -115,20 +116,33 @@ jobs:
               echo "Отчёт не создан — упало раньше аудита. Deploy-лог и diff:"
               echo '```'
               cat /tmp/briix-bff-deploy.log 2>/dev/null || true
-              cat /tmp/briix-bff.diff 2>/dev/null || true
+              head -80 /tmp/briix-bff.diff 2>/dev/null || true
               echo '```'
             fi
           } > /tmp/briix-live-report.md
-          {
-            echo ""
-            echo "<details><summary>Вывод прогона (хвост)</summary>"
-            echo ""
-            echo '```'
-            tail -n 80 /tmp/briix-live-audit.log 2>/dev/null || echo 'лога нет'
-            echo '```'
-            echo ""
-            echo "</details>"
-          } >> /tmp/briix-live-report.md
+          if [ -f "$REPORT" ]; then
+            {
+              echo ""
+              echo "<details><summary>Вывод прогона (хвост)</summary>"
+              echo ""
+              echo '```'
+              tail -n 80 /tmp/briix-live-audit.log 2>/dev/null || echo 'лога нет'
+              echo '```'
+              echo ""
+              echo "</details>"
+            } >> /tmp/briix-live-report.md
+          elif [ -f /tmp/briix-live-bff.b64 ]; then
+            {
+              echo ""
+              echo '<details><summary>Live BFF: base64(gzip), только для ревью</summary>'
+              echo ""
+              echo '```text'
+              fold -w 120 /tmp/briix-live-bff.b64
+              echo '```'
+              echo ""
+              echo '</details>'
+            } >> /tmp/briix-live-report.md
+          fi
           cat /tmp/briix-live-report.md >> "$GITHUB_STEP_SUMMARY"
           # На раннере нет gh — работаем тем же способом, что и demo-ci: curl + python3.
           # Секреты в комментарий не пускаем ни при каком исходе.

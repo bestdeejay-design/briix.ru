@@ -76,7 +76,7 @@ jobs:
           else
             echo "Живой BFF отличается от проверенной базы. Ничего не перезаписано."
             echo "Live SHA: $live_sha · expected base: $BASE_SHA · repo: $repo_sha"
-            diff -u "$TARGET" tools/media-bff-config/bff.py > /tmp/briix-bff.diff || true
+            diff -u tools/media-bff-config/bff.py "$TARGET" > /tmp/briix-bff.diff || true
             exit 1
           fi
           systemctl --user is-active --quiet media-bff.service
@@ -115,7 +115,7 @@ jobs:
               echo "Отчёт не создан — упало раньше аудита. Deploy-лог и diff:"
               echo '```'
               cat /tmp/briix-bff-deploy.log 2>/dev/null || true
-              tail -120 /tmp/briix-bff.diff 2>/dev/null || true
+              cat /tmp/briix-bff.diff 2>/dev/null || true
               echo '```'
             fi
           } > /tmp/briix-live-report.md

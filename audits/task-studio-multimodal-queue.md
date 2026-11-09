@@ -79,8 +79,18 @@
 
 Скриншот/evidence: `BRIIX_TEST_OUT/studio-mobile-pending.png`, `studio-regression.json`. Studio suite добавлена в `demo-ci.yml`. В `tools/browser-env.cjs` удалён `--disable-web-security`, чтобы headless browser не скрывал CORS-проблемы SSE.
 
-## Что проверяется на реальном стенде
+## Проверено на реальном стенде
 
-После push запускается `Live stand audit` с `update_bff=true` и фазами `catalog,duration-300,song-flash,chat`. Результат и run URL должны быть добавлены сюда перед итоговой сдачей.
+**Успешный run:** [42582044720](https://github.com/bestdeejay-design/briix.ru/actions/runs/42582044720), 2026-11-09 07:53 UTC, `update_bff=true`, фазы `catalog,duration-300,song-flash-60,chat`. **Провалов: 0.**
 
-**Полное пятиминутное аудио 300 с отдельно не прослушивалось.** Фаза `duration-300` подтверждает принятие job контрактом и сразу отменяет его, чтобы не занимать стенд пятиминутным inference; `song-flash` отдельно проверяет реальный аудиофайл. Fake-BFF проверки не выдаются за реальный inference.
+| Проверка | Реальный результат |
+|---|---|
+| Защищённый deploy | Пользовательская D-Bus-сессия настроена, service перезапущен, `media-bff active`, `/health` отвечает. Отдельный подготовительный шаг удаляет evidence прошлых runs |
+| Каталог | 5 моделей ready; ACE Flash/Pro сообщают фактические `max_duration_seconds=600`; старый процесс с 30/150 больше не проходит audit gate |
+| Песня Flash, запрошено 60 с | Готовый **M4A**, `capability=song.vocal`, лирика `Last Train` из базы DJ1; стадии `writing-lyrics → synthesizing → album-cover`, wall 264 с |
+| Песня Pro, 300 с | `POST /jobs` вернул 202 для `params.duration=300`; задача сразу отменена |
+| Chat | JSON 200, 4 completion tokens; SSE 200, 7 chunks, финальный `done` |
+
+Первый run остановил SHA guard и ничего не установил. После переноса live-изменений выяснилось, что runner не наследовал user D-Bus: файл обновился, но старый процесс продолжил отвечать. Это исправлено; финальный run подтверждает и перезапуск, и новый каталог, а не только hash файла.
+
+**Границы доказательства.** Полное пятиминутное аудио 300 с не генерировалось до конца: `duration-300` подтверждает только приём контракта и отмену. Для Flash получен реальный медиафайл и проверен контейнер, но на runner нет `ffprobe`, поэтому фактическая длительность и громкость 60-секундного результата инструментально не измерялись. Fake-BFF проверки не выдаются за реальный inference.

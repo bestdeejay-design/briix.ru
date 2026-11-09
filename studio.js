@@ -11,7 +11,7 @@
   const TOKEN_KEY = 'briix-media-live-token';
   const MUSIC_MODELS = { flash: 'ace-step-flash', pro: 'ace-step-pro' };
   const MODEL_LABELS = { flash: 'Flash', pro: 'Pro' };
-  const DURATIONS = [30, 60, 120];
+  const DURATIONS = [30, 60, 120, 240, 300];
   const STAGE_LABELS = {
     'writing-lyrics': 'Пишем лирику…',
     'synthesizing': 'Синтезируем музыку…',

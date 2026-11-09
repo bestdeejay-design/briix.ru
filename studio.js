@@ -48,6 +48,11 @@
   };
   const token = () => localStorage.getItem(TOKEN_KEY) || '';
   const setToken = v => { const s = String(v || '').trim(); if (s) localStorage.setItem(TOKEN_KEY, s); else localStorage.removeItem(TOKEN_KEY); };
+  // Ключ из ссылки (?key=...) — для показов: открыл ссылку с ключом, ключ сохранился сам
+  try {
+    const urlKey = new URLSearchParams(location.search).get('key');
+    if (urlKey && urlKey.trim()) setToken(urlKey);
+  } catch { /* ignore */ }
   const headers = () => ({ Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' });
 
   class BusError extends Error {

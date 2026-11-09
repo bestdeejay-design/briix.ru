@@ -144,21 +144,27 @@ function bffServer(port) {
   assert.equal(await p.locator('#assistantChip').isVisible(), true, 'assistant is a toolbar chip');
   // Чат: 3 помощника в меню чипа.
   await p.locator('#assistantChip').click();
-  assert.equal(await p.locator('#assistantMenu button').count(), 3, 'chat has 3 assistants');
+  assert.equal(await p.locator('#assistantMenu button').count(), 7, 'chat has 7 assistants');
+  assert.match(await p.locator('#assistantMenu').innerText(), /Универсальный/);
+  assert.match(await p.locator('#assistantMenu').innerText(), /Маркетолог/);
   assert.match(await p.locator('#assistantMenu').innerText(), /Наставник/);
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#assistantMenu').isVisible(), false, 'Escape closes the menu');
   // Фото: 1 помощник, музыкальные чипы скрыты.
   await p.locator('.mode[data-mode="photo"]').click();
   await p.locator('#assistantChip').click();
-  assert.equal(await p.locator('#assistantMenu button').count(), 1, 'photo has 1 assistant');
+  assert.equal(await p.locator('#assistantMenu button').count(), 2, 'photo has 2 assistants');
   assert.match(await p.locator('#assistantMenu').innerText(), /Арт-директор/);
+  assert.match(await p.locator('#assistantMenu').innerText(), /Визуальный дизайнер/);
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#modelChip').isVisible(), false, 'model chip hidden outside music');
   // Музыка: 2 помощника + муз-чипы видимы.
   await p.locator('.mode[data-mode="music"]').click();
   await p.locator('#assistantChip').click();
-  assert.equal(await p.locator('#assistantMenu button').count(), 2, 'music has 2 assistants');
+  assert.equal(await p.locator('#assistantMenu button').count(), 3, 'music has 3 assistants');
+  assert.match(await p.locator('#assistantMenu').innerText(), /Продюсер/);
+  assert.match(await p.locator('#assistantMenu').innerText(), /Лирик/);
+  assert.match(await p.locator('#assistantMenu').innerText(), /Автор песни/);
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#modelChip').isVisible(), true, 'model chip visible in music');
   assert.equal(await p.locator('#durationChip').isVisible(), true, 'duration chip visible in music');

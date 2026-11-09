@@ -97,6 +97,8 @@ const host = () => {
   await lyrics.click();
   await lyrics.fill('');
   await lyrics.type('[verse]\nГород засыпает slowly', { delay: 12 });
+  // Дождаться загрузки шрифтов, чтобы поздняя подмена метрик не дёрнула скролл (флейк 19px).
+  await page.evaluate(() => document.fonts.ready);
   const before = await page.evaluate(() => {
     const el = document.querySelector('#music-lyrics');
     const scroller = document.querySelector('.main-content');

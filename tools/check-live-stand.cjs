@@ -178,10 +178,22 @@ async function phaseCatalog() {
   if (status !== 200) return record('J10 каталог моделей', 'fail', { status, code: data?.error?.code });
   const models = (data.data || []).map(m => ({ id: m.id, kind: m.kind, status: m.status, max: m.limits?.max_duration_seconds, seconds: m.latency?.seconds }));
   const ready = models.filter(m => m.status === 'ready').map(m => m.id);
-  record('J10 каталог моделей', 'pass', { count: models.length, ready, models });
+  const problems = [];
   for (const need of ['musicgen-small', 'ace-step-flash']) {
-    if (!models.some(m => m.id === need)) finding('L-CATALOG-' + need, 'В каталоге нет модели ' + need + ', а UI её предлагает');
+    if (!models.some(m => m.id === need)) {
+      problems.push('нет модели ' + need);
+      finding('L-CATALOG-' + need, 'В каталоге нет модели ' + need + ', а UI её предлагает');
+    }
   }
+  // Поймать старый процесс после deploy: файл мог обновиться, а advertised
+  // limits остаться прежними. Минимум 300 с — контракт текущей Studio.
+  for (const model of (data.data || []).filter(m => m.id?.startsWith('ace-step-'))) {
+    if (Number(model.limits?.max_duration_seconds) < 300) {
+      problems.push(model.id + ' сообщает только ' + model.limits?.max_duration_seconds + ' с');
+      finding('L-CATALOG-DURATION-' + model.id, 'Каталог не соответствует принятому BFF duration=300', 'высокая');
+    }
+  }
+  record('J10 каталог моделей', problems.length ? 'fail' : 'pass', { count: models.length, ready, models, problems });
   return models;
 }
 async function phaseImage() {
@@ -294,7 +306,7 @@ function fakeBus() {
     if (url.pathname === '/health') return res.end(JSON.stringify({ ok: true, queue_len: 0, running: 0, backends: { image: 'ready', music: 'ready', text: 'ready' } }));
     if (url.pathname === '/v1/models') return res.end(JSON.stringify({ data: [
       { id: 'musicgen-small', kind: 'music', status: 'ready', limits: { max_duration_seconds: 30 }, latency: { seconds: 80 } },
-      { id: 'ace-step-flash', kind: 'music-vocal', status: 'ready', limits: { max_duration_seconds: 30 }, latency: { seconds: 111 } }
+      { id: 'ace-step-flash', kind: 'music-vocal', status: 'ready', limits: { max_duration_seconds: 600 }, latency: { seconds: 111 } }
     ] }));
     if (url.pathname === '/v1/chat/completions') {
       let body = ''; req.on('data', c => body += c);

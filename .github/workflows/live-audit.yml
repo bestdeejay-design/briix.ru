@@ -55,6 +55,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare isolated run evidence
+        run: |
+          rm -rf live-audit-out
+          rm -f /tmp/briix-live-audit.log /tmp/briix-bff-deploy.log /tmp/briix-bff.diff /tmp/briix-live-bff.b64
+
       - name: Install the audited BFF (explicit owner request only)
         if: inputs.update_bff
         run: |
@@ -66,13 +71,12 @@ jobs:
           test "$repo_sha" = "$NEW_SHA"
           python3 -m py_compile tools/media-bff-config/bff.py
           if [ "$live_sha" = "$NEW_SHA" ]; then
-            echo "BFF уже обновлён — restart не нужен."
+            echo "Файл BFF уже совпадает; перезапуск всё равно нужен, чтобы исключить старый процесс."
           elif [ "$live_sha" = "$BASE_SHA" ]; then
             backup="$TARGET.before-studio-$(date -u +%Y%m%dT%H%M%SZ).bak"
             cp -a "$TARGET" "$backup"
             install -m 0644 tools/media-bff-config/bff.py "$TARGET"
             echo "Backup: $backup"
-            systemctl --user restart media-bff.service
           else
             echo "Живой BFF отличается от проверенной базы. Ничего не перезаписано."
             echo "Live SHA: $live_sha · expected base: $BASE_SHA · repo: $repo_sha"
@@ -80,12 +84,22 @@ jobs:
             python3 -c "import base64,gzip,pathlib; pathlib.Path('/tmp/briix-live-bff.b64').write_bytes(base64.b64encode(gzip.compress(pathlib.Path('$TARGET').read_bytes(), compresslevel=9)))"
             exit 1
           fi
-          systemctl --user is-active --quiet media-bff.service
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8390/health >/dev/null; then break; fi
+          # Self-hosted runner не наследует пользовательскую сессию. Без этих
+          # переменных systemctl падает, а старый процесс продолжает отвечать.
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+          test -S "$XDG_RUNTIME_DIR/bus"
+          systemctl --user restart media-bff.service
+          for attempt in $(seq 1 60); do
+            if systemctl --user is-active --quiet media-bff.service && curl -fsS http://127.0.0.1:8390/health >/dev/null; then
+              echo "media-bff active; /health отвечает после restart."
+              exit 0
+            fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:8390/health >/dev/null
+          systemctl --user status media-bff.service --no-pager -l || true
+          journalctl --user -u media-bff.service -n 80 --no-pager || true
+          exit 1
 
       - name: Live stand audit (real generations)
         id: audit
@@ -138,6 +152,18 @@ jobs:
               echo ""
               echo '```text'
               fold -w 120 /tmp/briix-live-bff.b64
+              echo '```'
+              echo ""
+              echo '</details>'
+            } >> /tmp/briix-live-report.md
+          fi
+          if [ -f "$REPORT" ] && [ -f /tmp/briix-bff-deploy.log ]; then
+            {
+              echo ""
+              echo '<details><summary>Проверенный deploy</summary>'
+              echo ""
+              echo '```'
+              cat /tmp/briix-bff-deploy.log
               echo '```'
               echo ""
               echo '</details>'

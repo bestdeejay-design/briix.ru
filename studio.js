@@ -205,7 +205,8 @@
 
   let mode = 'chat';
   let quality = 'flash';
-  let duration = 30;
+  let duration = 300; // по умолчанию — полная песня
+  try { const saved = Number(localStorage.getItem('briix-studio-duration')); if (saved >= 5) duration = saved; } catch {}
   let instrumental = false;
   let advanced = false;
   let busy = false;
@@ -277,7 +278,7 @@
   })));
   attachMenu(els.durationChip, els.durationMenu, () => DURATIONS.map(d => ({
     label: d + ' с', selected: d === duration,
-    onPick: () => { duration = d; renderChrome(); }
+    onPick: () => { duration = d; try { localStorage.setItem('briix-studio-duration', String(d)); } catch {} renderChrome(); }
   })));
 
   // ---- карточки ленты ---------------------------------------------------------

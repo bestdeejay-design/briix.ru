@@ -129,18 +129,18 @@
     return { id, status: entry.status === 'ready' ? 'ready' : 'unavailable', limits: entry.limits || null, latency: entry.latency || null, entry };
   }
 
-  async function submitJob({ type, prompt, params = {}, idempotencyKey }) {
+  async function submitJob({ type, prompt, params = {}, idempotencyKey, signal }) {
     const response = await request('/jobs', {
       method: 'POST', headers: headers(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
-      body: JSON.stringify({ type, prompt, params })
+      body: JSON.stringify({ type, prompt, params }), signal
     });
     const payload = await response.json();
     if (!payload?.job_id) throw new BusError('bad_response', 'Сервер не вернул job_id.');
     return payload.job_id;
   }
 
-  async function getJob(id) {
-    const response = await request('/jobs/' + encodeURIComponent(id), { headers: headers() });
+  async function getJob(id, signal) {
+    const response = await request('/jobs/' + encodeURIComponent(id), { headers: headers(), signal });
     return await response.json();
   }
 
@@ -154,11 +154,11 @@
     }
   }
 
-  async function fileBlob(pathOrUrl) {
+  async function fileBlob(pathOrUrl, signal) {
     const url = pathOrUrl.startsWith('http') ? pathOrUrl : server() + pathOrUrl;
     let response;
-    try { response = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } }); }
-    catch { throw new BusError('network', 'Файл не получен: сервер недоступен.'); }
+    try { response = await fetch(url, { headers: { Authorization: 'Bearer ' + token() }, signal }); }
+    catch (error) { if (error?.name === 'AbortError') throw error; throw new BusError('network', 'Файл не получен: сервер недоступен.'); }
     if (response.status === 404) throw new BusError('gone', 'Результат истёк: файл удалён с сервера.', 404);
     if (response.status === 401) throw new BusError('unauthorized', 'Сервер отклонил токен.', 401);
     if (!response.ok) throw new BusError('http', 'Файл не получен (' + response.status + ').', response.status);
@@ -174,9 +174,12 @@
     try { return JSON.parse(payload); } catch { return null; }
   }
 
-  async function chatNonStream({ messages, signal }) {
+  async function chatNonStream({ messages, signal, maxTokens, model }) {
+    const body = { messages, stream: false };
+    if (maxTokens) body.max_tokens = maxTokens;
+    if (model) body.model = model;
     const response = await request('/v1/chat/completions', {
-      method: 'POST', headers: headers(), body: JSON.stringify({ messages, stream: false }), signal
+      method: 'POST', headers: headers(), body: JSON.stringify(body), signal
     });
     const payload = await response.json();
     if (payload?.error) throw new BusError(payload.error.code || 'upstream_error', payload.error.message);
@@ -190,14 +193,17 @@
    * to a non-stream request and report it — the caller must show that honestly.
    * Once any text has arrived we never fall back: that would duplicate the answer.
    */
-  async function chat({ messages, signal, onChunk }) {
+  async function chat({ messages, signal, onChunk, maxTokens, model: requestedModel }) {
     const started = Date.now();
+    const body = { messages, stream: true };
+    if (maxTokens) body.max_tokens = maxTokens;
+    if (requestedModel) body.model = requestedModel;
     let delivered = '';
     let model = null;
     let streamFailure = null;
     try {
       const response = await request('/v1/chat/completions', {
-        method: 'POST', headers: headers(), body: JSON.stringify({ messages, stream: true }), signal
+        method: 'POST', headers: headers(), body: JSON.stringify(body), signal
       });
       if (!response.body) throw new BusError('stream_unsupported', 'Браузер не отдал тело потока.');
       const reader = response.body.getReader();
@@ -229,7 +235,7 @@
       if (error instanceof BusError && ['content_blocked', 'bad_params', 'unauthorized'].includes(error.code)) throw error;
       streamFailure = error;
     }
-    const fallback = await chatNonStream({ messages, signal });
+    const fallback = await chatNonStream({ messages, signal, maxTokens, model: requestedModel });
     onChunk?.(fallback.text);
     return {
       streamed: false, model: fallback.model, wallMs: Date.now() - started,
@@ -239,7 +245,7 @@
 
   window.BRIIX_BUS = {
     BusError, server, setServer, token, setToken, hasToken: () => !!token(),
-    health, models, capability, modelById, submitJob, getJob, cancelJob, fileBlob, chat,
+    health, models, capability, modelById, submitJob, getJob, cancelJob, fileBlob, chat, chatNonStream,
     checkStand, isLiveOff, setLiveOff, mockBanner: code => MOCK_BANNERS[code] || MOCK_BANNERS.unreachable,
     invalidate: () => { modelsCache = { ts: 0, data: null }; }
   };

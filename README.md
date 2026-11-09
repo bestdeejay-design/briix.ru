@@ -15,7 +15,7 @@ media.js        — Медиа-студия: локальный фото/вид�
 media-live.js   — опциональный режим «Приватный live» (свой media-bff, см. audits/task-23-media-live-wave1.md)
 media.css       — стили Медиа-студии
 assets/media/   — локальные JPEG/MP4/WebM и manifest
-studio.html     — отдельный экран «Студия» (чат / фото / музыка на приватной шине, кнопки «Улучшить» на базе creative-base.json); открывать /studio.html
+studio.html     — единая live-студия: чат / фото / музыка в одной сохраняемой ленте, живой выбор модели, независимые очереди, мгновенные pending-карточки, Stop/retry/download; открывать /studio.html
 tools/          — сборка ассетов и browser-проверки (только для разработки)
 site/           — прежний сайт BRIIX (лендинг, презентация, инвесторы, финмодель)
 docs/           — историческая документация продукта BRIIX (канон, только чтение)
@@ -52,6 +52,7 @@ python3 -m http.server 3000 --bind 0.0.0.0
 node tools/check-demo.cjs
 node tools/check-media.cjs
 node tools/check-media-live.cjs   # режим «Приватный live»: миграция v2, восстановление, blob, баннер
+node tools/check-studio.cjs       # единая Студия: каталог, очередь, параллельный composer, reload, mobile/axe
 node tools/check-media-visual.cjs
 python3 tools/build-media-assets.py --check --ffmpeg /path/to/ffmpeg
 ```

@@ -20,13 +20,18 @@ on:
   workflow_dispatch:
     inputs:
       phases:
-        description: 'Фазы через запятую (catalog,image,instrumental,song-flash,song-pro,moderation,cancel,chat или all)'
+        description: 'Фазы через запятую (catalog,image,instrumental,song-flash,song-flash-60,song-pro,duration-300,moderation,cancel,chat или all)'
         required: false
         default: 'catalog,image,instrumental,song-flash,moderation,cancel,chat'
       bus_url:
         description: 'Адрес шины'
         required: false
         default: 'http://127.0.0.1:8390'
+      update_bff:
+        description: 'Перед аудитом установить проверенный bff.py (backup + hash guard + restart)'
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Раз в неделю, ночью по UTC: полный путь без долгого Pro.
     - cron: '0 2 * * 1'
@@ -43,8 +48,40 @@ jobs:
   audit:
     runs-on: [self-hosted, briix-ci]
     timeout-minutes: 45
+    env:
+      TARGET: /home/badai/briix-media/media-bff/bff.py
+      BASE_SHA: 698a1fb418acddb06b192e133d1d029878a6f38fc1b6e6301260d7956c82ca97
+      NEW_SHA: fb113af662821995fa994fea60c9280bb6540f229dbdd544044ef06455b0e2ce
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install the audited BFF (explicit owner request only)
+        if: inputs.update_bff
+        run: |
+          set -euo pipefail
+          test -f "$TARGET"
+          repo_sha=$(sha256sum tools/media-bff-config/bff.py | cut -d' ' -f1)
+          live_sha=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          test "$repo_sha" = "$NEW_SHA"
+          python3 -m py_compile tools/media-bff-config/bff.py
+          if [ "$live_sha" = "$NEW_SHA" ]; then
+            echo "BFF уже обновлён — restart не нужен."
+          elif [ "$live_sha" = "$BASE_SHA" ]; then
+            backup="$TARGET.before-studio-$(date -u +%Y%m%dT%H%M%SZ).bak"
+            cp -a "$TARGET" "$backup"
+            install -m 0644 tools/media-bff-config/bff.py "$TARGET"
+            echo "Backup: $backup"
+            systemctl --user restart media-bff.service
+          else
+            echo "Живой BFF отличается от проверенной базы. Ничего не перезаписано."
+            exit 1
+          fi
+          systemctl --user is-active --quiet media-bff.service
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8390/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8390/health >/dev/null
 
       - name: Live stand audit (real generations)
         id: audit

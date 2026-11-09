@@ -50,8 +50,8 @@ ACE_SYNTH = ACE_DIR / "build" / "ace-synth"
 ACE_MODELS = ACE_DIR / "models"
 ACE_SYNTH_MODEL = "acestep-v15-turbo-Q4_K_M.gguf"
 VOCAL_MODELS = {
-    "ace-step-flash": {"lm": "acestep-5Hz-lm-1.7B-Q8_0.gguf", "max_duration": 30, "timeout": 300},
-    "ace-step-pro":   {"lm": "acestep-5Hz-lm-4B-Q8_0.gguf",   "max_duration": 150, "timeout": 900},
+    "ace-step-flash": {"lm": "acestep-5Hz-lm-1.7B-Q8_0.gguf", "max_duration": 300, "timeout": 1800},
+    "ace-step-pro":   {"lm": "acestep-5Hz-lm-4B-Q8_0.gguf",   "max_duration": 300, "timeout": 2400},
 }
 MAX_LYRICS = 8000
 # Брендинг-пакет music-джобов (решение владельца 08.11): после генерации —
@@ -564,7 +564,7 @@ MODELS_CATALOG = [
     {
         "id": "ace-step-flash", "object": "model",
         "capabilities": ["song.vocal"], "status": "ready",
-        "limits": {"max_duration_seconds": 30, "max_concurrent_jobs": 1},
+        "limits": {"max_duration_seconds": 300, "max_concurrent_jobs": 1},
         "license_scope": "demo-only",
         "latency": {"source": "measured", "seconds": 111, "conditions":
                     "30с трек: LM 1.7B + turbo-синтезатор на CPU (smoke 08.11: wall 111с)"},
@@ -572,7 +572,7 @@ MODELS_CATALOG = [
     {
         "id": "ace-step-pro", "object": "model",
         "capabilities": ["song.vocal"], "status": "ready",
-        "limits": {"max_duration_seconds": 150, "max_concurrent_jobs": 1},
+        "limits": {"max_duration_seconds": 300, "max_concurrent_jobs": 1},
         "license_scope": "demo-only",
         "latency": {"source": "measured", "seconds": 596, "conditions":
                     "150с трек (Room 7): LM 4B 215с + синтез 381с на CPU, peak RSS 8.7 GB"},

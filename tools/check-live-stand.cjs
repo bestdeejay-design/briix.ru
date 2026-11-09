@@ -195,11 +195,11 @@ async function phaseImage() {
   record('J2 скачивание картинки', file.status === 200 ? 'pass' : 'fail', { status: file.status, bytes: file.bytes.length });
   if (!ok) finding('L-IMAGE', 'Файл картинки не прошёл проверку magic-байтов');
 }
-async function phaseMusic(model, label, journey, timeoutMs) {
+async function phaseMusic(model, label, journey, timeoutMs, requestedDuration = null) {
   const base = model ? lyricsFromBase('ru') : null;
   if (model && !base) return record(journey, 'skip', { reason: 'в базе нет подходящей русской лирики' });
   const params = model
-    ? { model, lyrics: base.text, language: 'ru', duration: model === 'ace-step-pro' ? 60 : 30, title: base.name }
+    ? { model, lyrics: base.text, language: 'ru', duration: requestedDuration || (model === 'ace-step-pro' ? 60 : 30), title: base.name }
     : { duration: 15 };
   const prompt = model ? base.prompt : 'Спокойный lo-fi для работы, тёплое пианино и мягкий бит';
   const id = await submit('music', prompt, params);
@@ -217,6 +217,18 @@ async function phaseMusic(model, label, journey, timeoutMs) {
   if (probe.skipped) detail.note = 'аудио не измерено: ' + probe.skipped;
   record(journey, problems.length ? 'fail' : 'pass', detail);
   problems.forEach((p, i) => finding('L-' + label.toUpperCase() + '-' + (i + 1), p, 'высокая'));
+}
+async function phaseDuration300() {
+  const base = lyricsFromBase('ru');
+  if (!base) return record('J5b полная песня 300 с принята', 'skip', { reason: 'в базе нет подходящей русской лирики' });
+  try {
+    const id = await submit('music', base.prompt, { model: 'ace-step-pro', lyrics: base.text, language: 'ru', duration: 300, title: base.name });
+    record('J5b полная песня 300 с принята', 'pass', { status: 202, jobId: id, note: 'контракт подтверждён без пятиминутного inference; задачу сразу отменяем' });
+    await api('/jobs/' + id + '/cancel', { method: 'POST' });
+  } catch (e) {
+    record('J5b полная песня 300 с принята', 'fail', { status: e.status, code: e.code, message: e.message });
+    finding('L-DURATION-300', 'BFF отклонил params.duration=300 — интерфейс и стенд разошлись', 'высокая');
+  }
 }
 async function phaseModeration() {
   // Строка ниже — тест политического фильтра, а не контент: проверяем, что
@@ -403,7 +415,9 @@ function fakeBus() {
     if (want('image')) await phaseImage();
     if (want('instrumental')) await phaseMusic(null, 'instrumental', 'J3 инструментал MusicGen', 600000);
     if (want('song-flash')) await phaseMusic('ace-step-flash', 'song-flash', 'J4 песня Flash', 600000);
+    if (want('song-flash-60')) await phaseMusic('ace-step-flash', 'song-flash-60', 'J4b песня Flash 60 с', 1200000, 60);
     if (want('song-pro')) await phaseMusic('ace-step-pro', 'song-pro', 'J5 песня Pro', 1200000);
+    if (want('duration-300')) await phaseDuration300();
     if (want('moderation')) await phaseModeration();
     if (want('cancel')) await phaseCancel();
     if (want('chat')) await phaseChat();

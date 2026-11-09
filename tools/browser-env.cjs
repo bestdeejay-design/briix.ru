@@ -8,7 +8,9 @@ async function launch() {
   try {
     // Serverless Chromium builds sometimes add --single-process, which breaks
     // media playback in headless tests. Keep the rest of their sandbox flags.
-    args = require('@sparticuz/chromium').args.filter(a => !['--single-process', '--in-process-gpu'].includes(a));
+    // Serverless defaults disable CORS and hide exactly the SSE/proxy failures
+    // that real mobile browsers hit. Keep the browser security model intact.
+    args = require('@sparticuz/chromium').args.filter(a => !['--single-process', '--in-process-gpu', '--disable-web-security'].includes(a));
   } catch (_) { /* a normal Playwright Chromium install needs no extra flags */ }
   if (process.env.BRIIX_CHROMIUM_ARGS) args = JSON.parse(process.env.BRIIX_CHROMIUM_ARGS);
   return chromium.launch({ headless: true, executablePath: process.env.BRIIX_CHROMIUM || undefined, args });

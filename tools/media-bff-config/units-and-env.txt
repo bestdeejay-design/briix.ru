@@ -48,7 +48,7 @@ WantedBy=default.target
 
 # Волна 2 (08.11, решение владельца):
 # - Vocal-route ОТКРЫТ: POST /jobs type=music + params.model=ace-step-flash (LM 1.7B,
-#   max 30с, таймаут 300с) | ace-step-pro (LM 4B, max 150с, таймаут 900с); пайплайн
+#   max 300с, таймаут 1800с) | ace-step-pro (LM 4B, max 300с, таймаут 2400с); пайплайн
 #   ace-lm -> ace-synth, stages writing-lyrics|synthesizing, capability song.vocal.
 #   Грабля acestep.cpp учтена: ace-lm пишет выходной json как <input>+0.
 # - Брендинг-пакет: после music-джоба — обложка (sd-cli) + ffmpeg mux WAV -> MP3 192k

@@ -86,7 +86,7 @@ jobs:
         run: |
           set -o pipefail
           {
-          for suite in media music demo media-live music-live chat-live music-typing music-base chat-typing simple-generate simple-chat mobile-creator mobile-live; do
+          for suite in media music demo media-live music-live chat-live music-typing music-base chat-typing simple-generate simple-chat mobile-creator mobile-live studio; do
             echo "=== check-$suite ==="
             node "tools/check-$suite.cjs" || exit 1
           done

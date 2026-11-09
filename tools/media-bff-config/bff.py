@@ -50,9 +50,17 @@ ACE_SYNTH = ACE_DIR / "build" / "ace-synth"
 ACE_MODELS = ACE_DIR / "models"
 ACE_SYNTH_MODEL = "acestep-v15-turbo-Q4_K_M.gguf"
 VOCAL_MODELS = {
-    "ace-step-flash": {"lm": "acestep-5Hz-lm-1.7B-Q8_0.gguf", "max_duration": 300, "timeout": 1800},
-    "ace-step-pro":   {"lm": "acestep-5Hz-lm-4B-Q8_0.gguf",   "max_duration": 300, "timeout": 2400},
+    "ace-step-flash": {"lm": "acestep-5Hz-lm-1.7B-Q8_0.gguf", "max_duration": 600, "timeout": 2400},
+    "ace-step-pro":   {"lm": "acestep-5Hz-lm-4B-Q8_0.gguf",   "max_duration": 600, "timeout": 2400},
 }
+# MUSIC_BACKEND (решение владельца 08.11, GPU-окно до 10:00 МСК): "cpu-a" (дефолт,
+# откат автомата — просто снять env) | "gpu-b" — vocal-воркеры выполняются на
+# GPU-стенде B (10.10.0.98) по ssh, WAV возвращается scp'ом. musicgen
+# (инструментал) всегда на A CPU — GPU-версию musicgen не строили.
+MUSIC_BACKEND = os.environ.get("MUSIC_BACKEND", "cpu-a")
+GPU_HOST = "badai@10.10.0.98"
+GPU_ACE_DIR = "~/briix-media/acestep/acestep.cpp"
+GPU_TIME = {"ace-step-flash": 120, "ace-step-pro": 300}  # GPU-реальность 24-40с + сеть
 MAX_LYRICS = 8000
 # Брендинг-пакет music-джобов (решение владельца 08.11): после генерации —
 # обложка (sd-cli) и mux WAV+cover -> MP3 192k с ID3v2-тегами. WAV остаётся
@@ -67,7 +75,7 @@ BRIIX_TAGS = {
     "comment": "Generated on briix.ru — локальные AI-модели",
     "url": "https://briix.ru",
 }
-ALLOWED_ORIGINS = {"http://127.0.0.1:8388", "http://localhost:8388"}
+ALLOWED_ORIGINS = {"http://127.0.0.1:8388", "http://localhost:8388", "https://demo.briix.ru"}
 TEXT_HEALTH_TTL = 30       # S4: кэш health-проверки ollama
 TEXT_HEALTH_TIMEOUT = 8    # S4: холодный :11436 отвечает дольше 3с
 
@@ -165,52 +173,82 @@ async def moderation_llm_verdict(text):
     return blocked
 
 
-async def moderate_or_block(text, endpoint, request):
-    """Возвращает 422-envelope или None (пропустить)."""
+async def moderate_or_block(text, endpoint, request, llm=True):
+    """Возвращает 422-envelope или None (пропустить).
+
+    llm=False (chat-путь, решение координатора 08.11): только regex-ступень —
+    LLM-классификация на этом CPU занимает 15-20с и сажает каждый chat; чат
+    блокируется мгновенно лишь на явном explicit, серая зона уходит в лог.
+    """
     phash = hashlib.sha256(text.encode()).hexdigest()
     if moderation_blocked_sync(text):
         _mod_log("regex", phash[:16], "blocked", endpoint)
         return envelope(422, "Запрос нарушает политику контента: откровенный материал не генерируется.", "content_blocked", request)
-    if await moderation_llm_verdict(text):
+    if llm and await moderation_llm_verdict(text):
         return envelope(422, "Запрос нарушает политику контента: откровенный материал не генерируется.", "content_blocked", request)
+    if not llm:
+        _mod_log("chat-regex-only", phash[:16], "allowed(gray→log)", endpoint)
     return None
 
 
 class ThreadBudget:
-    """Семафор на N токенов: heavy берёт все THREAD_BUDGET, text — TEXT_BUDGET.
+    """FIFO-бюджет на N токенов: heavy берёт все THREAD_BUDGET, text — TEXT_BUDGET.
 
-    Пиковое потребление тредов процесса никогда не превышает THREAD_BUDGET,
-    потому что сумма выданных токенов <= total (проверяется acquire-циклом).
+    Кейс 13 (GPU-волна 08.11): прежний посложней семафор допускал ЧАСТИЧНЫЙ
+    захват (8-токеновый джоб забирал 4 и ждал) — texts и chat (4 токена)
+    зависали навсегда, семафор рассыпался (held=0, sem=0). Теперь атомарные
+    гранты строго в порядке очереди: waiters FIFO, выдача только когда
+    avail >= n целиком. Chat-запросы владельца не блокируются частями.
     """
 
     def __init__(self, total):
         self.total = total
-        self._sem = asyncio.Semaphore(total)
+        self.avail = total
         self.held = 0
+        self._waiters = []  # FIFO: [(n, future)]
+
+    def _grant(self):
+        while self._waiters and self._waiters[0][0] <= self.avail:
+            n, fut = self._waiters.pop(0)
+            self.avail -= n
+            self.held += n
+            if not fut.done():
+                fut.set_result(None)
 
     async def acquire(self, n):
-        # F2: атомарность при отмене посреди ожидания. Считаем взятые единицы
-        # локально; при исключении (cancel) возвращаем взятое и пробрасываем.
         if n > self.total:
             raise ValueError(f"requested {n} tokens > budget {self.total}")
-        got = 0
+        if self.avail >= n and not self._waiters:
+            self.avail -= n
+            self.held += n
+            return
+        fut = asyncio.get_running_loop().create_future()
+        self._waiters.append((n, fut))
         try:
-            for _ in range(n):
-                await self._sem.acquire()
-                got += 1
-        except BaseException:
-            if got:
-                self.release(got)
+            await fut
+        except asyncio.CancelledError:
+            # отмена в очереди: убрать заявку; если уже выдано — вернуть
+            for i, (wn, wf) in enumerate(self._waiters):
+                if wf is fut:
+                    del self._waiters[i]
+                    break
+            else:
+                self.avail += n
+                self.held -= n
+                self._grant()
             raise
-        self.held += n
 
     def release(self, n):
-        for _ in range(n):
-            self._sem.release()
-        self.held -= n
+        self.avail += n
+        self.held = max(0, self.held - n)
+        self._grant()
 
 
 BUDGET = ThreadBudget(THREAD_BUDGET)
+# Chat-приоритет (решение координатора 08.11): chat_completions идёт вне тяжёлого
+# бюджета — отдельный мини-семафор, чтобы владелец в live-UI не ждал матричные
+# music-джобы (CPU 20 ядер: chat 4 треда + heavy 8 — помещается).
+CHAT_BUDGET = ThreadBudget(4)
 HEAVY_GATE = asyncio.Lock()  # STRICT_THREADS=1: text ждёт, пока идёт heavy
 JOBS_LOCK = asyncio.Lock()   # S6: сериализация мутаций JOBS/IDEM (create/cancel/prune)
 JOBS = {}            # job_id -> job dict
@@ -350,6 +388,22 @@ async def backend_available(kind):
         _text_health_cache["ok"] = ok
         return ok
     return False
+
+
+async def debug_busy(request):
+    if request.headers.get("Authorization", "") != f"Bearer {TOKEN}":
+        return envelope(401, "Требуется bearer-токен.", "unauthorized", request)
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    pend = []
+    for t in tasks:
+        coro = getattr(t.get_coro(), "cr_code", None)
+        name = coro.co_name if coro else "?"
+        if name in ("run_one", "vocal_worker", "executor", "run_stage") or "worker" in name:
+            st = "done" if t.done() else "pending"
+            exc = repr(t.exception()) if t.done() and not t.cancelled() and t.exception() else ""
+            pend.append(f"{name}[{st}]{(' EXC:' + exc) if exc else ''}")
+    return web.json_response({"backend": MUSIC_BACKEND, "held": BUDGET.held, "avail": BUDGET.avail, "waiters": len(BUDGET._waiters),
+                              "tasks": pend})
 
 
 async def health(request):
@@ -505,10 +559,17 @@ async def cancel_job(request):
         j["status"] = "cancelled"
         j["finished_at"] = time.time()
         j["stage"] = None
-        proc = PROCS.pop(j["id"], None)
-        if proc and proc.poll() is None:
-            kill_tree(proc)
-            log(f"killed process group for {j['id']} on cancel")
+        # кейс 7/13: убиваем и основной, и cover-процессы (ключ -cover)
+        for key in (j["id"], f"{j['id']}-cover"):
+            proc = PROCS.pop(key, None)
+            if proc and proc.poll() is None:
+                kill_tree(proc)
+                if MUSIC_BACKEND == "gpu-b" and j["type"] == "music" and j.get("params", {}).get("model") in VOCAL_MODELS:
+                    # ssh-смерть не убивает удалённые ace-процессы — добиваем на B
+                    asyncio.ensure_future(asyncio.create_subprocess_exec(
+                        "ssh", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", GPU_HOST,
+                        f"pkill -f 'run-bff/" + j["id"] + "' || true"))
+                log(f"killed process group for {key} on cancel")
         save_jobs()
     log(f"cancelled {j['id']}")
     return web.json_response({"id": j["id"], "status": "cancelled"})
@@ -522,13 +583,17 @@ async def get_file(request):
     j = JOBS.get(jid)
     if not j or j["status"] != "ready":
         return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
-    ext = {"image": ".png", "music": ".mp3", "text": ".txt"}[j["type"]]
+    ext = {"image": ".png", "music": ".m4a", "text": ".txt"}[j["type"]]
     path = RESULTS / f"{jid}{ext}"
-    if not path.exists() and j["type"] == "music":
-        path = RESULTS / f"{jid}.wav"  # legacy-треки до брендинг-пакета
+    if j["type"] == "music" and not path.exists():
+        for cand in (f"{jid}.mp3", f"{jid}.wav"):  # legacy до m4a-пакета
+            if (RESULTS / cand).exists():
+                path = RESULTS / cand
+                break
     if not path.exists():
         return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
-    mime = {"image": "image/png", "music": "audio/mpeg" if path.suffix == ".mp3" else "audio/wav",
+    mime = {"image": "image/png",
+            "music": {".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav"}.get(path.suffix, "audio/wav"),
             "text": "text/plain; charset=utf-8"}[j["type"]]
     return web.Response(body=path.read_bytes(), content_type=mime.split(";")[0],
                         charset="utf-8" if j["type"] == "text" else None)
@@ -564,7 +629,7 @@ MODELS_CATALOG = [
     {
         "id": "ace-step-flash", "object": "model",
         "capabilities": ["song.vocal"], "status": "ready",
-        "limits": {"max_duration_seconds": 300, "max_concurrent_jobs": 1},
+        "limits": {"max_duration_seconds": 600, "max_concurrent_jobs": 1},
         "license_scope": "demo-only",
         "latency": {"source": "measured", "seconds": 111, "conditions":
                     "30с трек: LM 1.7B + turbo-синтезатор на CPU (smoke 08.11: wall 111с)"},
@@ -572,7 +637,7 @@ MODELS_CATALOG = [
     {
         "id": "ace-step-pro", "object": "model",
         "capabilities": ["song.vocal"], "status": "ready",
-        "limits": {"max_duration_seconds": 300, "max_concurrent_jobs": 1},
+        "limits": {"max_duration_seconds": 600, "max_concurrent_jobs": 1},
         "license_scope": "demo-only",
         "latency": {"source": "measured", "seconds": 596, "conditions":
                     "150с трек (Room 7): LM 4B 215с + синтез 381с на CPU, peak RSS 8.7 GB"},
@@ -616,7 +681,7 @@ async def chat_completions(request):
     if problem:
         return envelope(400, problem, "bad_schema", request)
     blocked = await moderate_or_block("\n".join(m.get("content", "") for m in body["messages"]),
-                                      "POST /v1/chat/completions", request)
+                                      "POST /v1/chat/completions", request, llm=False)
     if blocked:
         return blocked
     rid = request["request_id"]
@@ -630,11 +695,11 @@ async def chat_completions(request):
     # F1: chat_completions идёт через общий тредо-бюджет, как и job-путь.
     if not await backend_available("text"):
         return envelope(503, "Бэкенд текста недоступен.", "backend_unavailable", request)
-    await BUDGET.acquire(TEXT_BUDGET)
+    await CHAT_BUDGET.acquire(TEXT_BUDGET)
     try:
         return await _chat_ollama(request, payload, rid, err_event)
     finally:
-        BUDGET.release(TEXT_BUDGET)
+        CHAT_BUDGET.release(TEXT_BUDGET)
 
 
 async def _chat_ollama(request, payload, rid, err_event):
@@ -820,9 +885,11 @@ async def vocal_worker(j):
     lm_out = RESULTS / f"{jid}0.json"
     wav_out = RESULTS / f"{jid}00.wav"
     final = RESULTS / f"{jid}.wav"
-    deadline = time.time() + spec["timeout"]
+    gpu = MUSIC_BACKEND == "gpu-b"
+    stage_budget = GPU_TIME[j["params"]["model"]] if gpu else spec["timeout"]
+    deadline = time.time() + stage_budget
 
-    async def run_stage(argv, stage, expect):
+    async def run_stage(argv, stage, expect=None):
         j["stage"] = stage
         save_jobs()
         proc = await asyncio.create_subprocess_exec(
@@ -834,25 +901,55 @@ async def vocal_worker(j):
                                             timeout=max(5.0, deadline - time.time()))
         except asyncio.TimeoutError:
             kill_tree(proc)
-            raise TimeoutError(f"vocal stage {stage} exceeded {spec['timeout']}s budget, killed")
+            if gpu:
+                # ssh-смерть не завершает удалённые процессы — добиваем по пути задачи
+                asyncio.ensure_future(asyncio.create_subprocess_exec(
+                    "ssh", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", GPU_HOST,
+                    f"pkill -f 'run-bff/" + j["id"] + "' || true"))
+            raise TimeoutError(f"vocal stage {stage} exceeded {stage_budget}s budget, killed")
         finally:
             PROCS.pop(jid, None)
-        if proc.returncode != 0 or not expect.exists():
+        if proc.returncode != 0 or (expect is not None and not expect.exists()):
             tail = (err or b"")[-300:].decode("utf-8", "replace")
             log(f"vocal stage {stage} failed rc={proc.returncode}: {tail}")
             raise RuntimeError(f"vocal stage {stage} exit {proc.returncode}")
 
-    try:
-        await run_stage([str(ACE_LM), "--models", str(ACE_MODELS), "--request", str(req_path)],
-                        "writing-lyrics", lm_out)
-        await run_stage([str(ACE_SYNTH), "--models", str(ACE_MODELS), "--request", str(lm_out)],
-                        "synthesizing", wav_out)
-        shutil.move(str(wav_out), str(final))
-    finally:
-        # временные артефакты пайплайна не копим в retention
-        req_path.unlink(missing_ok=True)
-        lm_out.unlink(missing_ok=True)
-        j["stage"] = None
+    if gpu:
+        # Удалённый режим: json -> scp на B -> ace-lm/ace-synth --device CUDA0 -> scp wav на A.
+        rdir = f"{GPU_ACE_DIR}/run-bff"
+        rreq = f"{rdir}/{jid}.json"
+        rlm = f"{rdir}/{jid}0.json"
+        rwav = f"{rdir}/{jid}00.wav"
+        env_prefix = "LD_LIBRARY_PATH=build:/usr/local/cuda/lib64"
+        try:
+            await run_stage(["ssh", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", GPU_HOST, f"mkdir -p {rdir}"],
+                            "writing-lyrics", req_path)
+            await run_stage(["scp", "-q", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", str(req_path), f"{GPU_HOST}:{rreq}"],
+                            "writing-lyrics", req_path)
+            await run_stage(["ssh", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", GPU_HOST,
+                             f"cd {GPU_ACE_DIR} && {env_prefix} timeout {stage_budget} ./build/ace-lm --models models --device CUDA0 --request {rreq}"],
+                            "writing-lyrics", req_path)
+            await run_stage(["ssh", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", GPU_HOST,
+                             f"cd {GPU_ACE_DIR} && {env_prefix} timeout {stage_budget} ./build/ace-synth --models models --device CUDA0 --vae-chunk 256 --request {rlm}"],
+                            "synthesizing")  # wav ещё на B — проверка после scp
+            await run_stage(["scp", "-q", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", f"{GPU_HOST}:{rwav}", str(wav_out)],
+                            "synthesizing", wav_out)
+            shutil.move(str(wav_out), str(final))
+        finally:
+            asyncio.ensure_future(asyncio.create_subprocess_exec(
+                "ssh", "-F", str(Path.home() / ".ssh" / "config"), "-o", "BatchMode=yes", GPU_HOST, f"rm -f {rreq} {rlm} {rwav}"))
+    else:
+        try:
+            await run_stage([str(ACE_LM), "--models", str(ACE_MODELS), "--request", str(req_path)],
+                            "writing-lyrics", lm_out)
+            await run_stage([str(ACE_SYNTH), "--models", str(ACE_MODELS), "--request", str(lm_out)],
+                            "synthesizing", wav_out)
+            shutil.move(str(wav_out), str(final))
+        finally:
+            # временные артефакты пайплайна не копим в retention
+            req_path.unlink(missing_ok=True)
+            lm_out.unlink(missing_ok=True)
+    j["stage"] = None
 
 
 def _track_title(j):
@@ -869,14 +966,19 @@ def _track_title(j):
 
 
 def music_package(j):
-    """Обложка (sd-cli, 512px) + mux WAV -> MP3 192k с ID3v2 и attached_pic.
+    """Обложка (sd-cli, 512px) + mux WAV -> M4A (AAC 192k) с attached_pic и текстом.
 
-    Деградация мягкая: нет обложки — MP3 без APIC; не сработал mux — остаётся WAV
-    (get_file отдаёт fallback). Ошибки не роняют готовый трек.
+    Формат раздачи (решение владельца 08.11): m4a со встроенными ТЕКСТАМИ —
+    lyrics из params.lyrics (vocal-джобы; у musicgen пусто — без текста).
+    Проверено на mp4-муксере: title/artist/album/comment/lyrics пишутся,
+    attached_pic работает; ключ url mp4-муксер НЕ пишет (а с
+    -movflags use_metadata_tags url пишется, но пропадает обложка) — поэтому
+    адрес вшит в comment. Деградация мягкая: нет обложки — m4a без APIC;
+    не сработал mux — остаётся WAV (get_file отдаёт fallback).
     """
     jid = j["id"]
     wav = RESULTS / f"{jid}.wav"
-    if not wav.exists():
+    if not wav.exists() or j.get("status") == "cancelled":
         return
     cover = RESULTS / f"{jid}-cover.png"
     env = dict(os.environ)
@@ -897,14 +999,22 @@ def music_package(j):
         log(f"cover timeout {jid}")
     finally:
         PROCS.pop(f"{jid}-cover", None)
+    if j.get("status") == "cancelled":
+        return
     mux = [str(FFMPEG), "-y", "-loglevel", "error", "-i", str(wav)]
     if cover.exists() and cover.stat().st_size > 0:
         mux += ["-i", str(cover), "-map", "0:a", "-map", "1:v",
                 "-c:v", "copy", "-disposition:v", "attached_pic"]
-    mux += ["-c:a", "libmp3lame", "-b:a", "192k", "-id3v2_version", "3"]
+    mux += ["-c:a", "aac", "-b:a", "192k"]
     for k, v in BRIIX_TAGS.items():
+        if k == "url":
+            continue  # mp4-муксер url не пишет — адрес в comment
         mux += ["-metadata", f"{k}={v}"]
-    mux += ["-metadata", f"title={_track_title(j)}", str(RESULTS / f"{jid}.mp3")]
+    mux += ["-metadata", f"title={_track_title(j)}"]
+    lyrics = j["params"].get("lyrics")
+    if isinstance(lyrics, str) and lyrics.strip():
+        mux += ["-metadata", f"lyrics={lyrics.strip()}"]
+    mux += [str(RESULTS / f"{jid}.m4a")]
     try:
         r = subprocess.run(mux, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                            timeout=MUX_TIMEOUT)
@@ -934,102 +1044,124 @@ async def text_worker(j):
 async def executor():
     """Single consumer: dispatches jobs under the shared thread budget (S3)."""
     loop = asyncio.get_running_loop()
-    while True:
-        jid = await QUEUE.get()
-        j = JOBS.get(jid)
-        if not j or j["status"] != "queued":
-            QUEUE.task_done()
-            continue
-        async def run_one(j, jid):
-            is_text = j["type"] == "text"
-            is_vocal = j["type"] == "music" and j.get("params", {}).get("model") in VOCAL_MODELS
-            tokens = TEXT_BUDGET if is_text else THREAD_BUDGET
+    async def run_one(j, jid):
+        is_text = j["type"] == "text"
+        is_vocal = j["type"] == "music" and j.get("params", {}).get("model") in VOCAL_MODELS
+        tokens = TEXT_BUDGET if is_text else THREAD_BUDGET
+        try:
+            # S3 strict-режим: text стартует только когда ни один heavy не идёт.
+            if is_text and STRICT_THREADS:
+                await HEAVY_GATE.acquire()
+                gate_held = True
+            else:
+                gate_held = False
             try:
-                # S3 strict-режим: text стартует только когда ни один heavy не идёт.
-                if is_text and STRICT_THREADS:
-                    await HEAVY_GATE.acquire()
-                    gate_held = True
-                else:
-                    gate_held = False
+                await BUDGET.acquire(tokens)
                 try:
-                    await BUDGET.acquire(tokens)
-                    try:
-                        if j["status"] != "queued":  # cancelled while waiting in queue
-                            log(f"skip {jid}: cancelled before start")
-                            return
-                        j["provenance"]["queued_ms"] = round((time.time() - j["created_at"]) * 1000)
-                        j["status"] = "running"
-                        j["started_at"] = time.time()
-                        # S2: music начинается в стадии прогрева модели; vocal — с текста песни.
-                        j["stage"] = ("writing-lyrics" if is_vocal
-                                      else "model-warmup" if j["type"] == "music" else None)
-                        save_jobs()
-                        log(f"running {jid} tokens={tokens} held={BUDGET.held} strict={STRICT_THREADS}"
-                            + (f" model={j['params']['model']}" if is_vocal else ""))
-                        watcher = None
-                        if j["type"] == "music" and not is_vocal:
-                            watcher = asyncio.ensure_future(music_stage_watcher(j))
-                        try:
-                            if is_text:
-                                await text_worker(j)
-                            elif is_vocal:
-                                await vocal_worker(j)
-                            else:
-                                await loop.run_in_executor(None, run_worker, j, None)
-                        finally:
-                            if watcher:
-                                watcher.cancel()
-                        j["stage"] = None
-                        # Брендинг-пакет (08.11): обложка + MP3-mux для любого music-режима.
-                        if j["type"] == "music" and not j.get("status") == "cancelled":
-                            j["stage"] = "album-cover"
-                            save_jobs()
-                            await loop.run_in_executor(None, music_package, j)
-                            j["stage"] = None
-                    finally:
-                        BUDGET.release(tokens)
-                finally:
-                    if gate_held:
-                        HEAVY_GATE.release()
-                # S9: метаданные файла результата.
-                ext = {"image": ".png", "music": ".wav", "text": ".txt"}[j["type"]]
-                path = RESULTS / f"{jid}{ext}"
-                if j["type"] == "music":
-                    mp3 = RESULTS / f"{jid}.mp3"
-                    if mp3.exists() and mp3.stat().st_size > 0:
-                        path = mp3
-                if path.exists():
-                    h = hashlib.sha256()
-                    with open(path, "rb") as fh:
-                        for chunk in iter(lambda: fh.read(1 << 20), b""):
-                            h.update(chunk)
-                    j["file_id"] = jid
-                    j["mime"] = {"image": "image/png", "music": "audio/mpeg" if path.suffix == ".mp3" else "audio/wav",
-                                 "text": "text/plain; charset=utf-8"}[j["type"]]
-                    j["size"] = path.stat().st_size
-                    j["checksum"] = h.hexdigest()
-                j["status"] = "ready"
-                j["provenance"]["wall_clock_ms"] = round((time.time() - j["started_at"]) * 1000)
-                j["finished_at"] = time.time()
-                log(f"ready {jid} wall={j['provenance']['wall_clock_ms']}ms")
-            except asyncio.CancelledError:
-                raise
-            except TimeoutError as e:
-                if j["status"] != "cancelled":
-                    j["status"] = "error"
-                    j["error"] = str(e)
-                log(f"timeout {jid}")
-            except Exception as e:
-                if j["status"] != "cancelled":
-                    j["status"] = "error"
-                    j["error"] = f"Ошибка воркера ({type(e).__name__})."
-                log(f"failed {jid}: {type(e).__name__}")
-            finally:
-                j["stage"] = None
-                if j["status"] != "cancelled":
+                    if j["status"] != "queued":  # cancelled while waiting in queue
+                        log(f"skip {jid}: cancelled before start")
+                        return
+                    j["provenance"]["queued_ms"] = round((time.time() - j["created_at"]) * 1000)
+                    j["status"] = "running"
+                    j["started_at"] = time.time()
+                    # S2: music начинается в стадии прогрева модели; vocal — с текста песни.
+                    j["stage"] = ("writing-lyrics" if is_vocal
+                                  else "model-warmup" if j["type"] == "music" else None)
                     save_jobs()
-        asyncio.ensure_future(run_one(j, jid))
-        QUEUE.task_done()
+                    log(f"running {jid} tokens={tokens} held={BUDGET.held} strict={STRICT_THREADS}"
+                        + (f" model={j['params']['model']}" if is_vocal else ""))
+                    watcher = None
+                    if j["type"] == "music" and not is_vocal:
+                        watcher = asyncio.ensure_future(music_stage_watcher(j))
+                    try:
+                        if is_text:
+                            await text_worker(j)
+                        elif is_vocal:
+                            await vocal_worker(j)
+                        else:
+                            await loop.run_in_executor(None, run_worker, j, None)
+                    finally:
+                        if watcher:
+                            watcher.cancel()
+                    j["stage"] = None
+                    # Брендинг-пакет (08.11): обложка + MP3-mux для любого music-режима.
+                    if j["type"] == "music" and not j.get("status") == "cancelled":
+                        j["stage"] = "album-cover"
+                        save_jobs()
+                        await loop.run_in_executor(None, music_package, j)
+                        j["stage"] = None
+                finally:
+                    BUDGET.release(tokens)
+            finally:
+                if gate_held:
+                    HEAVY_GATE.release()
+            if j["status"] == "cancelled":
+                # отмена пришла, пока воркер доезжал — не переписывать в ready
+                log(f"skip settle {jid}: cancelled")
+                return
+            # S9: метаданные файла результата.
+            ext = {"image": ".png", "music": ".wav", "text": ".txt"}[j["type"]]
+            path = RESULTS / f"{jid}{ext}"
+            if j["type"] == "music":
+                for cand in (".m4a", ".mp3"):
+                    alt = RESULTS / f"{jid}{cand}"
+                    if alt.exists() and alt.stat().st_size > 0:
+                        path = alt
+                        break
+            if path.exists():
+                h = hashlib.sha256()
+                with open(path, "rb") as fh:
+                    for chunk in iter(lambda: fh.read(1 << 20), b""):
+                        h.update(chunk)
+                j["file_id"] = jid
+                j["mime"] = {"image": "image/png",
+                             "music": {".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav"}.get(path.suffix, "audio/wav"),
+                             "text": "text/plain; charset=utf-8"}[j["type"]]
+                j["size"] = path.stat().st_size
+                j["checksum"] = h.hexdigest()
+            j["status"] = "ready"
+            j["provenance"]["wall_clock_ms"] = round((time.time() - j["started_at"]) * 1000)
+            j["finished_at"] = time.time()
+            log(f"ready {jid} wall={j['provenance']['wall_clock_ms']}ms")
+        except asyncio.CancelledError:
+            raise
+        except TimeoutError as e:
+            if j["status"] != "cancelled":
+                j["status"] = "error"
+                j["error"] = str(e)
+            log(f"timeout {jid}")
+        except Exception as e:
+            if j["status"] != "cancelled":
+                j["status"] = "error"
+                j["error"] = f"Ошибка воркера ({type(e).__name__})."
+            log(f"failed {jid}: {type(e).__name__}")
+        finally:
+            j["stage"] = None
+            if j["status"] != "cancelled":
+                save_jobs()
+    while True:
+        try:
+            jid = await QUEUE.get()
+            j = JOBS.get(jid)
+            if not j or j["status"] != "queued":
+                # кейс 13 (08.11): молчаливая смерть диспетчера = вечные queued
+                log(f"executor skip {jid}: {j['status'] if j else 'record missing'}")
+                QUEUE.task_done()
+                continue
+            _t = asyncio.ensure_future(run_one(j, jid))
+            _t.add_done_callback(lambda _tt, _jid=jid:
+                log(f"run_one {_jid} died: {type(_tt.exception()).__name__}: {_tt.exception()}")
+                if _tt.exception() else None)
+            QUEUE.task_done()
+            log(f"dispatched {jid}")
+        except BaseException as e:
+            # диспетчер не должен умирать молча: пишем и продолжаем
+            log(f"executor loop error: {type(e).__name__}: {e}")
+            await asyncio.sleep(1)
+            try:
+                QUEUE.task_done()
+            except ValueError:
+                pass
 
 
 async def music_stage_watcher(j):
@@ -1061,10 +1193,10 @@ def prune_records(cutoff):
         if j["status"] in ("queued", "running"):
             continue
         if j["status"] == "ready":
-            ext = {"image": ".png", "music": ".mp3", "text": ".txt"}[j["type"]]
+            ext = {"image": ".png", "music": ".m4a", "text": ".txt"}[j["type"]]
             still_there = (RESULTS / f"{jid}{ext}").exists()
             if j["type"] == "music" and not still_there:
-                still_there = (RESULTS / f"{jid}.wav").exists()
+                still_there = any((RESULTS / f"{jid}{c}").exists() for c in (".mp3", ".wav"))
             if not still_there:
                 del JOBS[jid]
                 removed += 1
@@ -1173,9 +1305,16 @@ async def start_background(app):
 
 def main():
     load_jobs()
+    # Волна GPU (08.11, кейс 13): queued-джобы из jobs.json после рестарта не
+    # попадали в asyncio-очередь и висели вечно — ре-энqueue.
+    for _jid, _j in JOBS.items():
+        if _j["status"] == "queued":
+            QUEUE.put_nowait(_jid)
+            log(f"re-enqueued {_jid} after restart")
     app = web.Application(middlewares=[middleware], client_max_size=64 * 1024)
     app.router.add_route("OPTIONS", "/{path:.*}", preflight)
     app.router.add_get("/health", health)
+    app.router.add_get("/debug/busy", debug_busy)
     app.router.add_post("/jobs", create_job)
     app.router.add_get("/jobs/{id}", get_job)
     app.router.add_post("/jobs/{id}/cancel", cancel_job)

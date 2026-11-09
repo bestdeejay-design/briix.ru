@@ -44,14 +44,14 @@
 
 ## Backend contract
 
-`tools/media-bff-config/bff.py` синхронизирован с UI:
+`tools/media-bff-config/bff.py` синхронизирован с живым стендом и UI:
 
-- Flash: `max_duration=300`, timeout 1800 с;
-- Pro: `max_duration=300`, timeout 2400 с;
-- `/v1/models` сообщает те же 300 с;
+- SHA guard остановил первый deploy: живой BFF уже содержал более новые исправления, отсутствовавшие в снимке репозитория. Ничего не было перезаписано.
+- Получен и проверен полный live diff. В снимок перенесены FIFO-бюджет потоков, отдельный chat budget, восстановление queued jobs после рестарта, отмена основного и cover/GPU-процессов, M4A с lyrics, а также CPU/GPU vocal routes.
+- Фактические `max_duration` Flash/Pro на живом стенде уже равны 600 с, timeout обеих моделей — 2400 с. В `/v1/models` исправлены устаревшие advertised limits 30/150 на фактические 600 с. В Studio по-прежнему доступен спокойный выбор 30–300 с без блокировки composer.
 - `tools/check-live-stand.cjs` получил фазы `song-flash-60` и `duration-300`.
 
-Обновление живого BFF выполняется только явным `workflow_dispatch` с `update_bff=true`. Deploy имеет SHA-256 guard: неизвестная live-версия не перезаписывается. Перед установкой создаётся backup, затем проверяются service, `/health`, каталог и реальный приём job на 300 с. Обычный PR аудит deploy не выполняет.
+Обновление живого BFF выполняется только явным `workflow_dispatch` с `update_bff=true`. Deploy имеет SHA-256 guard: неизвестная live-версия не перезаписывается. Перед установкой создаётся backup, затем проверяются service, `/health`, каталог и реальный приём job на 300 с. Обычный PR аудит deploy не выполняет. При раннем сбое workflow не публикует старый audit log как результат нового запуска.
 
 ## Проверено в браузере (fake BFF, боевой frontend transport)
 

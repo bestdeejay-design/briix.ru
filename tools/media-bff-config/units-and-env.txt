@@ -48,13 +48,13 @@ WantedBy=default.target
 
 # Волна 2 (08.11, решение владельца):
 # - Vocal-route ОТКРЫТ: POST /jobs type=music + params.model=ace-step-flash (LM 1.7B,
-#   max 300с, таймаут 1800с) | ace-step-pro (LM 4B, max 300с, таймаут 2400с); пайплайн
+#   max 600с, таймаут 2400с) | ace-step-pro (LM 4B, max 600с, таймаут 2400с); пайплайн
 #   ace-lm -> ace-synth, stages writing-lyrics|synthesizing, capability song.vocal.
 #   Грабля acestep.cpp учтена: ace-lm пишет выходной json как <input>+0.
-# - Брендинг-пакет: после music-джоба — обложка (sd-cli) + ffmpeg mux WAV -> MP3 192k
-#   с attached_pic и ID3v2 (artist BRIIX, album BRIIX Generative Music, comment
-#   "Generated on briix.ru — локальные AI-модели", url https://briix.ru).
-#   result_url отдаёт MP3, WAV внутренний.
+# - Брендинг-пакет: после music-джоба — обложка (sd-cli) + ffmpeg mux WAV -> M4A AAC 192k
+#   с attached_pic, lyrics и metadata (artist BRIIX, album BRIIX Generative Music, comment
+#   "Generated on briix.ru — локальные AI-модели · https://briix.ru").
+#   result_url отдаёт M4A, с fallback на legacy MP3/WAV.
 # - Модерация: 2 ступени (regex-блэклист -> qwen3-классификатор safe|suggestive|explicit,
 #   num_thread 2, timeout 15с, fail-open при падении ollama), кэш 30 мин по sha256,
 #   лог prompt-hash+verdict в moderation.log. explicit/422, suggestive/safe — проход.

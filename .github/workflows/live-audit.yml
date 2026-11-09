@@ -50,8 +50,8 @@ jobs:
     timeout-minutes: 45
     env:
       TARGET: /home/badai/briix-media/media-bff/bff.py
-      BASE_SHA: 698a1fb418acddb06b192e133d1d029878a6f38fc1b6e6301260d7956c82ca97
-      NEW_SHA: fb113af662821995fa994fea60c9280bb6540f229dbdd544044ef06455b0e2ce
+      BASE_SHA: 1d5409fc0e735fee1a4e801f377dde2a80d793ec6f56cd3e9675239a30006b4e
+      NEW_SHA: 0dff5f8a1f47738a05a6b75aa2aa7c5e3d425a7ecfb2d12ab41ec78f93fe7631
     steps:
       - uses: actions/checkout@v4
 

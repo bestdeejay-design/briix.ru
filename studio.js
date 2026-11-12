@@ -301,6 +301,13 @@
   })));
 
   // ---- карточки ленты ---------------------------------------------------------
+  // Автоскролл только когда лента у низа: читающие выше не выдёргиваются.
+  // force — для нового сообщения пользователя (всегда показываем его).
+  function scrollFeed(force = false) {
+    const nearBottom = els.feed.scrollHeight - els.feed.scrollTop - els.feed.clientHeight < 140;
+    if (force || nearBottom) els.feed.scrollTop = els.feed.scrollHeight;
+  }
+
   function card(kind, who, text) {
     const div = document.createElement('div');
     div.className = 'card ' + kind;
@@ -312,7 +319,7 @@
     body.textContent = text || '';
     div.append(whoEl, body);
     els.feed.append(div);
-    div.scrollIntoView({ block: 'nearest' });
+    scrollFeed(kind === 'user');
     return body;
   }
 
@@ -329,6 +336,24 @@
     if (stage) phrase.setAttribute('data-wait-stage', stage);
     line.append(spin, phrase);
     return line;
+  }
+
+  // Секундомер stage-карточки: «М:СС» с табличными цифрами (CSS .stage-elapsed).
+  function fmtElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  // wait-line + секундомер в один ряд; таймер чистится при удалении карточки.
+  function waitRow(type, stage) {
+    const t0 = Date.now();
+    const elapsed = document.createElement('span');
+    elapsed.className = 'stage-elapsed';
+    elapsed.textContent = fmtElapsed(0);
+    const row = document.createElement('div');
+    row.className = 'wait-row';
+    row.append(waitLine(type, stage), elapsed);
+    const timer = setInterval(() => { elapsed.textContent = fmtElapsed(Date.now() - t0); }, 1000);
+    return { row, stop: () => clearInterval(timer) };
   }
 
   function errorCard(error) {
@@ -470,6 +495,7 @@
     const who = currentAssistant().name;
     const body = card('assistant', who, '');
     body.append(waitLine('chat')); // мгновенный отклик: видно, что запрос ушёл
+    body.classList.add('streaming');
     setBusy(true, who + ' печатает…');
     try {
       const messages = [{ role: 'system', content: currentAssistant().system }, ...history];
@@ -477,7 +503,7 @@
       const full = await chatStream({ messages, onChunk: piece => {
         if (first) { body.textContent = ''; first = false; } // ждущий блок уступает место стриму
         body.textContent += piece;
-        body.scrollIntoView({ block: 'nearest' });
+        scrollFeed();
       } });
       history.push({ role: 'assistant', content: full });
       addMakeTrackAction(body.closest('.card'), full);
@@ -486,7 +512,7 @@
       history.pop(); // неудачный ход не остаётся в истории
       if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
-    } finally { setBusy(false); updateEnabled(); }
+    } finally { body.classList.remove('streaming'); setBusy(false); updateEnabled(); }
   }
 
   async function createPhoto(text) {
@@ -495,23 +521,31 @@
     updateEnabled();
     setBusy(true, 'Отправляем задачу…');
     const stageBody = card('stage', 'Фото', ''); // мгновенно, до ответа шины
-    stageBody.append(waitLine('image', 'generating'));
+    const skel = document.createElement('div');
+    skel.className = 'skeleton-img';
+    stageBody.append(skel);
+    const wait = waitRow('image', 'generating');
+    stageBody.append(wait.row);
     try {
       const id = await submitJob({ type: 'image', prompt: text });
       const result = await pollJob(id, { onStatus: d => {
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
+      wait.stop();
       stageBody.closest('.card').remove();
       const item = document.createElement('img');
       item.alt = 'Результат';
       const blob = await fileBlob(result.result_url);
       item.src = URL.createObjectURL(blob);
+      item.className = 'media-in';
+      requestAnimationFrame(() => item.classList.add('loaded'));
       const wrap = card('assistant', 'Фото готово', '');
       wrap.textContent = '';
       wrap.append(item);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-photo');
       libAdd({ job: id, kind: 'photo', prompt: text, file: result.result_url, created: Date.now(), fav: false });
     } catch (error) {
+      wait.stop();
       stageBody.closest('.card').remove();
       if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
@@ -546,7 +580,8 @@
     else els.musicPrompt.value = '';
     updateEnabled();
     const stageBody = card('stage', 'Музыка', ''); // мгновенно, включая фазу автолирики
-    stageBody.append(waitLine('music', vocal && !lyrics ? 'writing-lyrics' : 'synthesizing'));
+    const wait = waitRow('music', vocal && !lyrics ? 'writing-lyrics' : 'synthesizing');
+    stageBody.append(wait.row);
     setBusy(true, vocal && !lyrics && !instrumental ? 'Пишем текст песни…' : 'Отправляем задачу…');
     try {
       if (vocal && !lyrics) {
@@ -554,6 +589,7 @@
           lyrics = await autoLyrics(style || lyrics || 'песня');
           if (advanced) els.lyrics.value = lyrics;
         } catch {
+          wait.stop();
           stageBody.closest('.card').remove();
           setBusy(false); updateEnabled();
           card('notice', 'Музыка', 'Не удалось автоматически написать лирику. Заполните поле «Лирика» вручную (кнопка ✨ тоже поможет) и попробуйте снова.');
@@ -567,6 +603,7 @@
       const result = await pollJob(id, { onStatus: d => {
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
+      wait.stop();
       stageBody.closest('.card').remove();
       const audio = document.createElement('audio');
       audio.controls = true;
@@ -584,6 +621,7 @@
         model: MUSIC_MODELS[quality], duration, file: result.result_url, created: Date.now(), fav: false
       });
     } catch (error) {
+      wait.stop();
       stageBody.closest('.card').remove();
       // текст остаётся в полях для правки (в т.ч. после 422)
       if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;

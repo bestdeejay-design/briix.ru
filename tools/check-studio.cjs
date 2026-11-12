@@ -180,7 +180,7 @@ function bffServer(port) {
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#modelChip').isVisible(), true, 'model chip visible in music');
   assert.equal(await p.locator('#durationChip').isVisible(), true, 'duration chip visible in music');
-  assert.equal(await p.locator('#vocalChip').isVisible(), true, 'vocal toggle visible in music');
+  assert.equal(await p.locator('#vocalSeg').isVisible(), true, 'track-mode segmented control visible in music');
   assert.equal(await p.locator('#tuneToggle').isVisible(), true, 'fine-tune toggle visible in music');
   assert.equal(await p.locator('#advanced').isVisible(), false, 'advanced fields hidden by default (Simple)');
   // Поле активно — send разблокируется.
@@ -261,8 +261,8 @@ function bffServer(port) {
   await p.locator('#durationChip').click();
   await p.locator('#durationMenu button', { hasText: '60 с' }).click();
   assert.equal(await p.locator('#durationName').innerText(), '60 с');
-  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'true', 'instrumental is the default while vocal route is broken (infra#79)');
-  assert.equal(await p.locator('#vocalChip').innerText(), 'Инструментал');
+  assert.equal(await p.locator('.seg-btn[data-vocal="1"]').getAttribute('aria-pressed'), 'true', 'instrumental selected by default while vocal route is broken (infra#79)');
+  assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'false');
   await p.evaluate(() => {
     window.__stageSeen = [];
     new MutationObserver(muts => {
@@ -285,9 +285,9 @@ function bffServer(port) {
   assert.equal(musicPost.params.model, 'ace-step-flash');
   assert.equal(musicPost.params.duration_seconds, 60);
   assert.equal(musicPost.params.instrumental, true);
-  // Pro через чип модели + снова с вокалом (тумблер отжат).
-  await p.locator('#vocalChip').click();
-  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'false', 'toggle off = vocal song');
+  // Pro через чип модели + снова с вокалом (режим «Песня» выбран явно).
+  await p.locator('.seg-btn[data-vocal="0"]').click();
+  assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'true', 'vocal mode explicitly selected');
   await p.locator('#modelChip').click();
   await p.locator('#modelMenu button', { hasText: 'Pro' }).click();
   assert.equal(await p.locator('#modelName').innerText(), 'Pro');
@@ -428,8 +428,8 @@ function bffServer(port) {
   p = await page();
   // Вокальный джоб без лирики: автолирика обязана сработать на свежей странице (регресс null-controller).
   await p.locator('.mode[data-mode="music"]').click();
-  await p.locator('#vocalChip').click(); // отжать инструментал → вокальный трек
-  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'false');
+  await p.locator('.seg-btn[data-vocal="0"]').click(); // явно выбрать «Песня» → вокальный трек
+  assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'true');
   await p.locator('#prompt').fill('душевная песня про город');
   await p.locator('#send').click();
   await p.waitForSelector('.card.assistant audio', { timeout: 25000 });

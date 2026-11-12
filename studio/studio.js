@@ -202,7 +202,7 @@
     assistantChip: $('assistantChip'), assistantName: $('assistantName'), assistantMenu: $('assistantMenu'),
     modelChip: $('modelChip'), modelName: $('modelName'), modelMenu: $('modelMenu'),
     durationChip: $('durationChip'), durationName: $('durationName'), durationMenu: $('durationMenu'),
-    vocalChip: $('vocalChip'), tuneToggle: $('tuneToggle'),
+    vocalSeg: $('vocalSeg'), tuneToggle: $('tuneToggle'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
     composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
     newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'),
@@ -427,7 +427,7 @@
     els.assistantName.textContent = currentAssistant().name.replace(/\s*\(.*\)\s*$/, '');
     els.modelName.textContent = MODEL_LABELS[quality];
     els.durationName.textContent = duration + ' с';
-    els.vocalChip.setAttribute('aria-pressed', String(instrumental));
+    els.vocalSeg.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.vocal) === (instrumental ? 1 : 0))));
     els.tuneToggle.setAttribute('aria-pressed', String(advanced));
     meta();
     updateEnabled();
@@ -967,7 +967,13 @@
   });
 
   els.tuneToggle.addEventListener('click', () => { advanced = !advanced; renderChrome(); });
-  els.vocalChip.addEventListener('click', () => { instrumental = !instrumental; try { localStorage.setItem('briix-studio-instrumental', instrumental ? '1' : '0'); } catch {} renderChrome(); });
+  els.vocalSeg.addEventListener('click', e => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    instrumental = btn.dataset.vocal === '1';
+    try { localStorage.setItem('briix-studio-instrumental', instrumental ? '1' : '0'); } catch {}
+    renderChrome();
+  });
 
   els.send.addEventListener('click', () => { if (busy) stopAll(); else create(); });
   els.improveLyrics.addEventListener('click', () => improve('lyrics'));

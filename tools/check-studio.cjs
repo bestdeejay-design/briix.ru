@@ -255,14 +255,14 @@ function bffServer(port) {
   assert.match(tagged, /\[Verse\]/);
   ok('structure tags insert into lyrics field', { tagged: tagged.trim() });
 
-  // 7. Музыка-джоба: лирика + стиль, длительность, без вокала, Pro, стадии, плеер.
+  // 7. Музыка-джоба: лирика + стиль, длительность, инструментал по дефолту, Pro/вокал, стадии, плеер.
   await p.locator('#lyrics').fill('[Verse]\nГород спит\n[Chorus]\nА я не сплю');
   await p.locator('#musicPrompt').fill('dream pop, 90 BPM, female vocals');
   await p.locator('#durationChip').click();
   await p.locator('#durationMenu button', { hasText: '60 с' }).click();
   assert.equal(await p.locator('#durationName').innerText(), '60 с');
-  await p.locator('#vocalChip').click();
-  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'true');
+  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'true', 'instrumental is the default while vocal route is broken (infra#79)');
+  assert.equal(await p.locator('#vocalChip').innerText(), 'Инструментал');
   await p.evaluate(() => {
     window.__stageSeen = [];
     new MutationObserver(muts => {
@@ -285,8 +285,9 @@ function bffServer(port) {
   assert.equal(musicPost.params.model, 'ace-step-flash');
   assert.equal(musicPost.params.duration_seconds, 60);
   assert.equal(musicPost.params.instrumental, true);
-  // Pro через чип модели + снова с вокалом.
+  // Pro через чип модели + снова с вокалом (тумблер отжат).
   await p.locator('#vocalChip').click();
+  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'false', 'toggle off = vocal song');
   await p.locator('#modelChip').click();
   await p.locator('#modelMenu button', { hasText: 'Pro' }).click();
   assert.equal(await p.locator('#modelName').innerText(), 'Pro');

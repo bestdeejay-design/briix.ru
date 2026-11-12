@@ -593,11 +593,16 @@
         try {
           lyrics = await autoLyrics(style || lyrics || 'песня');
           if (advanced) els.lyrics.value = lyrics;
-        } catch {
+        } catch (error) {
           wait.stop();
           stageBody.closest('.card').remove();
           setBusy(false); updateEnabled();
-          card('notice', 'Музыка', 'Не удалось автоматически написать лирику. Заполните поле «Лирика» вручную (кнопка ✨ тоже поможет) и попробуйте снова.');
+          const why = error.name === 'AbortError' ? 'Остановлено вручную.'
+            : error.code === 'timeout' ? error.message
+            : error.code === 'content_blocked' ? 'Модерация не пропустила тему.'
+            : 'Причина: ' + (error.message || 'неизвестная ошибка') + '.';
+          card('notice', 'Музыка', 'Не удалось автоматически написать лирику. ' + why
+            + ' Можно заполнить поле «Лирика» вручную (кнопка ✨ тоже поможет) и попробовать снова.');
           return;
         }
       }

@@ -119,7 +119,7 @@ function bffServer(port) {
   const results = [];
   const ok = (name, data = {}) => { results.push({ name }); console.log('PASS', name, JSON.stringify(data)); };
   const errors = [];
-  const URL_ = `http://127.0.0.1:${STATIC_PORT}/studio.html`;
+  const URL_ = `http://127.0.0.1:${STATIC_PORT}/studio/index.html`;
 
   async function page({ viewport = { width: 1440, height: 1000 }, token = TOKEN, user = 'tester' } = {}) {
     const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
@@ -331,7 +331,7 @@ function bffServer(port) {
   ok('422 content_blocked: moderation card + text preserved (chat and jobs)', {});
 
   // 10. Кнопки-состояния: hover/active/disabled присутствуют в CSS.
-  const css = fs.readFileSync(path.join(ROOT, 'studio.css'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'studio', 'studio.css'), 'utf8');
   for (const sel of ['.send:hover', '.send:disabled', '.tool:hover', '.tag:hover', '.mode[aria-pressed="true"]', ':focus-visible']) {
     assert.ok(css.includes(sel), 'css defines state ' + sel);
   }

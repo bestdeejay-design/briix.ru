@@ -142,12 +142,13 @@
     </div>
 
     <!-- Инлайн-ввод ключа -->
-    <div id="keyCard" class="key-card" hidden>
+      <div id="keyCard" class="key-card" hidden>
       <label class="field-label" for="keyInput">Ключ приватного стенда</label>
       <div class="key-row">
         <input id="keyInput" type="password" autocomplete="off" placeholder="вставьте ключ">
         <button id="keySave" class="save">Сохранить</button>
       </div>
+      <p id="keyStatus" class="hint" aria-live="polite"></p>
       <p class="hint">Тот же ключ, что в Настройках демо. Хранится только в этом браузере.</p>
     </div>
   </section>

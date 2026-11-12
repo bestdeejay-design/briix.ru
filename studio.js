@@ -224,7 +224,8 @@
   let cancelRequested = false;
   let duration = 300; // по умолчанию — полная песня
   try { const saved = Number(localStorage.getItem('briix-studio-duration')); if (saved >= 5) duration = saved; } catch {}
-  let instrumental = false;
+  let instrumental = true; // дефолт «Инструментал», пока вокальный контур не починен (infra#79) — вернуть false после
+  try { const savedInstr = localStorage.getItem('briix-studio-instrumental'); if (savedInstr !== null) instrumental = savedInstr === '1'; } catch {}
   let advanced = false;
   let busy = false;
   let history = []; // chat mode: {role, content}
@@ -890,7 +891,7 @@
   });
 
   els.tuneToggle.addEventListener('click', () => { advanced = !advanced; renderChrome(); });
-  els.vocalChip.addEventListener('click', () => { instrumental = !instrumental; renderChrome(); });
+  els.vocalChip.addEventListener('click', () => { instrumental = !instrumental; try { localStorage.setItem('briix-studio-instrumental', instrumental ? '1' : '0'); } catch {} renderChrome(); });
 
   els.send.addEventListener('click', () => { if (busy) stopAll(); else create(); });
   els.improveLyrics.addEventListener('click', () => improve('lyrics'));

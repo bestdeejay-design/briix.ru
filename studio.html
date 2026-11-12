@@ -8,10 +8,40 @@
 <link rel="stylesheet" href="studio.css">
 </head>
 <body>
-<main class="studio">
+
+<!-- Вход: ник + PIN-пад (клиентский; переезд на серверную auth — INFRA #78) -->
+<div id="gate" class="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-title">BRIIX Студия</div>
+    <p class="gate-sub">Вход по нику и PIN-коду</p>
+    <input id="nickInput" class="nick" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ник">
+    <div id="pinDots" class="pin-dots" aria-label="PIN"></div>
+    <div class="pinpad" id="pinpad" aria-label="Пин-пад">
+      <button class="pk" data-digit="1">1</button>
+      <button class="pk" data-digit="2">2</button>
+      <button class="pk" data-digit="3">3</button>
+      <button class="pk" data-digit="4">4</button>
+      <button class="pk" data-digit="5">5</button>
+      <button class="pk" data-digit="6">6</button>
+      <button class="pk" data-digit="7">7</button>
+      <button class="pk" data-digit="8">8</button>
+      <button class="pk" data-digit="9">9</button>
+      <button class="pk ghost" hidden></button>
+      <button class="pk" data-digit="0">0</button>
+      <button class="pk ghost" data-action="back" aria-label="Стереть">⌫</button>
+    </div>
+    <button id="enterBtn" class="save gate-enter">Войти</button>
+    <p id="gateHint" class="hint">PIN — 4–6 цифр. Новый ник регистрируется при первом входе.</p>
+  </div>
+</div>
+
+<main class="studio" id="studio" hidden>
 
   <!-- Лента: чат-стрим, фото, треки — скроллится над композером -->
   <section id="feed" class="feed" aria-live="polite"></section>
+
+  <!-- Библиотека: все генерации — скачать / в избранное / удалить -->
+  <section id="lib" class="feed lib" hidden></section>
 
   <!-- Композер: карточка, прижатая к низу на мобайле -->
   <section class="composer-wrap">
@@ -102,6 +132,7 @@
         <button id="vocalChip" class="tool chip toggle music-only" hidden aria-pressed="false">Без вокала</button>
         <span class="spacer"></span>
         <button id="tuneToggle" class="tool chip toggle music-only" hidden aria-pressed="false">Тонко настроить</button>
+        <button id="profileChip" class="tool chip" title="Сменить профиль (выйти)"></button>
         <button id="send" class="send" aria-label="Отправить" disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
         </button>
@@ -124,6 +155,12 @@
       <p class="hint">Тот же ключ, что в Настройках демо. Хранится только в этом браузере.</p>
     </div>
   </section>
+
+  <!-- Вкладки: Чат / Библиотека -->
+  <nav class="tabs" id="tabs" aria-label="Разделы студии">
+    <button class="tab" data-tab="chat" aria-pressed="true">Чат</button>
+    <button class="tab" data-tab="library" aria-pressed="false">Библиотека</button>
+  </nav>
 </main>
 <script src="studio.js"></script>
 </body>

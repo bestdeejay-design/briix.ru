@@ -211,7 +211,10 @@
     vocalChip: $('vocalChip'), tuneToggle: $('tuneToggle'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
     composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
-    newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'), keyChip: $('keyChip')
+    newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'), keyChip: $('keyChip'),
+    gate: $('gate'), nickInput: $('nickInput'), pinDots: $('pinDots'), pinpad: $('pinpad'),
+    enterBtn: $('enterBtn'), gateHint: $('gateHint'), studio: $('studio'), profileChip: $('profileChip'),
+    tabs: $('tabs'), lib: $('lib')
   };
 
   let mode = 'chat';
@@ -486,6 +489,7 @@
       wrap.textContent = '';
       wrap.append(item);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-photo');
+      libAdd({ job: id, kind: 'photo', prompt: text, file: result.result_url, created: Date.now(), fav: false });
     } catch (error) {
       if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
@@ -546,6 +550,10 @@
       wrap.textContent = '';
       wrap.append(audio);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track');
+      libAdd({
+        job: id, kind: 'music', prompt: (style || lyrics || '').slice(0, 200),
+        model: MUSIC_MODELS[quality], duration, file: result.result_url, created: Date.now(), fav: false
+      });
     } catch (error) {
       // текст остаётся в полях для правки (в т.ч. после 422)
       if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;
@@ -636,6 +644,217 @@
     updateEnabled();
   }
 
+  // ---- auth: ник + PIN-пад (клиентский; переезд на серверную auth — INFRA #78) ----
+  const PROFILES_KEY = 'briix-studio-profiles';
+  const USER_KEY = 'briix-studio-user';
+  const libKey = nick => 'briix-studio-library-' + nick;
+  const PIN_MIN = 4, PIN_MAX = 6, PIN_MAX_FAILS = 5, PIN_LOCK_MS = 30000;
+
+  function pinHash(nick, pin) {
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(nick + '::' + pin))
+      .then(digest => [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join(''));
+  }
+  function profiles() { try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || {}; } catch { return {}; } }
+  function saveProfiles(p) { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(p)); } catch { /* приватный режим */ } }
+  function currentUser() { return localStorage.getItem(USER_KEY) || ''; }
+
+  let pinBuf = '';
+  let pinFails = 0;
+  let pinLockedUntil = 0;
+
+  function renderDots() {
+    els.pinDots.textContent = '';
+    for (let i = 0; i < Math.max(pinBuf.length, PIN_MIN); i++) {
+      const dot = document.createElement('span');
+      dot.className = 'pd' + (i < pinBuf.length ? ' on' : '');
+      els.pinDots.append(dot);
+    }
+  }
+  function gateHint(text) { els.gateHint.textContent = text; }
+
+  async function enterGate() {
+    const nick = els.nickInput.value.trim();
+    if (!nick) { gateHint('Сначала ник.'); els.nickInput.focus(); return; }
+    if (pinBuf.length < PIN_MIN) { gateHint('PIN — от ' + PIN_MIN + ' цифр.'); return; }
+    if (Date.now() < pinLockedUntil) { gateHint('Слишком много попыток — подождите полминуты.'); return; }
+    const hash = await pinHash(nick, pinBuf);
+    const profs = profiles();
+    if (profs[nick]) {
+      if (profs[nick].pinHash !== hash) {
+        pinFails++;
+        pinBuf = '';
+        renderDots();
+        if (pinFails >= PIN_MAX_FAILS) {
+          pinLockedUntil = Date.now() + PIN_LOCK_MS;
+          pinFails = 0;
+          gateHint('Неверный PIN. Пауза 30 секунд.');
+        } else {
+          gateHint('Неверный PIN. Осталось попыток: ' + (PIN_MAX_FAILS - pinFails) + '.');
+        }
+        return;
+      }
+    } else {
+      profs[nick] = { pinHash: hash, created: Date.now() };
+      saveProfiles(profs);
+      gateHint('Новый профиль создан.');
+    }
+    pinFails = 0;
+    pinBuf = '';
+    localStorage.setItem(USER_KEY, nick);
+    startSession(nick);
+  }
+
+  function startSession(nick) {
+    els.gate.hidden = true;
+    els.studio.hidden = false;
+    els.profileChip.textContent = nick;
+    setView('chat');
+    renderKeyChip();
+  }
+
+  function logout() {
+    localStorage.removeItem(USER_KEY);
+    els.studio.hidden = true;
+    els.gate.hidden = false;
+    els.nickInput.value = '';
+    pinBuf = '';
+    renderDots();
+    gateHint('PIN — 4–6 цифр. Новый ник регистрируется при первом входе.');
+    els.nickInput.focus();
+  }
+
+  // ---- библиотека (клиентская; переезд на GET /jobs — INFRA #77) ----------------
+  const blobCache = new Map(); // job_id → objectURL
+  let libFilter = 'all';
+
+  function libLoad() {
+    const nick = currentUser();
+    if (!nick) return [];
+    try { return JSON.parse(localStorage.getItem(libKey(nick))) || []; } catch { return []; }
+  }
+  function libSave(list) {
+    const nick = currentUser();
+    if (nick) { try { localStorage.setItem(libKey(nick), JSON.stringify(list)); } catch { /* переполнение */ } }
+  }
+  function libAdd(entry) {
+    const list = libLoad();
+    list.unshift(entry);
+    libSave(list);
+    if (!els.lib.hidden) renderLibrary();
+  }
+
+  const KIND_LABELS = { photo: 'Фото', music: 'Музыка' };
+  const FILTERS = [['all', 'Все'], ['photo', 'Фото'], ['music', 'Музыка'], ['fav', '★ Избранное']];
+
+  function renderLibrary() {
+    els.lib.innerHTML = '';
+    const filterRow = document.createElement('div');
+    filterRow.className = 'lib-filters';
+    for (const [value, label] of FILTERS) {
+      const chip = document.createElement('button');
+      chip.className = 'tag';
+      chip.textContent = label;
+      chip.setAttribute('aria-pressed', String(libFilter === value));
+      chip.addEventListener('click', () => { libFilter = value; renderLibrary(); });
+      filterRow.append(chip);
+    }
+    els.lib.append(filterRow);
+    const list = libLoad().filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter);
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'card notice';
+      empty.textContent = libFilter === 'all'
+        ? 'Пока пусто — создайте фото или трек в чате, они появятся здесь.'
+        : 'В этом фильтре пусто.';
+      els.lib.append(empty);
+      return;
+    }
+    for (const entry of list) els.lib.append(libCard(entry));
+  }
+
+  function libCard(entry) {
+    const div = document.createElement('div');
+    div.className = 'card lib-item' + (entry.fav ? ' fav' : '');
+    const who = document.createElement('div');
+    who.className = 'who';
+    who.textContent = (KIND_LABELS[entry.kind] || entry.kind) + ' · ' + new Date(entry.created).toLocaleString('ru-RU');
+    const promptEl = document.createElement('div');
+    promptEl.className = 'body lib-prompt';
+    promptEl.textContent = entry.prompt || '';
+    const media = document.createElement('div');
+    media.className = 'lib-media';
+    libMedia(entry, media);
+    const row = document.createElement('div');
+    row.className = 'actions';
+    const download = document.createElement('a');
+    download.className = 'action';
+    download.textContent = '⬇ Скачать';
+    download.href = '#';
+    download.addEventListener('click', async e => {
+      e.preventDefault();
+      const url = blobCache.get(entry.job);
+      if (!url) return;
+      download.href = url;
+      download.download = 'briix-' + entry.kind + '-' + new Date(entry.created).toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + (entry.kind === 'photo' ? 'png' : 'm4a');
+      download.click();
+    });
+    const fav = document.createElement('button');
+    fav.type = 'button';
+    fav.className = 'action';
+    fav.textContent = entry.fav ? '★ В избранном' : '☆ В избранное';
+    fav.addEventListener('click', () => {
+      const list = libLoad();
+      const item = list.find(x => x.job === entry.job);
+      if (item) { item.fav = !item.fav; libSave(list); renderLibrary(); }
+    });
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'action';
+    del.textContent = '🗑 Удалить';
+    del.addEventListener('click', () => {
+      if (!confirm('Удалить из библиотеки? Файл на стенде останется.')) return;
+      libSave(libLoad().filter(x => x.job !== entry.job));
+      blobCache.delete(entry.job);
+      renderLibrary();
+    });
+    row.append(download, fav, del);
+    div.append(who, promptEl, media, row);
+    return div;
+  }
+
+  async function libMedia(entry, container) {
+    container.textContent = 'Загружаем…';
+    let url = blobCache.get(entry.job);
+    if (!url) {
+      try {
+        const blob = await fileBlob(entry.file);
+        url = URL.createObjectURL(blob);
+        blobCache.set(entry.job, url);
+      } catch { container.textContent = 'Файл недоступен.'; return; }
+    }
+    container.textContent = '';
+    if (entry.kind === 'photo') {
+      const img = new Image();
+      img.alt = 'Результат';
+      img.src = url;
+      container.append(img);
+    } else {
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.preload = 'none';
+      audio.src = url;
+      container.append(audio);
+    }
+  }
+
+  // ---- вкладки: Чат / Библиотека -------------------------------------------------
+  function setView(next) {
+    els.tabs.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === next)));
+    els.feed.hidden = next !== 'chat';
+    els.lib.hidden = next !== 'library';
+    els.composer.hidden = next !== 'chat';
+    if (next === 'library') renderLibrary();
+  }
   // ---- wiring -------------------------------------------------------------------
   els.modes.addEventListener('click', e => {
     const button = e.target.closest('.mode');
@@ -681,6 +900,29 @@
     if (!els.keyCard.hidden) els.keyInput.focus();
   });
 
+  // пин-пад: цифры и backspace
+  els.pinpad.addEventListener('click', e => {
+    const button = e.target.closest('.pk');
+    if (!button) return;
+    if (button.dataset.digit && pinBuf.length < PIN_MAX) {
+      pinBuf += button.dataset.digit;
+      renderDots();
+      gateHint('');
+    } else if (button.dataset.action === 'back') {
+      pinBuf = pinBuf.slice(0, -1);
+      renderDots();
+    }
+  });
+  els.enterBtn.addEventListener('click', enterGate);
+  els.nickInput.addEventListener('keydown', e => { if (e.key === 'Enter') els.pinpad.querySelector('[data-digit="1"]').focus(); });
+  els.profileChip.addEventListener('click', () => {
+    if (confirm('Выйти из профиля ' + currentUser() + '?')) logout();
+  });
+  els.tabs.addEventListener('click', e => {
+    const tab = e.target.closest('.tab');
+    if (tab) setView(tab.dataset.tab);
+  });
+
   // Enter отправляет в чате, Shift+Enter — перенос строки (как в обычном мессенджере).
   els.prompt.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && mode === 'chat') {
@@ -693,5 +935,10 @@
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && document.activeElement === activePromptEl()) create();
   });
 
+  // ---- старт: сессия или гейт входа ------------------------------------------------
+  renderDots();
   renderChrome();
+  const savedUser = currentUser();
+  if (savedUser && profiles()[savedUser]) startSession(savedUser);
+  else { els.gate.hidden = false; els.nickInput.focus(); }
 })();

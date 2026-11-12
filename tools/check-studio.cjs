@@ -121,17 +121,28 @@ function bffServer(port) {
   const errors = [];
   const URL_ = `http://127.0.0.1:${STATIC_PORT}/studio.html`;
 
-  async function page({ viewport = { width: 1440, height: 1000 }, token = TOKEN } = {}) {
+  async function page({ viewport = { width: 1440, height: 1000 }, token = TOKEN, user = 'tester' } = {}) {
     const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
     const p = await context.newPage();
     p.on('pageerror', e => errors.push(e.message));
-    if (token) await p.addInitScript(({ t, port }) => {
+    const sessionScript = ({ t, port, user }) => {
       localStorage.setItem('briix-media-live-token', t);
       localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port));
-    }, { t: token, port: BFF_PORT });
-    else await p.addInitScript(port => localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port)), BFF_PORT);
+      if (user) { // предзаданная сессия v3: гейт входа пропускаем
+        localStorage.setItem('briix-studio-profiles', JSON.stringify({ [user]: { pinHash: 'x', created: 0 } }));
+        localStorage.setItem('briix-studio-user', user);
+      }
+    };
+    if (token) await p.addInitScript(sessionScript, { t: token, port: BFF_PORT, user });
+    else await p.addInitScript(({ port, user }) => {
+      localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port));
+      if (user) {
+        localStorage.setItem('briix-studio-profiles', JSON.stringify({ [user]: { pinHash: 'x', created: 0 } }));
+        localStorage.setItem('briix-studio-user', user);
+      }
+    }, { port: BFF_PORT, user });
     await p.goto(URL_);
-    await p.waitForSelector('#send');
+    await p.waitForSelector(user ? '#send' : '#gate');
     return p;
   }
 
@@ -379,19 +390,69 @@ function bffServer(port) {
   assert.equal(await p.locator('#keyCard').isVisible(), false, 'key chip closes the key card');
   ok('key chip reflects state and toggles the key card', {});
 
-  // 16. Мобильный 390×844: композер у низа, без горскролла, тач-таргеты ≥44.
+  // 16. Гейт входа: ник + PIN-пад, регистрация, сессия, выход, неверный PIN.
+  p = await page({ user: '' });
+  await p.waitForTimeout(200);
+  assert.equal(await p.locator('#gate').isVisible(), true, 'gate shown without a session');
+  assert.equal(await p.locator('#studio').isVisible(), false, 'studio hidden behind the gate');
+  await p.locator('#nickInput').fill('owner');
+  for (const digit of '1234') await p.locator(`.pk[data-digit="${digit}"]`).click();
+  assert.equal(await p.locator('.pd.on').count(), 4, 'four pin dots lit');
+  await p.locator('#enterBtn').click();
+  await p.waitForSelector('#studio:not([hidden])');
+  assert.equal(await p.locator('#profileChip').innerText(), 'owner');
+  await p.reload();
+  await p.waitForSelector('#studio:not([hidden])');
+  assert.equal(await p.locator('#gate').isVisible(), false, 'session survives reload');
+  p.once('dialog', d => d.accept());
+  await p.locator('#profileChip').click();
+  await p.waitForSelector('#gate:not([hidden])');
+  await p.locator('#nickInput').fill('owner');
+  for (const digit of '9999') await p.locator(`.pk[data-digit="${digit}"]`).click();
+  await p.locator('#enterBtn').click();
+  await p.waitForFunction(() => document.getElementById('gateHint').textContent.includes('Неверный PIN'));
+  ok('gate: nick+pinpad login, registration, session persistence, logout, wrong pin', {});
+
+  // 17. Вкладки/библиотека: генерация попадает в библиотеку, избранное и удаление.
+  p = await page();
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('a lighthouse in fog');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card img', { timeout: 20000 });
+  await p.locator('.tab[data-tab="library"]').click();
+  assert.equal(await p.locator('#lib').isVisible(), true, 'library tab opens');
+  assert.equal(await p.locator('#composer').isVisible(), false, 'composer hidden in library');
+  await p.waitForSelector('.lib-item', { timeout: 10000 });
+  assert.match(await p.locator('.lib-item .lib-prompt').first().innerText(), /lighthouse/);
+  await p.locator('.lib-filters .tag', { hasText: '★ Избранное' }).click();
+  assert.equal(await p.locator('.lib-item').count(), 0, 'not a favorite yet');
+  await p.locator('.lib-filters .tag', { hasText: 'Все' }).click();
+  await p.locator('.lib-item .action', { hasText: 'В избранное' }).first().click();
+  assert.ok(await p.locator('.lib-item.fav').count() >= 1, 'favorite applied');
+  await p.locator('.lib-filters .tag', { hasText: '★ Избранное' }).click();
+  assert.ok(await p.locator('.lib-item').count() >= 1, 'favorite filter shows it');
+  await p.locator('.lib-filters .tag', { hasText: 'Все' }).click();
+  const beforeDel = await p.locator('.lib-item').count();
+  p.once('dialog', d => d.accept());
+  await p.locator('.lib-item .action', { hasText: 'Удалить' }).first().click();
+  await p.waitForFunction(n => document.querySelectorAll('.lib-item').length < n, beforeDel);
+  await p.locator('.tab[data-tab="chat"]').click();
+  assert.equal(await p.locator('#composer').isVisible(), true, 'chat tab restores composer');
+  ok('library: entry from job, favorite toggle + filter, delete, tab switching', {});
+
+  // 18. Мобильный 390×844: композер у низа, без горскролла, тач-таргеты ≥44.
   p = await page({ viewport: { width: 390, height: 844 } });
   await p.waitForTimeout(300);
   const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 0, 'no horizontal scroll at 390px, overflow=' + overflow);
   const geo = await p.evaluate(() => {
-    const wrap = document.querySelector('.composer-wrap').getBoundingClientRect();
+    const wrap = (document.querySelector('.tabs') || document.querySelector('.composer-wrap')).getBoundingClientRect();
     const sizes = [...document.querySelectorAll('button, textarea, input')]
       .filter(el => el.offsetParent !== null && !el.closest('[hidden]'))
       .map(el => Math.max(el.getBoundingClientRect().width, el.getBoundingClientRect().height));
     return { bottomGap: window.innerHeight - Math.round(wrap.bottom), minTarget: Math.min(...sizes.filter(s => s > 0)) };
   });
-  assert.ok(geo.bottomGap >= 0 && geo.bottomGap <= 16, 'composer pinned to viewport bottom, gap=' + geo.bottomGap);
+  assert.ok(geo.bottomGap >= 0 && geo.bottomGap <= 16, 'composer + tabs pinned to viewport bottom, gap=' + geo.bottomGap);
   assert.ok(geo.minTarget >= 44, 'smallest touch target >= 44px, got ' + geo.minTarget);
   await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-390.png'), fullPage: false });
   // Музыка на мобайле: тулбар не ломается.

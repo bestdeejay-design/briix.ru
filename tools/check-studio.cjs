@@ -424,16 +424,25 @@ function bffServer(port) {
   await p.waitForFunction(() => document.getElementById('gateHint').textContent.includes('Неверный PIN'));
   ok('gate: nick+pinpad login, registration, session persistence, logout, wrong pin', {});
 
-  // 17. Вкладки/библиотека: музыка с лирикой и фото попадают в библиотеку, избранное и удаление.
+  // 17. Вкладки/библиотека: вокальный трек БЕЗ лирики (автолирика на свежей странице) и фото в библиотеке.
   p = await page();
-  // Музыкальная джоба в advanced-режиме с лирикой (быстрее полной секции 7).
+  // Вокальный джоб без лирики: автолирика обязана сработать на свежей странице (регресс null-controller).
   await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('#vocalChip').click(); // отжать инструментал → вокальный трек
+  assert.equal(await p.locator('#vocalChip').getAttribute('aria-pressed'), 'false');
+  await p.locator('#prompt').fill('душевная песня про город');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.assistant audio', { timeout: 25000 });
+  const autoPost = state.jobPosts.at(-1);
+  assert.equal(autoPost.params.instrumental, undefined, 'vocal job');
+  assert.ok(String(autoPost.params.lyrics || '').length > 20, 'auto-lyrics wrote the lyrics on a fresh page');
+  // Второй джоб в advanced с ручной лирикой (для текста в библиотеке).
   await p.locator('#tuneToggle').click();
   const libLyrics = '[Verse]\nГород спит\n[Chorus]\nА я не сплю';
   await p.locator('#lyrics').fill(libLyrics);
   await p.locator('#musicPrompt').fill('dream pop, 90 BPM');
   await p.locator('#send').click();
-  await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
+  await p.waitForFunction(() => document.querySelectorAll('audio').length >= 2, {}, { timeout: 25000 });
   // Фото-джоба.
   await p.locator('.mode[data-mode="photo"]').click();
   await p.locator('#prompt').fill('a lighthouse in fog');

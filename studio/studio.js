@@ -564,8 +564,11 @@
       { role: 'user', content: 'Тема песни: ' + topic }
     ];
     let full = '';
-    // глобальный стоп + потолок 150 с (qwen3 на CPU пишет песню неспешно; лимит каталога 180)
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(150000)]);
+    // свой контроллер (глобальный может быть ещё null) + регистрация его как «текущего»,
+    // чтобы стоп-кнопка гасила и авторство песни; потолок 150 с (лимит каталога 180)
+    const local = new AbortController();
+    controller = local;
+    const signal = AbortSignal.any([local.signal, AbortSignal.timeout(150000)]);
     try {
       full = await chatStream({ messages, onChunk: () => {}, signal });
     } catch (error) {

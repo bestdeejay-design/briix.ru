@@ -218,7 +218,7 @@
   let cancelRequested = false;
   let duration = 300; // по умолчанию — полная песня
   try { const saved = Number(localStorage.getItem('briix-studio-duration')); if (saved >= 5) duration = saved; } catch {}
-  let instrumental = true; // дефолт «Инструментал», пока вокальный контур не починен (infra#79) — вернуть false после
+  let instrumental = false; // вокальный контур починен (infra#79) — дефолт снова «Песня»; выбор хранится в браузере
   try { const savedInstr = localStorage.getItem('briix-studio-instrumental'); if (savedInstr !== null) instrumental = savedInstr === '1'; } catch {}
   let advanced = false;
   let busy = false;

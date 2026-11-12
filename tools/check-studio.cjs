@@ -261,8 +261,8 @@ function bffServer(port) {
   await p.locator('#durationChip').click();
   await p.locator('#durationMenu button', { hasText: '60 с' }).click();
   assert.equal(await p.locator('#durationName').innerText(), '60 с');
-  assert.equal(await p.locator('.seg-btn[data-vocal="1"]').getAttribute('aria-pressed'), 'true', 'instrumental selected by default while vocal route is broken (infra#79)');
-  assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'false');
+  assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'true', 'vocal «Песня» is the default again (infra#79 fixed)');
+  assert.equal(await p.locator('.seg-btn[data-vocal="1"]').getAttribute('aria-pressed'), 'false');
   await p.evaluate(() => {
     window.__stageSeen = [];
     new MutationObserver(muts => {
@@ -284,10 +284,10 @@ function bffServer(port) {
   assert.match(musicPost.params.lyrics, /\[Chorus\]/);
   assert.equal(musicPost.params.model, 'ace-step-flash');
   assert.equal(musicPost.params.duration_seconds, 60);
-  assert.equal(musicPost.params.instrumental, true);
-  // Pro через чип модели + снова с вокалом (режим «Песня» выбран явно).
-  await p.locator('.seg-btn[data-vocal="0"]').click();
-  assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'true', 'vocal mode explicitly selected');
+  assert.equal(musicPost.params.instrumental, undefined);
+  // Pro через чип модели + снова инструментал (режим «Инструментал» выбран явно).
+  await p.locator('.seg-btn[data-vocal="1"]').click();
+  assert.equal(await p.locator('.seg-btn[data-vocal="1"]').getAttribute('aria-pressed'), 'true', 'instrumental mode explicitly selected');
   await p.locator('#modelChip').click();
   await p.locator('#modelMenu button', { hasText: 'Pro' }).click();
   assert.equal(await p.locator('#modelName').innerText(), 'Pro');
@@ -295,7 +295,7 @@ function bffServer(port) {
   await p.locator('#send').click();
   await p.waitForFunction(() => document.querySelectorAll('audio').length >= 2, {}, { timeout: 20000 });
   assert.equal(state.jobPosts.at(-1).params.model, 'ace-step-pro');
-  assert.equal(state.jobPosts.at(-1).params.instrumental, undefined, 'vocal toggle off removes the flag');
+  assert.equal(state.jobPosts.at(-1).params.instrumental, true, 'instrumental mode adds the flag');
   ok('music job: lyrics + style + duration/instrumental/pro chips, stages, audio player', {});
 
   // 8. Фото-джоба: превью в ленту.

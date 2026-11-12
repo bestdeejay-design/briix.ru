@@ -564,12 +564,12 @@
       { role: 'user', content: 'Тема песни: ' + topic }
     ];
     let full = '';
-    // глобальный стоп + потолок 60 с, что бы ни случилось
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]);
+    // глобальный стоп + потолок 150 с (qwen3 на CPU пишет песню неспешно; лимит каталога 180)
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(150000)]);
     try {
       full = await chatStream({ messages, onChunk: () => {}, signal });
     } catch (error) {
-      if (error.name === 'TimeoutError') throw new BusError('timeout', 'Автор песни не ответил за минуту.');
+      if (error.name === 'TimeoutError') throw new BusError('timeout', 'Автор песни не ответил за 150 секунд.');
       throw error;
     }
     return full.trim().slice(0, 8000);

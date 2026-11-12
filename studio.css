@@ -340,3 +340,17 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .lib-item .lib-media { min-height: 20px; font-size: 13px; color: var(--faint); }
 .lib-item .lib-media img, .lib-item .lib-media audio { width: 100%; border-radius: 10px; margin-top: 8px; display: block; }
 .lib-item.fav { border-color: var(--amber); }
+.lib-lyrics { margin-top: 8px; }
+.lib-lyrics-toggle { font-size: 12px; }
+.lib-lyrics-text {
+  margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.5;
+  white-space: pre-wrap; max-height: 200px; overflow: auto;
+  background: var(--surface-2); border-radius: 10px; padding: 8px 10px;
+}
+
+/* ---- профиль-меню в панели вкладок ----------------------------------------- */
+.tabs-profile { margin-left: auto; }
+.menu-nick { display: block; padding: 8px 12px 4px; font-size: 12px; font-weight: 600; color: var(--faint); }
+@media (max-width: 640px) {
+  .tabs .tool.icon-only { min-height: 44px; min-width: 44px; }
+}

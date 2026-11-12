@@ -382,13 +382,19 @@ function bffServer(port) {
   assert.match(dl, /^briix-photo-.*\.png$/, 'download link carries a filename');
   ok('photo card carries a download link', { dl });
 
-  // 15. Чип ключа: состояние и тогл карточки ввода.
-  assert.equal(await p.locator('#keyChip').getAttribute('aria-pressed'), 'true', 'key chip marks the saved key');
-  await p.locator('#keyChip').click();
-  assert.equal(await p.locator('#keyCard').isVisible(), true, 'key chip opens the key card');
-  await p.locator('#keyChip').click();
-  assert.equal(await p.locator('#keyCard').isVisible(), false, 'key chip closes the key card');
-  ok('key chip reflects state and toggles the key card', {});
+  // 15. Профиль-меню: ник, ключ через «Ключ стенда…», Escape закрывает меню.
+  await p.locator('#profileBtn').click();
+  await p.waitForSelector('#profileMenu:not([hidden])');
+  assert.match(await p.locator('#profileNick').innerText(), /^tester$/, 'profile menu shows the nick');
+  await p.locator('#profileKeyBtn').click();
+  await p.waitForSelector('#keyCard:not([hidden])');
+  assert.equal(await p.locator('#keyCard').isVisible(), true, 'key card opens from the profile menu');
+  assert.equal(await p.locator('#profileMenu').isVisible(), false, 'menu closed after picking the item');
+  await p.locator('#profileBtn').click();
+  await p.waitForSelector('#profileMenu:not([hidden])');
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#profileMenu').isVisible(), false, 'Escape closes the profile menu');
+  ok('profile menu: nick label, key card via menu item, Escape closes', {});
 
   // 16. Гейт входа: ник + PIN-пад, регистрация, сессия, выход, неверный PIN.
   p = await page({ user: '' });
@@ -400,12 +406,14 @@ function bffServer(port) {
   assert.equal(await p.locator('.pd.on').count(), 4, 'four pin dots lit');
   await p.locator('#enterBtn').click();
   await p.waitForSelector('#studio:not([hidden])');
-  assert.equal(await p.locator('#profileChip').innerText(), 'owner');
+  assert.equal(await p.locator('#profileNick').innerText(), 'owner');
   await p.reload();
   await p.waitForSelector('#studio:not([hidden])');
   assert.equal(await p.locator('#gate').isVisible(), false, 'session survives reload');
   p.once('dialog', d => d.accept());
-  await p.locator('#profileChip').click();
+  await p.locator('#profileBtn').click();
+  await p.waitForSelector('#profileMenu:not([hidden])');
+  await p.locator('#profileLogoutBtn').click();
   await p.waitForSelector('#gate:not([hidden])');
   await p.locator('#nickInput').fill('owner');
   for (const digit of '9999') await p.locator(`.pk[data-digit="${digit}"]`).click();
@@ -413,8 +421,17 @@ function bffServer(port) {
   await p.waitForFunction(() => document.getElementById('gateHint').textContent.includes('Неверный PIN'));
   ok('gate: nick+pinpad login, registration, session persistence, logout, wrong pin', {});
 
-  // 17. Вкладки/библиотека: генерация попадает в библиотеку, избранное и удаление.
+  // 17. Вкладки/библиотека: музыка с лирикой и фото попадают в библиотеку, избранное и удаление.
   p = await page();
+  // Музыкальная джоба в advanced-режиме с лирикой (быстрее полной секции 7).
+  await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('#tuneToggle').click();
+  const libLyrics = '[Verse]\nГород спит\n[Chorus]\nА я не сплю';
+  await p.locator('#lyrics').fill(libLyrics);
+  await p.locator('#musicPrompt').fill('dream pop, 90 BPM');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
+  // Фото-джоба.
   await p.locator('.mode[data-mode="photo"]').click();
   await p.locator('#prompt').fill('a lighthouse in fog');
   await p.locator('#send').click();
@@ -423,7 +440,19 @@ function bffServer(port) {
   assert.equal(await p.locator('#lib').isVisible(), true, 'library tab opens');
   assert.equal(await p.locator('#composer').isVisible(), false, 'composer hidden in library');
   await p.waitForSelector('.lib-item', { timeout: 10000 });
-  assert.match(await p.locator('.lib-item .lib-prompt').first().innerText(), /lighthouse/);
+  assert.match(await p.locator('.lib-item .lib-prompt', { hasText: 'lighthouse' }).innerText(), /lighthouse/);
+  // Музыкальная запись: модель в .who, подпись M4A, сворачиваемый текст песни.
+  const musicItem = p.locator('.lib-item', { hasText: /Музыка/i }).first();
+  const musicWho = await musicItem.locator('.who').innerText();
+  assert.match(musicWho, /ace-step/i, 'music .who carries the model');
+  assert.match(musicWho, /\d+\s*с/i, 'music .who carries the duration');
+  assert.match(await musicItem.locator('a.action').first().innerText(), /M4A/, 'music download labelled M4A');
+  const lyricsToggle = musicItem.locator('.lib-lyrics-toggle');
+  assert.equal(await lyricsToggle.isVisible(), true, 'lyrics toggle exists');
+  await lyricsToggle.click();
+  const lyricsBlock = musicItem.locator('.lib-lyrics.open .lib-lyrics-text');
+  assert.equal(await lyricsBlock.isVisible(), true, 'lyrics block opens');
+  assert.match(await lyricsBlock.innerText(), /Город спит/, 'lyrics block carries the lyrics text');
   await p.locator('.lib-filters .tag', { hasText: '★ Избранное' }).click();
   assert.equal(await p.locator('.lib-item').count(), 0, 'not a favorite yet');
   await p.locator('.lib-filters .tag', { hasText: 'Все' }).click();

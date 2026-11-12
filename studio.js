@@ -211,9 +211,11 @@
     vocalChip: $('vocalChip'), tuneToggle: $('tuneToggle'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
     composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
-    newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'), keyChip: $('keyChip'),
+    newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'),
     gate: $('gate'), nickInput: $('nickInput'), pinDots: $('pinDots'), pinpad: $('pinpad'),
-    enterBtn: $('enterBtn'), gateHint: $('gateHint'), studio: $('studio'), profileChip: $('profileChip'),
+    enterBtn: $('enterBtn'), gateHint: $('gateHint'), studio: $('studio'),
+    profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), profileNick: $('profileNick'),
+    profileKeyBtn: $('profileKeyBtn'), profileLogoutBtn: $('profileLogoutBtn'),
     tabs: $('tabs'), lib: $('lib')
   };
 
@@ -359,14 +361,14 @@
     if (t.includes('mpeg')) return 'mp3';
     return 'm4a'; // audio/mp4 и дефолт
   }
-  function addDownloadAction(container, blob, name) {
+  function addDownloadAction(container, blob, name, label) {
     const row = document.createElement('div');
     row.className = 'actions';
     const link = document.createElement('a');
     link.className = 'action';
     link.href = URL.createObjectURL(blob);
     link.download = name + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + extOf(blob);
-    link.textContent = '⬇ Скачать';
+    link.textContent = label || '⬇ Скачать';
     row.append(link);
     container.append(row);
   }
@@ -431,12 +433,11 @@
     return false;
   }
 
-  // Чип ключа: видно, задан ли ключ; клик — открыть/закрыть карточку ввода.
+  // Профиль-меню: актуальность подписей (ник и состояние ключа).
   function renderKeyChip() {
     const has = Boolean(token());
-    els.keyChip.setAttribute('aria-pressed', String(has));
-    els.keyChip.title = has ? 'Ключ сохранён — нажмите, чтобы сменить' : 'Ключ стенда не задан — нажмите, чтобы ввести';
-    els.keyChip.setAttribute('aria-label', els.keyChip.title);
+    els.profileNick.textContent = currentUser() || '';
+    els.profileBtn.title = has ? 'Профиль — ключ стенда сохранён' : 'Профиль — ключ стенда не задан';
   }
 
   // ---- потоки -------------------------------------------------------------------
@@ -549,9 +550,12 @@
       const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', '');
       wrap.textContent = '';
       wrap.append(audio);
-      addDownloadAction(wrap.closest('.card'), blob, 'briix-track');
+      addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать M4A');
+      const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
       libAdd({
         job: id, kind: 'music', prompt: (style || lyrics || '').slice(0, 200),
+        lyrics: (lyrics || '').slice(0, 8000),
+        title: titleSource.slice(0, 60),
         model: MUSIC_MODELS[quality], duration, file: result.result_url, created: Date.now(), fav: false
       });
     } catch (error) {
@@ -707,7 +711,7 @@
   function startSession(nick) {
     els.gate.hidden = true;
     els.studio.hidden = false;
-    els.profileChip.textContent = nick;
+    els.profileNick.textContent = nick;
     setView('chat');
     renderKeyChip();
   }
@@ -777,7 +781,11 @@
     div.className = 'card lib-item' + (entry.fav ? ' fav' : '');
     const who = document.createElement('div');
     who.className = 'who';
-    who.textContent = (KIND_LABELS[entry.kind] || entry.kind) + ' · ' + new Date(entry.created).toLocaleString('ru-RU');
+    let whoText = KIND_LABELS[entry.kind] || entry.kind;
+    if (entry.kind === 'music' && entry.model) whoText += ' · ' + entry.model;
+    if (entry.kind === 'music' && entry.duration) whoText += ' · ' + entry.duration + ' с';
+    whoText += ' · ' + new Date(entry.created).toLocaleString('ru-RU');
+    who.textContent = whoText;
     const promptEl = document.createElement('div');
     promptEl.className = 'body lib-prompt';
     promptEl.textContent = entry.prompt || '';
@@ -788,7 +796,7 @@
     row.className = 'actions';
     const download = document.createElement('a');
     download.className = 'action';
-    download.textContent = '⬇ Скачать';
+    download.textContent = entry.kind === 'music' ? '⬇ Скачать M4A' : '⬇ Скачать';
     download.href = '#';
     download.addEventListener('click', async e => {
       e.preventDefault();
@@ -819,6 +827,25 @@
     });
     row.append(download, fav, del);
     div.append(who, promptEl, media, row);
+    if (entry.kind === 'music' && entry.lyrics) {
+      const lyricsWrap = document.createElement('div');
+      lyricsWrap.className = 'lib-lyrics';
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'action lib-lyrics-toggle';
+      toggle.textContent = '¶ Текст песни';
+      toggle.addEventListener('click', () => {
+        const open = lyricsWrap.classList.toggle('open');
+        body.hidden = !open;
+        toggle.setAttribute('aria-expanded', String(open));
+      });
+      const body = document.createElement('div');
+      body.className = 'lib-lyrics-text';
+      body.hidden = true;
+      body.textContent = entry.lyrics;
+      lyricsWrap.append(toggle, body);
+      div.append(lyricsWrap);
+    }
     return div;
   }
 
@@ -895,9 +922,24 @@
     card('notice', 'Ключ', 'Ключ сохранён в этом браузере.');
   });
 
-  els.keyChip.addEventListener('click', () => {
-    els.keyCard.hidden = !els.keyCard.hidden;
-    if (!els.keyCard.hidden) els.keyInput.focus();
+  // Профиль-меню в панели вкладок: пункты статичные, меню руками (не attachMenu).
+  els.profileBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const willOpen = els.profileMenu.hidden;
+    closeMenus();
+    if (!willOpen) return;
+    renderKeyChip();
+    els.profileMenu.hidden = false;
+    els.profileBtn.setAttribute('aria-expanded', 'true');
+  });
+  els.profileKeyBtn.addEventListener('click', () => {
+    closeMenus();
+    els.keyCard.hidden = false;
+    els.keyInput.focus();
+  });
+  els.profileLogoutBtn.addEventListener('click', () => {
+    closeMenus();
+    if (confirm('Выйти из профиля ' + currentUser() + '?')) logout();
   });
 
   // пин-пад: цифры и backspace
@@ -915,9 +957,6 @@
   });
   els.enterBtn.addEventListener('click', enterGate);
   els.nickInput.addEventListener('keydown', e => { if (e.key === 'Enter') els.pinpad.querySelector('[data-digit="1"]').focus(); });
-  els.profileChip.addEventListener('click', () => {
-    if (confirm('Выйти из профиля ' + currentUser() + '?')) logout();
-  });
   els.tabs.addEventListener('click', e => {
     const tab = e.target.closest('.tab');
     if (tab) setView(tab.dataset.tab);

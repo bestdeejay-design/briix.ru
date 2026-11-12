@@ -19,6 +19,8 @@
     'model-warmup': 'Прогреваем модель…'
   };
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
+  const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+  const STOP_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
   const PLACEHOLDERS = {
     chat: 'Что создаём?',
     photo: 'Что рисуем? Опишите изображение…',
@@ -86,9 +88,9 @@
     return response;
   }
 
-  async function chatNonStream({ messages, maxTokens }) {
+  async function chatNonStream({ messages, maxTokens, signal }) {
     const response = await request('/v1/chat/completions', {
-      method: 'POST', headers: headers(), signal: signalOf(),
+      method: 'POST', headers: headers(), signal: signal || signalOf(),
       body: JSON.stringify({ messages, stream: false, max_tokens: maxTokens || 600 })
     });
     const payload = await response.json();
@@ -107,9 +109,9 @@
     try { return JSON.parse(payload); } catch { return null; }
   }
 
-  async function chatStream({ messages, onChunk }) {
+  async function chatStream({ messages, onChunk, signal }) {
     const response = await request('/v1/chat/completions', {
-      method: 'POST', headers: headers(), signal: signalOf(),
+      method: 'POST', headers: headers(), signal: signal || signalOf(),
       body: JSON.stringify({ messages, stream: true })
     });
     if (!response.body) throw new BusError('stream_unsupported', 'Браузер не отдал тело потока.');
@@ -145,7 +147,9 @@
   async function pollJob(id, { onStatus, intervalMs = 2000, timeoutMs = 15 * 60000 }) {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
+      if (cancelRequested) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
       await new Promise(r => setTimeout(r, intervalMs));
+      if (cancelRequested) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
       const response = await request('/jobs/' + encodeURIComponent(id), { headers: headers() });
       const data = await response.json();
       onStatus?.(data);
@@ -206,11 +210,13 @@
     durationChip: $('durationChip'), durationName: $('durationName'), durationMenu: $('durationMenu'),
     vocalChip: $('vocalChip'), tuneToggle: $('tuneToggle'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
-    composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave')
+    composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
+    newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'), keyChip: $('keyChip')
   };
 
   let mode = 'chat';
   let quality = 'flash';
+  let cancelRequested = false;
   let duration = 300; // по умолчанию — полная песня
   try { const saved = Number(localStorage.getItem('briix-studio-duration')); if (saved >= 5) duration = saved; } catch {}
   let instrumental = false;
@@ -224,6 +230,13 @@
   function signalOf() {
     controller = new AbortController();
     return controller.signal;
+  }
+
+  // Стоп: прерывает и чат-стрим, и поллинг задачи. Задача на сервере не отменяется.
+  function stopAll() {
+    if (!busy) return;
+    cancelRequested = true;
+    controller?.abort();
   }
 
   function setStatus(text, isBusy) {
@@ -304,6 +317,10 @@
   }
 
   function errorCard(error) {
+    if (error.name === 'AbortError' || error.code === 'cancelled') {
+      card('notice', 'Остановлено', 'Генерацию остановили — текст остался в поле, можно править и запустить снова.');
+      return;
+    }
     if (error.code === 'content_blocked') {
       const body = card('error', 'Модерация', 'Не пройдена проверка контента: ' + (error.message || 'запрос нарушает политику.') + ' Текст сохранён в поле ввода — отредактируйте и попробуйте снова.');
       body.dataset.code = 'content_blocked';
@@ -314,8 +331,7 @@
   }
 
   // «Сделать из этого трек»: чат → музыка с подставленным брифом.
-  function addMakeTrackAction(container, brief) {
-    const row = document.createElement('div');
+  function addMakeTrackAction(container, brief) {    const row = document.createElement('div');
     row.className = 'actions';
     const button = document.createElement('button');
     button.type = 'button';
@@ -331,6 +347,27 @@
     container.append(row);
   }
 
+  // Кнопка «Скачать» под готовым фото/треком (blob уже в памяти страницы).
+  function extOf(blob) {
+    const t = blob.type || '';
+    if (t.includes('png')) return 'png';
+    if (t.includes('jpeg')) return 'jpg';
+    if (t.includes('wav')) return 'wav';
+    if (t.includes('mpeg')) return 'mp3';
+    return 'm4a'; // audio/mp4 и дефолт
+  }
+  function addDownloadAction(container, blob, name) {
+    const row = document.createElement('div');
+    row.className = 'actions';
+    const link = document.createElement('a');
+    link.className = 'action';
+    link.href = URL.createObjectURL(blob);
+    link.download = name + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + extOf(blob);
+    link.textContent = '⬇ Скачать';
+    row.append(link);
+    container.append(row);
+  }
+
   // ---- режим/состояния ---------------------------------------------------------
   function setMode(next) {
     mode = next;
@@ -341,6 +378,9 @@
     els.modes.querySelectorAll('.mode').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const isMusic = mode === 'music';
     document.querySelectorAll('.music-only').forEach(el => { el.hidden = !isMusic; });
+    document.querySelectorAll('.chat-only').forEach(el => { el.hidden = mode !== 'chat'; });
+    document.querySelectorAll('.photo-only').forEach(el => { el.hidden = mode !== 'photo'; });
+    renderKeyChip();
     els.advanced.hidden = !(isMusic && advanced);
     els.prompt.hidden = isMusic && advanced;
     els.prompt.placeholder = PLACEHOLDERS[mode];
@@ -362,14 +402,18 @@
   }
 
   function updateEnabled() {
-    els.send.disabled = busy || !promptValue();
+    els.send.disabled = !busy && !promptValue(); // во время работы send = стоп, не глушим
     els.improveLyrics.disabled = busy || !els.lyrics.value.trim();
     els.improvePrompt.disabled = busy || !els.musicPrompt.value.trim();
+    els.improvePhoto.disabled = busy || mode !== 'photo' || !els.prompt.value.trim();
   }
 
   function setBusy(v, statusText) {
     busy = v;
     els.send.classList.toggle('busy', v);
+    els.send.classList.toggle('stop', v); // во время работы кнопка отправки = стоп
+    els.send.setAttribute('aria-label', v ? 'Остановить' : 'Отправить');
+    els.send.innerHTML = v ? STOP_SVG : SEND_SVG;
     els.improveLyrics.classList.toggle('busy', v);
     els.improvePrompt.classList.toggle('busy', v);
     setStatus(v ? (statusText || 'Работаем…') : '', v);
@@ -384,9 +428,18 @@
     return false;
   }
 
+  // Чип ключа: видно, задан ли ключ; клик — открыть/закрыть карточку ввода.
+  function renderKeyChip() {
+    const has = Boolean(token());
+    els.keyChip.setAttribute('aria-pressed', String(has));
+    els.keyChip.title = has ? 'Ключ сохранён — нажмите, чтобы сменить' : 'Ключ стенда не задан — нажмите, чтобы ввести';
+    els.keyChip.setAttribute('aria-label', els.keyChip.title);
+  }
+
   // ---- потоки -------------------------------------------------------------------
   async function create() {
     if (busy) return;
+    cancelRequested = false;
     if (!needKey()) return;
     const text = promptValue();
     if (!text) return;
@@ -432,6 +485,7 @@
       const wrap = card('assistant', 'Фото готово', '');
       wrap.textContent = '';
       wrap.append(item);
+      addDownloadAction(wrap.closest('.card'), blob, 'briix-photo');
     } catch (error) {
       if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
@@ -445,11 +499,14 @@
       { role: 'user', content: 'Тема песни: ' + topic }
     ];
     let full = '';
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
+    // глобальный стоп + потолок 60 с, что бы ни случилось
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]);
     try {
-      full = await chatStream({ messages, onChunk: () => {}, signal: controller.signal });
-    } finally { clearTimeout(timer); }
+      full = await chatStream({ messages, onChunk: () => {}, signal });
+    } catch (error) {
+      if (error.name === 'TimeoutError') throw new BusError('timeout', 'Автор песни не ответил за минуту.');
+      throw error;
+    }
     return full.trim().slice(0, 8000);
   }
 
@@ -488,6 +545,7 @@
       const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', '');
       wrap.textContent = '';
       wrap.append(audio);
+      addDownloadAction(wrap.closest('.card'), blob, 'briix-track');
     } catch (error) {
       // текст остаётся в полях для правки (в т.ч. после 422)
       if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;
@@ -527,6 +585,44 @@
     updateEnabled();
   }
 
+  // ✨ в режиме «Фото»: арт-директор улучшает промпт перед отправкой.
+  async function improvePhoto() {
+    if (busy) return;
+    const original = els.prompt.value.trim();
+    if (!original || !needKey()) return;
+    cancelRequested = false;
+    setBusy(true, 'Улучшаем промпт…');
+    els.improvePhoto.classList.add('busy');
+    try {
+      const improved = await chatNonStream({
+        messages: [
+          { role: 'system', content: currentAssistant().system },
+          { role: 'user', content: 'Улучши промпт:\n\n' + original }
+        ],
+        maxTokens: 600
+      });
+      undoBackup.prompt = original;
+      els.prompt.value = improved.trim();
+      els.undoPhoto.hidden = false;
+    } catch (error) { errorCard(error); }
+    finally { els.improvePhoto.classList.remove('busy'); setBusy(false); updateEnabled(); }
+  }
+
+  function undoPhoto() {
+    if (undoBackup.prompt == null) return;
+    els.prompt.value = undoBackup.prompt;
+    undoBackup.prompt = null;
+    els.undoPhoto.hidden = true;
+    updateEnabled();
+  }
+
+  // Новый чат: чистим ленту и историю (мод/качество/ключ не трогаем).
+  function newChat() {
+    if (busy) return;
+    history = [];
+    els.feed.innerHTML = '';
+  }
+
   function insertTag(tag) {
     const el = els.lyrics;
     const at = el.selectionStart ?? el.value.length;
@@ -550,11 +646,14 @@
   els.tuneToggle.addEventListener('click', () => { advanced = !advanced; renderChrome(); });
   els.vocalChip.addEventListener('click', () => { instrumental = !instrumental; renderChrome(); });
 
-  els.send.addEventListener('click', create);
+  els.send.addEventListener('click', () => { if (busy) stopAll(); else create(); });
   els.improveLyrics.addEventListener('click', () => improve('lyrics'));
   els.improvePrompt.addEventListener('click', () => improve('prompt'));
   els.undoLyrics.addEventListener('click', () => undo('lyrics'));
   els.undoPrompt.addEventListener('click', () => undo('musicPrompt'));
+  els.improvePhoto.addEventListener('click', improvePhoto);
+  els.undoPhoto.addEventListener('click', undoPhoto);
+  els.newChat.addEventListener('click', newChat);
   els.tags.addEventListener('click', e => {
     const tag = e.target.closest('.tag');
     if (tag) insertTag(tag.dataset.tag);
@@ -573,7 +672,21 @@
     setToken(els.keyInput.value);
     els.keyInput.value = '';
     els.keyCard.hidden = true;
+    renderKeyChip();
     card('notice', 'Ключ', 'Ключ сохранён в этом браузере.');
+  });
+
+  els.keyChip.addEventListener('click', () => {
+    els.keyCard.hidden = !els.keyCard.hidden;
+    if (!els.keyCard.hidden) els.keyInput.focus();
+  });
+
+  // Enter отправляет в чате, Shift+Enter — перенос строки (как в обычном мессенджере).
+  els.prompt.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && mode === 'chat') {
+      e.preventDefault();
+      create();
+    }
   });
 
   document.addEventListener('keydown', e => {

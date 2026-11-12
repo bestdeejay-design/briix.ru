@@ -21,7 +21,7 @@ const POLICY_MESSAGE = 'Запрос нарушает политику конт�
 let state;
 function resetBff() {
   state = {
-    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ',
+    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false,
     jobPosts: [], jobBlock: false, polls: 0
   };
 }
@@ -41,7 +41,7 @@ function staticServer(port) {
   });
 }
 
-function sse(res, fullText) {
+function sse(res, fullText, intervalMs = 5) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` });
   const words = fullText.split(' ');
   let i = 0;
@@ -54,7 +54,7 @@ function sse(res, fullText) {
       clearInterval(timer);
       res.end();
     }
-  }, 5);
+  }, intervalMs);
   res.on('close', () => clearInterval(timer));
 }
 
@@ -77,6 +77,7 @@ function bffServer(port) {
           const last = body.messages.at(-1)?.content || '';
           // Кнопка «Улучшить» ходит non-stream, чат — stream.
           if (body.stream === false) return send(200, { choices: [{ message: { content: state.chatImproveText } }] });
+          if (state.chatSlow) return sse(res, 'медленное слово '.repeat(80), 120);
           sse(res, 'Стрим пришёл: ' + last.slice(-40));
         });
         return;
@@ -325,7 +326,60 @@ function bffServer(port) {
   assert.ok(css.includes('#d97757'), 'single accent color used');
   ok('interactive states defined in css (hover/active/disabled/focus + accent)', {});
 
-  // 11. Мобильный 390×844: композер у низа, без горскролла, тач-таргеты ≥44.
+  // 11. Enter отправляет в чате; стоп-кнопка прерывает стрим, текст возвращается в поле.
+  p = await page();
+  state.chatSlow = true;
+  await p.locator('#prompt').fill('останови меня');
+  await p.locator('#prompt').press('Enter'); // Enter = отправка в чате
+  await p.waitForSelector('.card.user');
+  await p.waitForFunction(() => document.getElementById('send').classList.contains('stop'), {}, { timeout: 10000 });
+  await p.waitForTimeout(700); // пусть стрим успеет отдать несколько слов
+  const lenBefore = await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length);
+  await p.locator('#send').click(); // во время работы кнопка = стоп
+  await p.waitForSelector('.card.notice', { timeout: 10000 });
+  assert.match(await p.locator('.card.notice').last().innerText(), /остановлено/i);
+  const lenAfter = await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length);
+  await p.waitForTimeout(900);
+  assert.equal(await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length), lenAfter, 'stream frozen after stop');
+  assert.equal(await p.locator('#prompt').inputValue(), 'останови меня', 'text returned to the field after stop');
+  state.chatSlow = false;
+  ok('Enter-to-send in chat + stop button aborts the stream and keeps the text', {});
+
+  // 12. «Новый чат» чистит ленту и историю.
+  await p.locator('#newChat').click();
+  assert.equal(await p.locator('#feed .card').count(), 0, 'feed emptied');
+  ok('new chat clears the feed and history', {});
+
+  // 13. ✨ в Фото: арт-директор улучшает промпт, undo возвращает.
+  await p.locator('.mode[data-mode="photo"]').click();
+  const photoPrompt = 'кот в шляпе';
+  await p.locator('#prompt').fill(photoPrompt);
+  await p.locator('#improvePhoto').click();
+  await p.waitForFunction(() => document.getElementById('prompt').value.includes('УЛУЧШЕННЫЙ ТЕКСТ'), {}, { timeout: 15000 });
+  assert.equal(state.chatPosts.at(-1).stream, false, 'photo improve goes non-stream');
+  assert.match(state.chatPosts.at(-1).messages[0].content, /Арт-директор/, 'photo improve uses the art-director system prompt');
+  assert.equal(await p.locator('#undoPhoto').isVisible(), true);
+  await p.locator('#undoPhoto').click();
+  assert.equal(await p.locator('#prompt').inputValue(), photoPrompt, 'undo restores the prompt');
+  ok('photo prompt improve via art-director + undo', {});
+
+  // 14. Кнопка «Скачать» у готового фото.
+  await p.locator('#prompt').fill('a lighthouse');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card img', { timeout: 20000 });
+  const dl = await p.locator('.card a.action[download]').last().getAttribute('download');
+  assert.match(dl, /^briix-photo-.*\.png$/, 'download link carries a filename');
+  ok('photo card carries a download link', { dl });
+
+  // 15. Чип ключа: состояние и тогл карточки ввода.
+  assert.equal(await p.locator('#keyChip').getAttribute('aria-pressed'), 'true', 'key chip marks the saved key');
+  await p.locator('#keyChip').click();
+  assert.equal(await p.locator('#keyCard').isVisible(), true, 'key chip opens the key card');
+  await p.locator('#keyChip').click();
+  assert.equal(await p.locator('#keyCard').isVisible(), false, 'key chip closes the key card');
+  ok('key chip reflects state and toggles the key card', {});
+
+  // 16. Мобильный 390×844: композер у низа, без горскролла, тач-таргеты ≥44.
   p = await page({ viewport: { width: 390, height: 844 } });
   await p.waitForTimeout(300);
   const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

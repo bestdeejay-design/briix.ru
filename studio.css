@@ -164,6 +164,8 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .tool[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .tool.toggle[aria-pressed="true"] { color: var(--accent); background: rgba(217, 119, 87, .12); }
 .tool.toggle[aria-pressed="true"]:hover { background: rgba(217, 119, 87, .18); color: var(--accent); }
+.tool.chip.undo-chip { background: var(--amber-soft); color: var(--amber); }
+.tool.chip.undo-chip:hover { background: rgba(227, 198, 139, .16); color: var(--amber); }
 
 /* кнопка отправки */
 .send {
@@ -177,6 +179,8 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .send:active:not(:disabled) { background: var(--accent-active); transform: scale(.96); }
 .send:disabled { opacity: .35; }
 .send.busy { animation: pulse 1.2s ease-in-out infinite; }
+.send.stop { background: var(--surface-2); color: var(--ink); }
+.send.stop svg { fill: currentColor; stroke: none; }
 @keyframes pulse { 50% { opacity: .55; } }
 
 /* ---- мета-полоса ----------------------------------------------------------- */

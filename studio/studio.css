@@ -170,6 +170,20 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .tool.chip.undo-chip { background: var(--amber-soft); color: var(--amber); }
 .tool.chip.undo-chip:hover { background: rgba(227, 198, 139, .16); color: var(--amber); }
 
+/* явный выбор режима трека: Песня / Инструментал */
+.seg {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--surface-2); border-radius: var(--radius-pill);
+}
+.seg-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 34px; padding: 4px 10px; border-radius: var(--radius-pill);
+  color: var(--muted); font-size: 12.5px; font-weight: 500; white-space: nowrap;
+  transition: background 150ms ease, color 150ms ease;
+}
+.seg-btn:hover { color: var(--ink); }
+.seg-btn[aria-pressed="true"] { background: var(--hover); color: var(--ink); font-weight: 600; }
+
 /* кнопка отправки */
 .send {
   width: 36px; height: 36px; border-radius: 50%;
@@ -298,6 +312,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   .studio { padding: 0 10px calc(8px + env(safe-area-inset-bottom)); }
   .feed { padding-top: 12px; }
   .mode, .tool { min-height: 44px; }
+  .seg-btn { min-height: 40px; }
   .tool { font-size: 13px; }
   .tool.chip { padding: 8px 12px; }
   .send { width: 44px; height: 44px; }

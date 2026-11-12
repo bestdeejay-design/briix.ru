@@ -267,11 +267,11 @@ function bffServer(port) {
     window.__stageSeen = [];
     new MutationObserver(muts => {
       for (const r of muts) {
-        const t = (r.target.textContent || '').slice(0, 40);
-        const m = t.match(/Пишем лирику|Синтезируем/);
-        if (m && !window.__stageSeen.includes(m[0])) window.__stageSeen.push(m[0]);
+        const el = r.target instanceof Element && r.target.matches('[data-wait]') ? r.target : null;
+        const s = el?.getAttribute('data-wait-stage');
+        if (s && !window.__stageSeen.includes(s)) window.__stageSeen.push(s);
       }
-    }).observe(document.getElementById('feed'), { subtree: true, childList: true, characterData: true });
+    }).observe(document.getElementById('feed'), { subtree: true, attributes: true, attributeFilter: ['data-wait-stage'] });
   });
   await p.locator('#send').click();
   await p.waitForSelector('.card.stage', { timeout: 10000 });

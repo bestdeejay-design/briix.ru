@@ -225,6 +225,19 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .card.notice { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); font-size: 13px; }
 .card.stage { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); font-size: 13px; }
 .card.stage .who { color: var(--blue); opacity: .7; }
+
+/* ---- живое ожидание: спиннер + ротация фраз (wait-ui.js) -------------------- */
+.wait-line { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.wait-spin {
+  width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid var(--line-focus); border-top-color: var(--accent);
+  animation: waitspin .8s linear infinite;
+}
+@keyframes waitspin { to { transform: rotate(360deg); } }
+.card.assistant .wait-line { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .wait-spin { animation-duration: 2.4s; }
+}
 .card img, .card audio, .card video { width: 100%; border-radius: 10px; margin-top: 8px; display: block; }
 .card .actions { display: flex; gap: 8px; margin-top: 10px; }
 .action {

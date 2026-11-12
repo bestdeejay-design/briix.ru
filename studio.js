@@ -12,12 +12,6 @@
   const MUSIC_MODELS = { flash: 'ace-step-flash', pro: 'ace-step-pro' };
   const MODEL_LABELS = { flash: 'Flash', pro: 'Pro' };
   const DURATIONS = [30, 60, 120, 240, 300];
-  const STAGE_LABELS = {
-    'writing-lyrics': 'Пишем лирику…',
-    'synthesizing': 'Синтезируем музыку…',
-    'album-cover': 'Готовим обложку…',
-    'model-warmup': 'Прогреваем модель…'
-  };
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
   const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const STOP_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
@@ -255,7 +249,7 @@
   }
 
   function meta() {
-    const bits = ['briix.ru', MODE_LABELS[mode]];
+    const bits = [location.hostname, MODE_LABELS[mode]];
     if (mode === 'music') bits.push(MODEL_LABELS[quality] + ' · ' + duration + ' с');
     else bits.push(currentAssistant().name.replace(/\s*\(.*\)\s*$/, ''));
     els.metaLeft.textContent = bits.join(' · ');
@@ -320,6 +314,21 @@
     els.feed.append(div);
     div.scrollIntoView({ block: 'nearest' });
     return body;
+  }
+
+  // Мини-спиннер + ротация фраз живого ожидания (wait-ui.js). Клик по ленте не нужен:
+  // блок сам исчезает, когда приходит результат.
+  function waitLine(type, stage) {
+    const line = document.createElement('div');
+    line.className = 'wait-line';
+    const spin = document.createElement('span');
+    spin.className = 'wait-spin';
+    const phrase = document.createElement('span');
+    phrase.setAttribute('data-wait', '');
+    phrase.setAttribute('data-wait-type', type);
+    if (stage) phrase.setAttribute('data-wait-stage', stage);
+    line.append(spin, phrase);
+    return line;
   }
 
   function errorCard(error) {
@@ -460,13 +469,20 @@
     updateEnabled();
     const who = currentAssistant().name;
     const body = card('assistant', who, '');
+    body.append(waitLine('chat')); // мгновенный отклик: видно, что запрос ушёл
     setBusy(true, who + ' печатает…');
     try {
       const messages = [{ role: 'system', content: currentAssistant().system }, ...history];
-      const full = await chatStream({ messages, onChunk: piece => { body.textContent += piece; body.scrollIntoView({ block: 'nearest' }); } });
+      let first = true;
+      const full = await chatStream({ messages, onChunk: piece => {
+        if (first) { body.textContent = ''; first = false; } // ждущий блок уступает место стриму
+        body.textContent += piece;
+        body.scrollIntoView({ block: 'nearest' });
+      } });
       history.push({ role: 'assistant', content: full });
       addMakeTrackAction(body.closest('.card'), full);
     } catch (error) {
+      if (!body.textContent.trim()) body.closest('.card').remove(); // пустая карточка без ответа не висит
       history.pop(); // неудачный ход не остаётся в истории
       if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
@@ -478,10 +494,13 @@
     els.prompt.value = '';
     updateEnabled();
     setBusy(true, 'Отправляем задачу…');
+    const stageBody = card('stage', 'Фото', ''); // мгновенно, до ответа шины
+    stageBody.append(waitLine('image', 'generating'));
     try {
       const id = await submitJob({ type: 'image', prompt: text });
-      const stageBody = card('stage', 'Фото', 'В очереди…');
-      const result = await pollJob(id, { onStatus: d => { stageBody.textContent = d.stage ? (STAGE_LABELS[d.stage] || d.stage) : 'Генерируем…'; } });
+      const result = await pollJob(id, { onStatus: d => {
+        if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
+      } });
       stageBody.closest('.card').remove();
       const item = document.createElement('img');
       item.alt = 'Результат';
@@ -493,6 +512,7 @@
       addDownloadAction(wrap.closest('.card'), blob, 'briix-photo');
       libAdd({ job: id, kind: 'photo', prompt: text, file: result.result_url, created: Date.now(), fav: false });
     } catch (error) {
+      stageBody.closest('.card').remove();
       if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
     } finally { setBusy(false); updateEnabled(); }
@@ -525,6 +545,8 @@
     if (!advanced) els.prompt.value = '';
     else els.musicPrompt.value = '';
     updateEnabled();
+    const stageBody = card('stage', 'Музыка', ''); // мгновенно, включая фазу автолирики
+    stageBody.append(waitLine('music', vocal && !lyrics ? 'writing-lyrics' : 'synthesizing'));
     setBusy(true, vocal && !lyrics && !instrumental ? 'Пишем текст песни…' : 'Отправляем задачу…');
     try {
       if (vocal && !lyrics) {
@@ -532,6 +554,7 @@
           lyrics = await autoLyrics(style || lyrics || 'песня');
           if (advanced) els.lyrics.value = lyrics;
         } catch {
+          stageBody.closest('.card').remove();
           setBusy(false); updateEnabled();
           card('notice', 'Музыка', 'Не удалось автоматически написать лирику. Заполните поле «Лирика» вручную (кнопка ✨ тоже поможет) и попробуйте снова.');
           return;
@@ -541,8 +564,9 @@
       if (instrumental) params.instrumental = true;
       if (lyrics) params.lyrics = lyrics;
       const id = await submitJob({ type: 'music', prompt: style || lyrics, params });
-      const stageBody = card('stage', 'Музыка', 'В очереди…');
-      const result = await pollJob(id, { onStatus: d => { stageBody.textContent = d.stage ? (STAGE_LABELS[d.stage] || d.stage) : 'Генерируем…'; } });
+      const result = await pollJob(id, { onStatus: d => {
+        if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
+      } });
       stageBody.closest('.card').remove();
       const audio = document.createElement('audio');
       audio.controls = true;
@@ -560,6 +584,7 @@
         model: MUSIC_MODELS[quality], duration, file: result.result_url, created: Date.now(), fav: false
       });
     } catch (error) {
+      stageBody.closest('.card').remove();
       // текст остаётся в полях для правки (в т.ч. после 422)
       if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;
       if (advanced && !els.musicPrompt.value.trim()) els.musicPrompt.value = style;

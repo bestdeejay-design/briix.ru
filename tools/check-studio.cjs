@@ -21,7 +21,7 @@ const POLICY_MESSAGE = 'Запрос нарушает политику конт�
 let state;
 function resetBff() {
   state = {
-    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ',
+    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false,
     jobPosts: [], jobBlock: false, polls: 0
   };
 }
@@ -41,7 +41,7 @@ function staticServer(port) {
   });
 }
 
-function sse(res, fullText) {
+function sse(res, fullText, intervalMs = 5) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` });
   const words = fullText.split(' ');
   let i = 0;
@@ -54,7 +54,7 @@ function sse(res, fullText) {
       clearInterval(timer);
       res.end();
     }
-  }, 5);
+  }, intervalMs);
   res.on('close', () => clearInterval(timer));
 }
 
@@ -77,6 +77,7 @@ function bffServer(port) {
           const last = body.messages.at(-1)?.content || '';
           // Кнопка «Улучшить» ходит non-stream, чат — stream.
           if (body.stream === false) return send(200, { choices: [{ message: { content: state.chatImproveText } }] });
+          if (state.chatSlow) return sse(res, 'медленное слово '.repeat(80), 120);
           sse(res, 'Стрим пришёл: ' + last.slice(-40));
         });
         return;
@@ -120,17 +121,28 @@ function bffServer(port) {
   const errors = [];
   const URL_ = `http://127.0.0.1:${STATIC_PORT}/studio.html`;
 
-  async function page({ viewport = { width: 1440, height: 1000 }, token = TOKEN } = {}) {
+  async function page({ viewport = { width: 1440, height: 1000 }, token = TOKEN, user = 'tester' } = {}) {
     const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
     const p = await context.newPage();
     p.on('pageerror', e => errors.push(e.message));
-    if (token) await p.addInitScript(({ t, port }) => {
+    const sessionScript = ({ t, port, user }) => {
       localStorage.setItem('briix-media-live-token', t);
       localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port));
-    }, { t: token, port: BFF_PORT });
-    else await p.addInitScript(port => localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port)), BFF_PORT);
+      if (user) { // предзаданная сессия v3: гейт входа пропускаем
+        localStorage.setItem('briix-studio-profiles', JSON.stringify({ [user]: { pinHash: 'x', created: 0 } }));
+        localStorage.setItem('briix-studio-user', user);
+      }
+    };
+    if (token) await p.addInitScript(sessionScript, { t: token, port: BFF_PORT, user });
+    else await p.addInitScript(({ port, user }) => {
+      localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port));
+      if (user) {
+        localStorage.setItem('briix-studio-profiles', JSON.stringify({ [user]: { pinHash: 'x', created: 0 } }));
+        localStorage.setItem('briix-studio-user', user);
+      }
+    }, { port: BFF_PORT, user });
     await p.goto(URL_);
-    await p.waitForSelector('#send');
+    await p.waitForSelector(user ? '#send' : '#gate');
     return p;
   }
 
@@ -325,19 +337,151 @@ function bffServer(port) {
   assert.ok(css.includes('#d97757'), 'single accent color used');
   ok('interactive states defined in css (hover/active/disabled/focus + accent)', {});
 
-  // 11. Мобильный 390×844: композер у низа, без горскролла, тач-таргеты ≥44.
+  // 11. Enter отправляет в чате; стоп-кнопка прерывает стрим, текст возвращается в поле.
+  p = await page();
+  state.chatSlow = true;
+  await p.locator('#prompt').fill('останови меня');
+  await p.locator('#prompt').press('Enter'); // Enter = отправка в чате
+  await p.waitForSelector('.card.user');
+  await p.waitForFunction(() => document.getElementById('send').classList.contains('stop'), {}, { timeout: 10000 });
+  await p.waitForTimeout(700); // пусть стрим успеет отдать несколько слов
+  const lenBefore = await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length);
+  await p.locator('#send').click(); // во время работы кнопка = стоп
+  await p.waitForSelector('.card.notice', { timeout: 10000 });
+  assert.match(await p.locator('.card.notice').last().innerText(), /остановлено/i);
+  const lenAfter = await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length);
+  await p.waitForTimeout(900);
+  assert.equal(await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length), lenAfter, 'stream frozen after stop');
+  assert.equal(await p.locator('#prompt').inputValue(), 'останови меня', 'text returned to the field after stop');
+  state.chatSlow = false;
+  ok('Enter-to-send in chat + stop button aborts the stream and keeps the text', {});
+
+  // 12. «Новый чат» чистит ленту и историю.
+  await p.locator('#newChat').click();
+  assert.equal(await p.locator('#feed .card').count(), 0, 'feed emptied');
+  ok('new chat clears the feed and history', {});
+
+  // 13. ✨ в Фото: арт-директор улучшает промпт, undo возвращает.
+  await p.locator('.mode[data-mode="photo"]').click();
+  const photoPrompt = 'кот в шляпе';
+  await p.locator('#prompt').fill(photoPrompt);
+  await p.locator('#improvePhoto').click();
+  await p.waitForFunction(() => document.getElementById('prompt').value.includes('УЛУЧШЕННЫЙ ТЕКСТ'), {}, { timeout: 15000 });
+  assert.equal(state.chatPosts.at(-1).stream, false, 'photo improve goes non-stream');
+  assert.match(state.chatPosts.at(-1).messages[0].content, /Арт-директор/, 'photo improve uses the art-director system prompt');
+  assert.equal(await p.locator('#undoPhoto').isVisible(), true);
+  await p.locator('#undoPhoto').click();
+  assert.equal(await p.locator('#prompt').inputValue(), photoPrompt, 'undo restores the prompt');
+  ok('photo prompt improve via art-director + undo', {});
+
+  // 14. Кнопка «Скачать» у готового фото.
+  await p.locator('#prompt').fill('a lighthouse');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card img', { timeout: 20000 });
+  const dl = await p.locator('.card a.action[download]').last().getAttribute('download');
+  assert.match(dl, /^briix-photo-.*\.png$/, 'download link carries a filename');
+  ok('photo card carries a download link', { dl });
+
+  // 15. Профиль-меню: ник, ключ через «Ключ стенда…», Escape закрывает меню.
+  await p.locator('#profileBtn').click();
+  await p.waitForSelector('#profileMenu:not([hidden])');
+  assert.match(await p.locator('#profileNick').innerText(), /^tester$/, 'profile menu shows the nick');
+  await p.locator('#profileKeyBtn').click();
+  await p.waitForSelector('#keyCard:not([hidden])');
+  assert.equal(await p.locator('#keyCard').isVisible(), true, 'key card opens from the profile menu');
+  assert.equal(await p.locator('#profileMenu').isVisible(), false, 'menu closed after picking the item');
+  await p.locator('#profileBtn').click();
+  await p.waitForSelector('#profileMenu:not([hidden])');
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#profileMenu').isVisible(), false, 'Escape closes the profile menu');
+  ok('profile menu: nick label, key card via menu item, Escape closes', {});
+
+  // 16. Гейт входа: ник + PIN-пад, регистрация, сессия, выход, неверный PIN.
+  p = await page({ user: '' });
+  await p.waitForTimeout(200);
+  assert.equal(await p.locator('#gate').isVisible(), true, 'gate shown without a session');
+  assert.equal(await p.locator('#studio').isVisible(), false, 'studio hidden behind the gate');
+  await p.locator('#nickInput').fill('owner');
+  for (const digit of '1234') await p.locator(`.pk[data-digit="${digit}"]`).click();
+  assert.equal(await p.locator('.pd.on').count(), 4, 'four pin dots lit');
+  await p.locator('#enterBtn').click();
+  await p.waitForSelector('#studio:not([hidden])');
+  assert.equal(await p.locator('#profileNick').innerText(), 'owner');
+  await p.reload();
+  await p.waitForSelector('#studio:not([hidden])');
+  assert.equal(await p.locator('#gate').isVisible(), false, 'session survives reload');
+  p.once('dialog', d => d.accept());
+  await p.locator('#profileBtn').click();
+  await p.waitForSelector('#profileMenu:not([hidden])');
+  await p.locator('#profileLogoutBtn').click();
+  await p.waitForSelector('#gate:not([hidden])');
+  await p.locator('#nickInput').fill('owner');
+  for (const digit of '9999') await p.locator(`.pk[data-digit="${digit}"]`).click();
+  await p.locator('#enterBtn').click();
+  await p.waitForFunction(() => document.getElementById('gateHint').textContent.includes('Неверный PIN'));
+  ok('gate: nick+pinpad login, registration, session persistence, logout, wrong pin', {});
+
+  // 17. Вкладки/библиотека: музыка с лирикой и фото попадают в библиотеку, избранное и удаление.
+  p = await page();
+  // Музыкальная джоба в advanced-режиме с лирикой (быстрее полной секции 7).
+  await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('#tuneToggle').click();
+  const libLyrics = '[Verse]\nГород спит\n[Chorus]\nА я не сплю';
+  await p.locator('#lyrics').fill(libLyrics);
+  await p.locator('#musicPrompt').fill('dream pop, 90 BPM');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
+  // Фото-джоба.
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('a lighthouse in fog');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card img', { timeout: 20000 });
+  await p.locator('.tab[data-tab="library"]').click();
+  assert.equal(await p.locator('#lib').isVisible(), true, 'library tab opens');
+  assert.equal(await p.locator('#composer').isVisible(), false, 'composer hidden in library');
+  await p.waitForSelector('.lib-item', { timeout: 10000 });
+  assert.match(await p.locator('.lib-item .lib-prompt', { hasText: 'lighthouse' }).innerText(), /lighthouse/);
+  // Музыкальная запись: модель в .who, подпись M4A, сворачиваемый текст песни.
+  const musicItem = p.locator('.lib-item', { hasText: /Музыка/i }).first();
+  const musicWho = await musicItem.locator('.who').innerText();
+  assert.match(musicWho, /ace-step/i, 'music .who carries the model');
+  assert.match(musicWho, /\d+\s*с/i, 'music .who carries the duration');
+  assert.match(await musicItem.locator('a.action').first().innerText(), /M4A/, 'music download labelled M4A');
+  const lyricsToggle = musicItem.locator('.lib-lyrics-toggle');
+  assert.equal(await lyricsToggle.isVisible(), true, 'lyrics toggle exists');
+  await lyricsToggle.click();
+  const lyricsBlock = musicItem.locator('.lib-lyrics.open .lib-lyrics-text');
+  assert.equal(await lyricsBlock.isVisible(), true, 'lyrics block opens');
+  assert.match(await lyricsBlock.innerText(), /Город спит/, 'lyrics block carries the lyrics text');
+  await p.locator('.lib-filters .tag', { hasText: '★ Избранное' }).click();
+  assert.equal(await p.locator('.lib-item').count(), 0, 'not a favorite yet');
+  await p.locator('.lib-filters .tag', { hasText: 'Все' }).click();
+  await p.locator('.lib-item .action', { hasText: 'В избранное' }).first().click();
+  assert.ok(await p.locator('.lib-item.fav').count() >= 1, 'favorite applied');
+  await p.locator('.lib-filters .tag', { hasText: '★ Избранное' }).click();
+  assert.ok(await p.locator('.lib-item').count() >= 1, 'favorite filter shows it');
+  await p.locator('.lib-filters .tag', { hasText: 'Все' }).click();
+  const beforeDel = await p.locator('.lib-item').count();
+  p.once('dialog', d => d.accept());
+  await p.locator('.lib-item .action', { hasText: 'Удалить' }).first().click();
+  await p.waitForFunction(n => document.querySelectorAll('.lib-item').length < n, beforeDel);
+  await p.locator('.tab[data-tab="chat"]').click();
+  assert.equal(await p.locator('#composer').isVisible(), true, 'chat tab restores composer');
+  ok('library: entry from job, favorite toggle + filter, delete, tab switching', {});
+
+  // 18. Мобильный 390×844: композер у низа, без горскролла, тач-таргеты ≥44.
   p = await page({ viewport: { width: 390, height: 844 } });
   await p.waitForTimeout(300);
   const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 0, 'no horizontal scroll at 390px, overflow=' + overflow);
   const geo = await p.evaluate(() => {
-    const wrap = document.querySelector('.composer-wrap').getBoundingClientRect();
+    const wrap = (document.querySelector('.tabs') || document.querySelector('.composer-wrap')).getBoundingClientRect();
     const sizes = [...document.querySelectorAll('button, textarea, input')]
       .filter(el => el.offsetParent !== null && !el.closest('[hidden]'))
       .map(el => Math.max(el.getBoundingClientRect().width, el.getBoundingClientRect().height));
     return { bottomGap: window.innerHeight - Math.round(wrap.bottom), minTarget: Math.min(...sizes.filter(s => s > 0)) };
   });
-  assert.ok(geo.bottomGap >= 0 && geo.bottomGap <= 16, 'composer pinned to viewport bottom, gap=' + geo.bottomGap);
+  assert.ok(geo.bottomGap >= 0 && geo.bottomGap <= 16, 'composer + tabs pinned to viewport bottom, gap=' + geo.bottomGap);
   assert.ok(geo.minTarget >= 44, 'smallest touch target >= 44px, got ' + geo.minTarget);
   await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-390.png'), fullPage: false });
   // Музыка на мобайле: тулбар не ломается.

@@ -8,10 +8,40 @@
 <link rel="stylesheet" href="studio.css">
 </head>
 <body>
-<main class="studio">
+
+<!-- Вход: ник + PIN-пад (клиентский; переезд на серверную auth — INFRA #78) -->
+<div id="gate" class="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-title">BRIIX Студия</div>
+    <p class="gate-sub">Вход по нику и PIN-коду</p>
+    <input id="nickInput" class="nick" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ник">
+    <div id="pinDots" class="pin-dots" aria-label="PIN"></div>
+    <div class="pinpad" id="pinpad" aria-label="Пин-пад">
+      <button class="pk" data-digit="1">1</button>
+      <button class="pk" data-digit="2">2</button>
+      <button class="pk" data-digit="3">3</button>
+      <button class="pk" data-digit="4">4</button>
+      <button class="pk" data-digit="5">5</button>
+      <button class="pk" data-digit="6">6</button>
+      <button class="pk" data-digit="7">7</button>
+      <button class="pk" data-digit="8">8</button>
+      <button class="pk" data-digit="9">9</button>
+      <button class="pk ghost" hidden></button>
+      <button class="pk" data-digit="0">0</button>
+      <button class="pk ghost" data-action="back" aria-label="Стереть">⌫</button>
+    </div>
+    <button id="enterBtn" class="save gate-enter">Войти</button>
+    <p id="gateHint" class="hint">PIN — 4–6 цифр. Новый ник регистрируется при первом входе.</p>
+  </div>
+</div>
+
+<main class="studio" id="studio" hidden>
 
   <!-- Лента: чат-стрим, фото, треки — скроллится над композером -->
   <section id="feed" class="feed" aria-live="polite"></section>
+
+  <!-- Библиотека: все генерации — скачать / в избранное / удалить -->
+  <section id="lib" class="feed lib" hidden></section>
 
   <!-- Композер: карточка, прижатая к низу на мобайле -->
   <section class="composer-wrap">
@@ -72,6 +102,9 @@
         <button id="addBtn" class="tool icon-only" aria-label="Добавить вложение" title="Вложения — скоро">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
+        <button id="newChat" class="tool chip chat-only" hidden title="Очистить ленту и начать заново">Новый чат</button>
+        <button id="improvePhoto" class="tool chip photo-only" hidden disabled title="Арт-директор улучшит промпт">✨ Улучшить</button>
+        <button id="undoPhoto" class="tool chip photo-only undo-chip" hidden>↩ Вернуть как было</button>
         <div class="menu-anchor">
           <button id="assistantChip" class="tool chip" aria-haspopup="menu" aria-expanded="false">
             <span id="assistantName">Наставник</span>
@@ -112,12 +145,28 @@
     <div id="keyCard" class="key-card" hidden>
       <label class="field-label" for="keyInput">Ключ приватного стенда</label>
       <div class="key-row">
-        <input id="keyInput" type="password" autocomplete="off" placeholder="briix-media-live-token">
+        <input id="keyInput" type="password" autocomplete="off" placeholder="вставьте ключ">
         <button id="keySave" class="save">Сохранить</button>
       </div>
       <p class="hint">Тот же ключ, что в Настройках демо. Хранится только в этом браузере.</p>
     </div>
   </section>
+
+  <!-- Вкладки: Чат / Библиотека -->
+  <nav class="tabs" id="tabs" aria-label="Разделы студии">
+    <button class="tab" data-tab="chat" aria-pressed="true">Чат</button>
+    <button class="tab" data-tab="library" aria-pressed="false">Библиотека</button>
+    <div class="menu-anchor tabs-profile">
+      <button id="profileBtn" class="tool icon-only" aria-haspopup="menu" aria-expanded="false" aria-label="Профиль" title="Профиль">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+      </button>
+      <div id="profileMenu" class="menu" role="menu" hidden>
+        <span id="profileNick" class="menu-nick"></span>
+        <button type="button" role="menuitem" id="profileKeyBtn">Ключ стенда…</button>
+        <button type="button" role="menuitem" id="profileLogoutBtn">Выйти</button>
+      </div>
+    </div>
+  </nav>
 </main>
 <script src="studio.js"></script>
 </body>

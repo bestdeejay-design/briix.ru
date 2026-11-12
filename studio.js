@@ -19,6 +19,8 @@
     'model-warmup': 'Прогреваем модель…'
   };
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
+  const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+  const STOP_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
   const PLACEHOLDERS = {
     chat: 'Что создаём?',
     photo: 'Что рисуем? Опишите изображение…',
@@ -86,9 +88,9 @@
     return response;
   }
 
-  async function chatNonStream({ messages, maxTokens }) {
+  async function chatNonStream({ messages, maxTokens, signal }) {
     const response = await request('/v1/chat/completions', {
-      method: 'POST', headers: headers(), signal: signalOf(),
+      method: 'POST', headers: headers(), signal: signal || signalOf(),
       body: JSON.stringify({ messages, stream: false, max_tokens: maxTokens || 600 })
     });
     const payload = await response.json();
@@ -107,9 +109,9 @@
     try { return JSON.parse(payload); } catch { return null; }
   }
 
-  async function chatStream({ messages, onChunk }) {
+  async function chatStream({ messages, onChunk, signal }) {
     const response = await request('/v1/chat/completions', {
-      method: 'POST', headers: headers(), signal: signalOf(),
+      method: 'POST', headers: headers(), signal: signal || signalOf(),
       body: JSON.stringify({ messages, stream: true })
     });
     if (!response.body) throw new BusError('stream_unsupported', 'Браузер не отдал тело потока.');
@@ -145,7 +147,9 @@
   async function pollJob(id, { onStatus, intervalMs = 2000, timeoutMs = 15 * 60000 }) {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
+      if (cancelRequested) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
       await new Promise(r => setTimeout(r, intervalMs));
+      if (cancelRequested) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
       const response = await request('/jobs/' + encodeURIComponent(id), { headers: headers() });
       const data = await response.json();
       onStatus?.(data);
@@ -206,11 +210,18 @@
     durationChip: $('durationChip'), durationName: $('durationName'), durationMenu: $('durationMenu'),
     vocalChip: $('vocalChip'), tuneToggle: $('tuneToggle'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
-    composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave')
+    composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
+    newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'),
+    gate: $('gate'), nickInput: $('nickInput'), pinDots: $('pinDots'), pinpad: $('pinpad'),
+    enterBtn: $('enterBtn'), gateHint: $('gateHint'), studio: $('studio'),
+    profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), profileNick: $('profileNick'),
+    profileKeyBtn: $('profileKeyBtn'), profileLogoutBtn: $('profileLogoutBtn'),
+    tabs: $('tabs'), lib: $('lib')
   };
 
   let mode = 'chat';
   let quality = 'flash';
+  let cancelRequested = false;
   let duration = 300; // по умолчанию — полная песня
   try { const saved = Number(localStorage.getItem('briix-studio-duration')); if (saved >= 5) duration = saved; } catch {}
   let instrumental = false;
@@ -224,6 +235,13 @@
   function signalOf() {
     controller = new AbortController();
     return controller.signal;
+  }
+
+  // Стоп: прерывает и чат-стрим, и поллинг задачи. Задача на сервере не отменяется.
+  function stopAll() {
+    if (!busy) return;
+    cancelRequested = true;
+    controller?.abort();
   }
 
   function setStatus(text, isBusy) {
@@ -304,6 +322,10 @@
   }
 
   function errorCard(error) {
+    if (error.name === 'AbortError' || error.code === 'cancelled') {
+      card('notice', 'Остановлено', 'Генерацию остановили — текст остался в поле, можно править и запустить снова.');
+      return;
+    }
     if (error.code === 'content_blocked') {
       const body = card('error', 'Модерация', 'Не пройдена проверка контента: ' + (error.message || 'запрос нарушает политику.') + ' Текст сохранён в поле ввода — отредактируйте и попробуйте снова.');
       body.dataset.code = 'content_blocked';
@@ -314,8 +336,7 @@
   }
 
   // «Сделать из этого трек»: чат → музыка с подставленным брифом.
-  function addMakeTrackAction(container, brief) {
-    const row = document.createElement('div');
+  function addMakeTrackAction(container, brief) {    const row = document.createElement('div');
     row.className = 'actions';
     const button = document.createElement('button');
     button.type = 'button';
@@ -331,6 +352,27 @@
     container.append(row);
   }
 
+  // Кнопка «Скачать» под готовым фото/треком (blob уже в памяти страницы).
+  function extOf(blob) {
+    const t = blob.type || '';
+    if (t.includes('png')) return 'png';
+    if (t.includes('jpeg')) return 'jpg';
+    if (t.includes('wav')) return 'wav';
+    if (t.includes('mpeg')) return 'mp3';
+    return 'm4a'; // audio/mp4 и дефолт
+  }
+  function addDownloadAction(container, blob, name, label) {
+    const row = document.createElement('div');
+    row.className = 'actions';
+    const link = document.createElement('a');
+    link.className = 'action';
+    link.href = URL.createObjectURL(blob);
+    link.download = name + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + extOf(blob);
+    link.textContent = label || '⬇ Скачать';
+    row.append(link);
+    container.append(row);
+  }
+
   // ---- режим/состояния ---------------------------------------------------------
   function setMode(next) {
     mode = next;
@@ -341,6 +383,9 @@
     els.modes.querySelectorAll('.mode').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const isMusic = mode === 'music';
     document.querySelectorAll('.music-only').forEach(el => { el.hidden = !isMusic; });
+    document.querySelectorAll('.chat-only').forEach(el => { el.hidden = mode !== 'chat'; });
+    document.querySelectorAll('.photo-only').forEach(el => { el.hidden = mode !== 'photo'; });
+    renderKeyChip();
     els.advanced.hidden = !(isMusic && advanced);
     els.prompt.hidden = isMusic && advanced;
     els.prompt.placeholder = PLACEHOLDERS[mode];
@@ -362,14 +407,18 @@
   }
 
   function updateEnabled() {
-    els.send.disabled = busy || !promptValue();
+    els.send.disabled = !busy && !promptValue(); // во время работы send = стоп, не глушим
     els.improveLyrics.disabled = busy || !els.lyrics.value.trim();
     els.improvePrompt.disabled = busy || !els.musicPrompt.value.trim();
+    els.improvePhoto.disabled = busy || mode !== 'photo' || !els.prompt.value.trim();
   }
 
   function setBusy(v, statusText) {
     busy = v;
     els.send.classList.toggle('busy', v);
+    els.send.classList.toggle('stop', v); // во время работы кнопка отправки = стоп
+    els.send.setAttribute('aria-label', v ? 'Остановить' : 'Отправить');
+    els.send.innerHTML = v ? STOP_SVG : SEND_SVG;
     els.improveLyrics.classList.toggle('busy', v);
     els.improvePrompt.classList.toggle('busy', v);
     setStatus(v ? (statusText || 'Работаем…') : '', v);
@@ -384,9 +433,17 @@
     return false;
   }
 
+  // Профиль-меню: актуальность подписей (ник и состояние ключа).
+  function renderKeyChip() {
+    const has = Boolean(token());
+    els.profileNick.textContent = currentUser() || '';
+    els.profileBtn.title = has ? 'Профиль — ключ стенда сохранён' : 'Профиль — ключ стенда не задан';
+  }
+
   // ---- потоки -------------------------------------------------------------------
   async function create() {
     if (busy) return;
+    cancelRequested = false;
     if (!needKey()) return;
     const text = promptValue();
     if (!text) return;
@@ -432,6 +489,8 @@
       const wrap = card('assistant', 'Фото готово', '');
       wrap.textContent = '';
       wrap.append(item);
+      addDownloadAction(wrap.closest('.card'), blob, 'briix-photo');
+      libAdd({ job: id, kind: 'photo', prompt: text, file: result.result_url, created: Date.now(), fav: false });
     } catch (error) {
       if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
       errorCard(error);
@@ -445,11 +504,14 @@
       { role: 'user', content: 'Тема песни: ' + topic }
     ];
     let full = '';
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
+    // глобальный стоп + потолок 60 с, что бы ни случилось
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]);
     try {
-      full = await chatStream({ messages, onChunk: () => {}, signal: controller.signal });
-    } finally { clearTimeout(timer); }
+      full = await chatStream({ messages, onChunk: () => {}, signal });
+    } catch (error) {
+      if (error.name === 'TimeoutError') throw new BusError('timeout', 'Автор песни не ответил за минуту.');
+      throw error;
+    }
     return full.trim().slice(0, 8000);
   }
 
@@ -488,6 +550,14 @@
       const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', '');
       wrap.textContent = '';
       wrap.append(audio);
+      addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать M4A');
+      const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
+      libAdd({
+        job: id, kind: 'music', prompt: (style || lyrics || '').slice(0, 200),
+        lyrics: (lyrics || '').slice(0, 8000),
+        title: titleSource.slice(0, 60),
+        model: MUSIC_MODELS[quality], duration, file: result.result_url, created: Date.now(), fav: false
+      });
     } catch (error) {
       // текст остаётся в полях для правки (в т.ч. после 422)
       if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;
@@ -527,6 +597,44 @@
     updateEnabled();
   }
 
+  // ✨ в режиме «Фото»: арт-директор улучшает промпт перед отправкой.
+  async function improvePhoto() {
+    if (busy) return;
+    const original = els.prompt.value.trim();
+    if (!original || !needKey()) return;
+    cancelRequested = false;
+    setBusy(true, 'Улучшаем промпт…');
+    els.improvePhoto.classList.add('busy');
+    try {
+      const improved = await chatNonStream({
+        messages: [
+          { role: 'system', content: currentAssistant().system },
+          { role: 'user', content: 'Улучши промпт:\n\n' + original }
+        ],
+        maxTokens: 600
+      });
+      undoBackup.prompt = original;
+      els.prompt.value = improved.trim();
+      els.undoPhoto.hidden = false;
+    } catch (error) { errorCard(error); }
+    finally { els.improvePhoto.classList.remove('busy'); setBusy(false); updateEnabled(); }
+  }
+
+  function undoPhoto() {
+    if (undoBackup.prompt == null) return;
+    els.prompt.value = undoBackup.prompt;
+    undoBackup.prompt = null;
+    els.undoPhoto.hidden = true;
+    updateEnabled();
+  }
+
+  // Новый чат: чистим ленту и историю (мод/качество/ключ не трогаем).
+  function newChat() {
+    if (busy) return;
+    history = [];
+    els.feed.innerHTML = '';
+  }
+
   function insertTag(tag) {
     const el = els.lyrics;
     const at = el.selectionStart ?? el.value.length;
@@ -540,6 +648,240 @@
     updateEnabled();
   }
 
+  // ---- auth: ник + PIN-пад (клиентский; переезд на серверную auth — INFRA #78) ----
+  const PROFILES_KEY = 'briix-studio-profiles';
+  const USER_KEY = 'briix-studio-user';
+  const libKey = nick => 'briix-studio-library-' + nick;
+  const PIN_MIN = 4, PIN_MAX = 6, PIN_MAX_FAILS = 5, PIN_LOCK_MS = 30000;
+
+  function pinHash(nick, pin) {
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(nick + '::' + pin))
+      .then(digest => [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join(''));
+  }
+  function profiles() { try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || {}; } catch { return {}; } }
+  function saveProfiles(p) { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(p)); } catch { /* приватный режим */ } }
+  function currentUser() { return localStorage.getItem(USER_KEY) || ''; }
+
+  let pinBuf = '';
+  let pinFails = 0;
+  let pinLockedUntil = 0;
+
+  function renderDots() {
+    els.pinDots.textContent = '';
+    for (let i = 0; i < Math.max(pinBuf.length, PIN_MIN); i++) {
+      const dot = document.createElement('span');
+      dot.className = 'pd' + (i < pinBuf.length ? ' on' : '');
+      els.pinDots.append(dot);
+    }
+  }
+  function gateHint(text) { els.gateHint.textContent = text; }
+
+  async function enterGate() {
+    const nick = els.nickInput.value.trim();
+    if (!nick) { gateHint('Сначала ник.'); els.nickInput.focus(); return; }
+    if (pinBuf.length < PIN_MIN) { gateHint('PIN — от ' + PIN_MIN + ' цифр.'); return; }
+    if (Date.now() < pinLockedUntil) { gateHint('Слишком много попыток — подождите полминуты.'); return; }
+    const hash = await pinHash(nick, pinBuf);
+    const profs = profiles();
+    if (profs[nick]) {
+      if (profs[nick].pinHash !== hash) {
+        pinFails++;
+        pinBuf = '';
+        renderDots();
+        if (pinFails >= PIN_MAX_FAILS) {
+          pinLockedUntil = Date.now() + PIN_LOCK_MS;
+          pinFails = 0;
+          gateHint('Неверный PIN. Пауза 30 секунд.');
+        } else {
+          gateHint('Неверный PIN. Осталось попыток: ' + (PIN_MAX_FAILS - pinFails) + '.');
+        }
+        return;
+      }
+    } else {
+      profs[nick] = { pinHash: hash, created: Date.now() };
+      saveProfiles(profs);
+      gateHint('Новый профиль создан.');
+    }
+    pinFails = 0;
+    pinBuf = '';
+    localStorage.setItem(USER_KEY, nick);
+    startSession(nick);
+  }
+
+  function startSession(nick) {
+    els.gate.hidden = true;
+    els.studio.hidden = false;
+    els.profileNick.textContent = nick;
+    setView('chat');
+    renderKeyChip();
+  }
+
+  function logout() {
+    localStorage.removeItem(USER_KEY);
+    els.studio.hidden = true;
+    els.gate.hidden = false;
+    els.nickInput.value = '';
+    pinBuf = '';
+    renderDots();
+    gateHint('PIN — 4–6 цифр. Новый ник регистрируется при первом входе.');
+    els.nickInput.focus();
+  }
+
+  // ---- библиотека (клиентская; переезд на GET /jobs — INFRA #77) ----------------
+  const blobCache = new Map(); // job_id → objectURL
+  let libFilter = 'all';
+
+  function libLoad() {
+    const nick = currentUser();
+    if (!nick) return [];
+    try { return JSON.parse(localStorage.getItem(libKey(nick))) || []; } catch { return []; }
+  }
+  function libSave(list) {
+    const nick = currentUser();
+    if (nick) { try { localStorage.setItem(libKey(nick), JSON.stringify(list)); } catch { /* переполнение */ } }
+  }
+  function libAdd(entry) {
+    const list = libLoad();
+    list.unshift(entry);
+    libSave(list);
+    if (!els.lib.hidden) renderLibrary();
+  }
+
+  const KIND_LABELS = { photo: 'Фото', music: 'Музыка' };
+  const FILTERS = [['all', 'Все'], ['photo', 'Фото'], ['music', 'Музыка'], ['fav', '★ Избранное']];
+
+  function renderLibrary() {
+    els.lib.innerHTML = '';
+    const filterRow = document.createElement('div');
+    filterRow.className = 'lib-filters';
+    for (const [value, label] of FILTERS) {
+      const chip = document.createElement('button');
+      chip.className = 'tag';
+      chip.textContent = label;
+      chip.setAttribute('aria-pressed', String(libFilter === value));
+      chip.addEventListener('click', () => { libFilter = value; renderLibrary(); });
+      filterRow.append(chip);
+    }
+    els.lib.append(filterRow);
+    const list = libLoad().filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter);
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'card notice';
+      empty.textContent = libFilter === 'all'
+        ? 'Пока пусто — создайте фото или трек в чате, они появятся здесь.'
+        : 'В этом фильтре пусто.';
+      els.lib.append(empty);
+      return;
+    }
+    for (const entry of list) els.lib.append(libCard(entry));
+  }
+
+  function libCard(entry) {
+    const div = document.createElement('div');
+    div.className = 'card lib-item' + (entry.fav ? ' fav' : '');
+    const who = document.createElement('div');
+    who.className = 'who';
+    let whoText = KIND_LABELS[entry.kind] || entry.kind;
+    if (entry.kind === 'music' && entry.model) whoText += ' · ' + entry.model;
+    if (entry.kind === 'music' && entry.duration) whoText += ' · ' + entry.duration + ' с';
+    whoText += ' · ' + new Date(entry.created).toLocaleString('ru-RU');
+    who.textContent = whoText;
+    const promptEl = document.createElement('div');
+    promptEl.className = 'body lib-prompt';
+    promptEl.textContent = entry.prompt || '';
+    const media = document.createElement('div');
+    media.className = 'lib-media';
+    libMedia(entry, media);
+    const row = document.createElement('div');
+    row.className = 'actions';
+    const download = document.createElement('a');
+    download.className = 'action';
+    download.textContent = entry.kind === 'music' ? '⬇ Скачать M4A' : '⬇ Скачать';
+    download.href = '#';
+    download.addEventListener('click', async e => {
+      e.preventDefault();
+      const url = blobCache.get(entry.job);
+      if (!url) return;
+      download.href = url;
+      download.download = 'briix-' + entry.kind + '-' + new Date(entry.created).toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + (entry.kind === 'photo' ? 'png' : 'm4a');
+      download.click();
+    });
+    const fav = document.createElement('button');
+    fav.type = 'button';
+    fav.className = 'action';
+    fav.textContent = entry.fav ? '★ В избранном' : '☆ В избранное';
+    fav.addEventListener('click', () => {
+      const list = libLoad();
+      const item = list.find(x => x.job === entry.job);
+      if (item) { item.fav = !item.fav; libSave(list); renderLibrary(); }
+    });
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'action';
+    del.textContent = '🗑 Удалить';
+    del.addEventListener('click', () => {
+      if (!confirm('Удалить из библиотеки? Файл на стенде останется.')) return;
+      libSave(libLoad().filter(x => x.job !== entry.job));
+      blobCache.delete(entry.job);
+      renderLibrary();
+    });
+    row.append(download, fav, del);
+    div.append(who, promptEl, media, row);
+    if (entry.kind === 'music' && entry.lyrics) {
+      const lyricsWrap = document.createElement('div');
+      lyricsWrap.className = 'lib-lyrics';
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'action lib-lyrics-toggle';
+      toggle.textContent = '¶ Текст песни';
+      toggle.addEventListener('click', () => {
+        const open = lyricsWrap.classList.toggle('open');
+        body.hidden = !open;
+        toggle.setAttribute('aria-expanded', String(open));
+      });
+      const body = document.createElement('div');
+      body.className = 'lib-lyrics-text';
+      body.hidden = true;
+      body.textContent = entry.lyrics;
+      lyricsWrap.append(toggle, body);
+      div.append(lyricsWrap);
+    }
+    return div;
+  }
+
+  async function libMedia(entry, container) {
+    container.textContent = 'Загружаем…';
+    let url = blobCache.get(entry.job);
+    if (!url) {
+      try {
+        const blob = await fileBlob(entry.file);
+        url = URL.createObjectURL(blob);
+        blobCache.set(entry.job, url);
+      } catch { container.textContent = 'Файл недоступен.'; return; }
+    }
+    container.textContent = '';
+    if (entry.kind === 'photo') {
+      const img = new Image();
+      img.alt = 'Результат';
+      img.src = url;
+      container.append(img);
+    } else {
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.preload = 'none';
+      audio.src = url;
+      container.append(audio);
+    }
+  }
+
+  // ---- вкладки: Чат / Библиотека -------------------------------------------------
+  function setView(next) {
+    els.tabs.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === next)));
+    els.feed.hidden = next !== 'chat';
+    els.lib.hidden = next !== 'library';
+    els.composer.hidden = next !== 'chat';
+    if (next === 'library') renderLibrary();
+  }
   // ---- wiring -------------------------------------------------------------------
   els.modes.addEventListener('click', e => {
     const button = e.target.closest('.mode');
@@ -550,11 +892,14 @@
   els.tuneToggle.addEventListener('click', () => { advanced = !advanced; renderChrome(); });
   els.vocalChip.addEventListener('click', () => { instrumental = !instrumental; renderChrome(); });
 
-  els.send.addEventListener('click', create);
+  els.send.addEventListener('click', () => { if (busy) stopAll(); else create(); });
   els.improveLyrics.addEventListener('click', () => improve('lyrics'));
   els.improvePrompt.addEventListener('click', () => improve('prompt'));
   els.undoLyrics.addEventListener('click', () => undo('lyrics'));
   els.undoPrompt.addEventListener('click', () => undo('musicPrompt'));
+  els.improvePhoto.addEventListener('click', improvePhoto);
+  els.undoPhoto.addEventListener('click', undoPhoto);
+  els.newChat.addEventListener('click', newChat);
   els.tags.addEventListener('click', e => {
     const tag = e.target.closest('.tag');
     if (tag) insertTag(tag.dataset.tag);
@@ -573,12 +918,66 @@
     setToken(els.keyInput.value);
     els.keyInput.value = '';
     els.keyCard.hidden = true;
+    renderKeyChip();
     card('notice', 'Ключ', 'Ключ сохранён в этом браузере.');
+  });
+
+  // Профиль-меню в панели вкладок: пункты статичные, меню руками (не attachMenu).
+  els.profileBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const willOpen = els.profileMenu.hidden;
+    closeMenus();
+    if (!willOpen) return;
+    renderKeyChip();
+    els.profileMenu.hidden = false;
+    els.profileBtn.setAttribute('aria-expanded', 'true');
+  });
+  els.profileKeyBtn.addEventListener('click', () => {
+    closeMenus();
+    els.keyCard.hidden = false;
+    els.keyInput.focus();
+  });
+  els.profileLogoutBtn.addEventListener('click', () => {
+    closeMenus();
+    if (confirm('Выйти из профиля ' + currentUser() + '?')) logout();
+  });
+
+  // пин-пад: цифры и backspace
+  els.pinpad.addEventListener('click', e => {
+    const button = e.target.closest('.pk');
+    if (!button) return;
+    if (button.dataset.digit && pinBuf.length < PIN_MAX) {
+      pinBuf += button.dataset.digit;
+      renderDots();
+      gateHint('');
+    } else if (button.dataset.action === 'back') {
+      pinBuf = pinBuf.slice(0, -1);
+      renderDots();
+    }
+  });
+  els.enterBtn.addEventListener('click', enterGate);
+  els.nickInput.addEventListener('keydown', e => { if (e.key === 'Enter') els.pinpad.querySelector('[data-digit="1"]').focus(); });
+  els.tabs.addEventListener('click', e => {
+    const tab = e.target.closest('.tab');
+    if (tab) setView(tab.dataset.tab);
+  });
+
+  // Enter отправляет в чате, Shift+Enter — перенос строки (как в обычном мессенджере).
+  els.prompt.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && mode === 'chat') {
+      e.preventDefault();
+      create();
+    }
   });
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && document.activeElement === activePromptEl()) create();
   });
 
+  // ---- старт: сессия или гейт входа ------------------------------------------------
+  renderDots();
   renderChrome();
+  const savedUser = currentUser();
+  if (savedUser && profiles()[savedUser]) startSession(savedUser);
+  else { els.gate.hidden = false; els.nickInput.focus(); }
 })();

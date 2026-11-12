@@ -209,7 +209,7 @@
     gate: $('gate'), nickInput: $('nickInput'), pinDots: $('pinDots'), pinpad: $('pinpad'),
     enterBtn: $('enterBtn'), gateHint: $('gateHint'), studio: $('studio'),
     profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), profileNick: $('profileNick'),
-    profileKeyBtn: $('profileKeyBtn'), profileLogoutBtn: $('profileLogoutBtn'),
+    profileKeyBtn: $('profileKeyBtn'), profileLogoutBtn: $('profileLogoutBtn'), keyStatus: $('keyStatus'),
     tabs: $('tabs'), lib: $('lib')
   };
 
@@ -473,6 +473,11 @@
     const has = Boolean(token());
     els.profileNick.textContent = currentUser() || '';
     els.profileBtn.title = has ? 'Профиль — ключ стенда сохранён' : 'Профиль — ключ стенда не задан';
+    // статус ключа виден всегда: в пункте меню и внутри карточки ключа
+    els.profileKeyBtn.textContent = has ? 'Ключ стенда ✓' : 'Ключ стенда…';
+    if (els.keyStatus) els.keyStatus.textContent = has
+      ? 'Ключ сохранён ✓ — хранится только в этом браузере.'
+      : 'Ключ ещё не задан.';
   }
 
   // ---- потоки -------------------------------------------------------------------

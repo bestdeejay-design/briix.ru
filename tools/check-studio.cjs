@@ -390,6 +390,8 @@ function bffServer(port) {
   await p.locator('#profileKeyBtn').click();
   await p.waitForSelector('#keyCard:not([hidden])');
   assert.equal(await p.locator('#keyCard').isVisible(), true, 'key card opens from the profile menu');
+  assert.match(await p.locator('#keyStatus').innerText(), /сохранён ✓/, 'key status line reflects saved state');
+  assert.match(await p.locator('#profileKeyBtn').innerText(), /Ключ стенда ✓/, 'menu item marks the saved key');
   assert.equal(await p.locator('#profileMenu').isVisible(), false, 'menu closed after picking the item');
   await p.locator('#profileBtn').click();
   await p.waitForSelector('#profileMenu:not([hidden])');

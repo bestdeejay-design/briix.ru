@@ -1060,6 +1060,9 @@
   function libCard(entry) {
     const div = document.createElement('div');
     div.className = 'card lib-item' + (entry.fav ? ' fav' : '');
+    // строка-карточка (эталон владельца): обложка-миниатюра слева, контент справа
+    const main = document.createElement('div');
+    main.className = 'lib-main';
     const who = document.createElement('div');
     who.className = 'who';
     if (entry.kind === 'music' && entry.cover) { // миниатюра обложки (infra#77: /files/{id}-cover.png)
@@ -1126,7 +1129,8 @@
       renderLibrary();
     });
     row.append(download, fav, del);
-    div.append(who, promptEl, media, row);
+    main.append(who, promptEl, media, row);
+    div.append(main);
     if (entry.kind === 'music' && entry.lyrics) {
       const lyricsWrap = document.createElement('div');
       lyricsWrap.className = 'lib-lyrics';
@@ -1144,7 +1148,7 @@
       body.hidden = true;
       body.textContent = entry.lyrics;
       lyricsWrap.append(toggle, body);
-      div.append(lyricsWrap);
+      main.append(lyricsWrap);
     }
     return div;
   }

@@ -14,7 +14,6 @@
   const DURATIONS = [30, 60, 120, 240, 300];
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
   const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
-  const STOP_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
   const PLACEHOLDERS = {
     chat: 'Что создаём?',
     photo: 'Что рисуем? Опишите изображение…',
@@ -84,7 +83,7 @@
 
   async function chatNonStream({ messages, maxTokens, signal }) {
     const response = await request('/v1/chat/completions', {
-      method: 'POST', headers: headers(), signal: signal || signalOf(),
+      method: 'POST', headers: headers(), signal,
       body: JSON.stringify({ messages, stream: false, max_tokens: maxTokens || 600 })
     });
     const payload = await response.json();
@@ -105,7 +104,7 @@
 
   async function chatStream({ messages, onChunk, signal }) {
     const response = await request('/v1/chat/completions', {
-      method: 'POST', headers: headers(), signal: signal || signalOf(),
+      method: 'POST', headers: headers(), signal,
       body: JSON.stringify({ messages, stream: true })
     });
     if (!response.body) throw new BusError('stream_unsupported', 'Браузер не отдал тело потока.');
@@ -138,12 +137,12 @@
     return payload.job_id;
   }
 
-  async function pollJob(id, { onStatus, intervalMs = 2000, timeoutMs = 15 * 60000 }) {
+  async function pollJob(id, { onStatus, intervalMs = 2000, timeoutMs = 15 * 60000, shouldStop }) {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
-      if (cancelRequested) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
+      if (shouldStop?.()) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
       await new Promise(r => setTimeout(r, intervalMs));
-      if (cancelRequested) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
+      if (shouldStop?.()) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
       const response = await request('/jobs/' + encodeURIComponent(id), { headers: headers() });
       const data = await response.json();
       onStatus?.(data);
@@ -215,7 +214,6 @@
 
   let mode = 'chat';
   let quality = 'flash';
-  let cancelRequested = false;
   let duration = 300; // по умолчанию — полная песня
   try { const saved = Number(localStorage.getItem('briix-studio-duration')); if (saved >= 5) duration = saved; } catch {}
   let instrumental = false; // вокальный контур починен (infra#79) — дефолт снова «Песня»; выбор хранится в браузере
@@ -267,20 +265,28 @@
     }
     if (feedLog.length) els.feed.scrollIntoView({ block: 'end' });
   }
-  let controller = null;
   const assistantId = { chat: 'mentor', photo: 'art-dir', music: 'producer' };
   const undoBackup = { lyrics: null, musicPrompt: null };
 
-  function signalOf() {
-    controller = new AbortController();
-    return controller.signal;
+  // Каждая генерация — независимая: свой контроллер отмены и свой ✕ в карточке.
+  // Параллельно можно: писать в чат, запускать новые генерации, менять режимы/модели.
+  function makeCancelHandle() {
+    const h = { cancelled: false, controller: new AbortController(), stopBtn: null };
+    h.stop = () => { h.cancelled = true; h.controller.abort(); };
+    return h;
   }
-
-  // Стоп: прерывает и чат-стрим, и поллинг задачи. Задача на сервере не отменяется.
-  function stopAll() {
-    if (!busy) return;
-    cancelRequested = true;
-    controller?.abort();
+  // ✕ в строке ожидания: гасит только свою генерацию.
+  function appendStop(row, handle) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'stage-stop';
+    b.setAttribute('aria-label', 'Остановить генерацию');
+    b.title = 'Остановить';
+    b.textContent = '✕';
+    b.addEventListener('click', () => handle.stop());
+    row.append(b);
+    handle.stopBtn = b;
+    return b;
   }
 
   function setStatus(text, isBusy) {
@@ -486,21 +492,18 @@
   }
 
   function updateEnabled() {
-    els.send.disabled = !busy && !promptValue(); // во время работы send = стоп, не глушим
+    els.send.disabled = !promptValue(); // генерации параллельные: send не глушим
     els.improveLyrics.disabled = busy || !els.lyrics.value.trim();
     els.improvePrompt.disabled = busy || !els.musicPrompt.value.trim();
     els.improvePhoto.disabled = busy || mode !== 'photo' || !els.prompt.value.trim();
   }
 
-  function setBusy(v, statusText) {
-    busy = v;
-    els.send.classList.toggle('busy', v);
-    els.send.classList.toggle('stop', v); // во время работы кнопка отправки = стоп
-    els.send.setAttribute('aria-label', v ? 'Остановить' : 'Отправить');
-    els.send.innerHTML = v ? STOP_SVG : SEND_SVG;
-    els.improveLyrics.classList.toggle('busy', v);
-    els.improvePrompt.classList.toggle('busy', v);
-    setStatus(v ? (statusText || 'Работаем…') : '', v);
+  let runningOps = 0;
+  function setBusy(delta, statusText) { // delta=true — операция началась, false — закончилась; счётчик, не глобальный флаг
+    runningOps = Math.max(0, runningOps + (delta ? 1 : -1));
+    els.improveLyrics.classList.toggle('busy', runningOps > 0);
+    els.improvePrompt.classList.toggle('busy', runningOps > 0);
+    setStatus(runningOps > 0 ? (statusText || 'Работаем…') : '', runningOps > 0);
     updateEnabled();
   }
 
@@ -526,8 +529,6 @@
 
   // ---- потоки -------------------------------------------------------------------
   async function create() {
-    if (busy) return;
-    cancelRequested = false;
     if (!needKey()) return;
     const text = promptValue();
     if (!text) return;
@@ -544,25 +545,45 @@
     updateEnabled();
     const who = currentAssistant().name;
     const body = card('assistant', who, '');
-    body.append(waitLine('chat')); // мгновенный отклик: видно, что запрос ушёл
+    const handle = makeCancelHandle(); // ✕ в карточке гасит только этот стрим
+    const textSpan = document.createElement('span'); // текст отдельно от ✕, чтобы не перемешивались
+    const wait = waitLine('chat'); // мгновенный отклик: видно, что запрос ушёл
+    const stopRow = document.createElement('div');
+    stopRow.className = 'wait-row';
+    stopRow.append(wait);
+    appendStop(stopRow, handle);
+    body.append(textSpan, stopRow);
     body.classList.add('streaming');
     setBusy(true, who + ' печатает…');
     try {
       const messages = [{ role: 'system', content: currentAssistant().system }, ...history];
       let first = true;
-      const full = await chatStream({ messages, onChunk: piece => {
-        if (first) { body.textContent = ''; first = false; } // ждущий блок уступает место стриму
-        body.textContent += piece;
+      const full = await chatStream({ messages, signal: handle.controller.signal, onChunk: piece => {
+        if (first) { wait.remove(); first = false; } // ждущий блок уступает место стриму, ✕ остаётся
+        textSpan.textContent += piece;
         scrollFeed();
       } });
+      stopRow.remove();
+      body.textContent = full; // чистый текст вместо служебных узлов
       history.push({ role: 'assistant', content: full });
       feedPush({ t: 'assistant', who, text: full, track: full }); // track = бриф «Сделать из этого трек»
       addMakeTrackAction(body.closest('.card'), full);
     } catch (error) {
-      if (!body.textContent.trim()) body.closest('.card').remove(); // пустая карточка без ответа не висит
-      history.pop(); // неудачный ход не остаётся в истории
-      if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
-      errorCard(error);
+      stopRow.remove();
+      if (error.name === 'AbortError') {
+        if (body.textContent.trim()) { // частичный ответ остаётся в ленте
+          const note = document.createElement('div');
+          note.className = 'stopped-note';
+          note.textContent = '⏹ остановлено';
+          body.append(note);
+        } else body.closest('.card').remove();
+        history.pop(); // неудачный ход не остаётся в истории
+      } else {
+        if (!body.textContent.trim()) body.closest('.card').remove(); // пустая карточка без ответа не висит
+        history.pop(); // неудачный ход не остаётся в истории
+        if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
+        errorCard(error);
+      }
     } finally { body.classList.remove('streaming'); setBusy(false); updateEnabled(); }
   }
 
@@ -577,10 +598,12 @@
     skel.className = 'skeleton-img';
     stageBody.append(skel);
     const wait = waitRow('image', 'generating');
+    const handle = makeCancelHandle(); // ✕ гасит только эту джобу
+    appendStop(wait.row, handle);
     stageBody.append(wait.row);
     try {
       const id = await submitJob({ type: 'image', prompt: text });
-      const result = await pollJob(id, { onStatus: d => {
+      const result = await pollJob(id, { shouldStop: () => handle.cancelled, onStatus: d => {
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
       wait.stop();
@@ -600,23 +623,24 @@
     } catch (error) {
       wait.stop();
       stageBody.closest('.card').remove();
-      if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
-      errorCard(error);
+      if (error.name === 'AbortError' || error.code === 'cancelled') {
+        card('notice', 'Остановлено', 'Генерацию остановили — запрос можно повторить.');
+      } else {
+        if (!els.prompt.value.trim()) els.prompt.value = text; // текст сохраняем для правки
+        errorCard(error);
+      }
     } finally { setBusy(false); updateEnabled(); }
   }
 
-  async function autoLyrics(topic) {
+  async function autoLyrics(topic, outerSignal) {
     // vocal-модели требуют текст: если лирика пустая — qwen3 пишет её сам
     const messages = [
       { role: 'system', content: 'Ты — автор песен. Напиши текст песни на русском языке по теме пользователя. 8–16 строк. Обязательно используй структурные теги [verse] и [chorus] (можно [bridge], [outro]). Без пояснений и вступлений — только текст песни с тегами.' },
       { role: 'user', content: 'Тема песни: ' + topic }
     ];
     let full = '';
-    // свой контроллер (глобальный может быть ещё null) + регистрация его как «текущего»,
-    // чтобы стоп-кнопка гасила и авторство песни; потолок 150 с (лимит каталога 180)
-    const local = new AbortController();
-    controller = local;
-    const signal = AbortSignal.any([local.signal, AbortSignal.timeout(150000)]);
+    // ✕ своей карточки + потолок 150 с (лимит каталога chat 180)
+    const signal = AbortSignal.any([outerSignal, AbortSignal.timeout(150000)]);
     try {
       full = await chatStream({ messages, onChunk: () => {}, signal });
     } catch (error) {
@@ -640,12 +664,14 @@
     feedPush({ t: 'user', who: 'Вы', text: requestText });
     const stageBody = card('stage', 'Музыка', ''); // мгновенно, включая фазу автолирики
     const wait = waitRow('music', vocal && !lyrics ? 'writing-lyrics' : 'synthesizing');
+    const handle = makeCancelHandle(); // ✕ гасит автолирику и поллинг этой джобы
+    appendStop(wait.row, handle);
     stageBody.append(wait.row);
     setBusy(true, vocal && !lyrics && !instrumental ? 'Пишем текст песни…' : 'Отправляем задачу…');
     try {
       if (vocal && !lyrics) {
         try {
-          lyrics = await autoLyrics(style || lyrics || 'песня');
+          lyrics = await autoLyrics(style || lyrics || 'песня', handle.controller.signal);
           if (advanced) els.lyrics.value = lyrics;
         } catch (error) {
           wait.stop();
@@ -660,11 +686,11 @@
           return;
         }
       }
-      const params = { model: MUSIC_MODELS[quality], duration_seconds: duration };
+      const params = { model: MUSIC_MODELS[quality], duration }; // контракт шины: params.duration (не duration_seconds!)
       if (instrumental) params.instrumental = true;
       if (lyrics) params.lyrics = lyrics;
       const id = await submitJob({ type: 'music', prompt: style || lyrics, params });
-      const result = await pollJob(id, { onStatus: d => {
+      const result = await pollJob(id, { shouldStop: () => handle.cancelled, onStatus: d => {
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
       wait.stop();
@@ -688,10 +714,14 @@
     } catch (error) {
       wait.stop();
       stageBody.closest('.card').remove();
-      // текст остаётся в полях для правки (в т.ч. после 422)
-      if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;
-      if (advanced && !els.musicPrompt.value.trim()) els.musicPrompt.value = style;
-      errorCard(error);
+      if (error.name === 'AbortError' || error.code === 'cancelled') {
+        card('notice', 'Остановлено', 'Генерацию остановили — запрос можно повторить.');
+      } else {
+        // текст остаётся в полях для правки (в т.ч. после 422)
+        if (!advanced && !els.prompt.value.trim()) els.prompt.value = description;
+        if (advanced && !els.musicPrompt.value.trim()) els.musicPrompt.value = style;
+        errorCard(error);
+      }
     } finally { setBusy(false); updateEnabled(); }
   }
 
@@ -731,7 +761,6 @@
     if (busy) return;
     const original = els.prompt.value.trim();
     if (!original || !needKey()) return;
-    cancelRequested = false;
     setBusy(true, 'Улучшаем промпт…');
     els.improvePhoto.classList.add('busy');
     try {
@@ -1087,7 +1116,7 @@
     renderChrome();
   });
 
-  els.send.addEventListener('click', () => { if (busy) stopAll(); else create(); });
+  els.send.addEventListener('click', create);
   els.improveLyrics.addEventListener('click', () => improve('lyrics'));
   els.improvePrompt.addEventListener('click', () => improve('prompt'));
   els.undoLyrics.addEventListener('click', () => undo('lyrics'));

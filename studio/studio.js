@@ -1050,6 +1050,7 @@
       render(merged.filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter), note, true);
     }).catch((error) => {
       if (seq !== libSeq) return;
+      if (!note.isConnected) els.lib.append(note); // note мог отцепиться после успешного локального рендера
       note.textContent = error instanceof BusError && error.status === 401
         ? 'Серверная библиотека недоступна: проверьте ключ (профиль → «Ключ стенда…»).'
         : 'Серверная библиотека недоступна — показаны локальные записи.';

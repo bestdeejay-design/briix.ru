@@ -528,9 +528,7 @@ function bffServer(port) {
   assert.equal(await p.locator('#lib').isVisible(), true, 'library tab opens');
   assert.equal(await p.locator('#composer').isVisible(), false, 'composer hidden in library');
   await p.waitForSelector('.lib-item', { timeout: 10000 });
-  console.log('LIB:', await p.evaluate(() => [...document.querySelectorAll('.lib-item .lib-prompt')].map(e => e.textContent).join(' | ')), '| LS:', await p.evaluate(() => (localStorage.getItem('briix-studio-library-tester')||'').slice(0,200)));
   assert.match(await p.locator('.lib-item .lib-prompt', { hasText: 'lighthouse' }).innerText(), /lighthouse/);
-  console.log('LIB-ERR:', await p.evaluate(() => window.__liberr || 'n/a'));
   // Музыкальная запись: модель в .who, подпись M4A, сворачиваемый текст песни.
   const musicItem = p.locator('.lib-item', { hasText: /Музыка/i }).first();
   await musicItem.locator('.lib-cover').waitFor({ state: 'visible', timeout: 10000 }); // обложка-миниатюра (infra#77)

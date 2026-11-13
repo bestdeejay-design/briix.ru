@@ -827,6 +827,15 @@
   const KIND_LABELS = { photo: 'Фото', music: 'Музыка' };
   const FILTERS = [['all', 'Все'], ['photo', 'Фото'], ['music', 'Музыка'], ['fav', '★ Избранное']];
 
+  // Серверная библиотека (infra#77): GET /jobs как первоисточник, клиентские записи — дополнение.
+  let libSeq = 0;
+  async function serverJobs() {
+    const response = await fetch(server() + '/jobs?limit=100', { headers: headers() });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return Array.isArray(payload?.items) ? payload.items : [];
+  }
+
   function renderLibrary() {
     els.lib.innerHTML = '';
     const filterRow = document.createElement('div');
@@ -840,17 +849,53 @@
       filterRow.append(chip);
     }
     els.lib.append(filterRow);
-    const list = libLoad().filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter);
-    if (!list.length) {
-      const empty = document.createElement('div');
-      empty.className = 'card notice';
-      empty.textContent = libFilter === 'all'
-        ? 'Пока пусто — создайте фото или трек в чате, они появятся здесь.'
-        : 'В этом фильтре пусто.';
-      els.lib.append(empty);
-      return;
-    }
-    for (const entry of list) els.lib.append(libCard(entry));
+    const render = (list, note) => {
+      if (list.length) note?.remove();
+      if (!list.length) {
+        if (note) note.textContent = libFilter === 'all'
+          ? 'Пока пусто — создайте фото или трек в чате, они появятся здесь.'
+          : 'В этом фильтре пусто.';
+        return;
+      }
+      for (const entry of list) els.lib.append(libCard(entry));
+    };
+    // мгновенно — клиентские записи, чтобы вкладка не мигала пустотой
+    const local = libLoad().filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter);
+    const note = document.createElement('div');
+    note.className = 'card notice';
+    note.textContent = 'Загружаем библиотеку…';
+    els.lib.append(note);
+    render(local, note);
+    // затем серверный список поверх (объединение по job id)
+    const seq = ++libSeq;
+    serverJobs().then(items => {
+      if (seq !== libSeq) return; // устаревший прогон рендера
+      const byId = new Map();
+      for (const e of libLoad()) byId.set(e.job, e);
+      const merged = [];
+      for (const j of items) {
+        const kind = j.type === 'image' ? 'photo' : j.type === 'music' ? 'music' : j.type;
+        const localEntry = byId.get(j.id);
+        if (localEntry) {
+          localEntry.fav = !!j.favorite;
+          localEntry.server = true;
+          localEntry.file = j.result_url || localEntry.file;
+          localEntry.created = localEntry.created || (j.created_at || 0) * 1000;
+          merged.push(localEntry);
+          byId.delete(j.id);
+        } else if (j.result_url) {
+          merged.push({
+            job: j.id, kind, prompt: j.prompt || '',
+            file: j.result_url, cover: j.cover_url || '',
+            created: (j.created_at || 0) * 1000, fav: !!j.favorite, server: true,
+            lyrics: j.params?.lyrics || '', model: j.params?.model || '', duration: j.params?.duration_seconds || ''
+          });
+        }
+      }
+      for (const e of byId.values()) merged.push(e);
+      merged.sort((a, b) => (b.created || 0) - (a.created || 0));
+      render(merged.filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter), note);
+    }).catch(() => { if (seq === libSeq) note.textContent = 'Серверная библиотека недоступна — показаны локальные записи.'; });
   }
 
   function libCard(entry) {
@@ -887,17 +932,29 @@
     fav.type = 'button';
     fav.className = 'action';
     fav.textContent = entry.fav ? '★ В избранном' : '☆ В избранное';
-    fav.addEventListener('click', () => {
+    fav.addEventListener('click', async () => {
+      const next = !entry.fav;
+      if (entry.server) { // серверная запись — флаг на шине (infra#77)
+        try {
+          await fetch(server() + '/jobs/' + encodeURIComponent(entry.job) + '/favorite', {
+            method: 'POST', headers: headers(), body: JSON.stringify({ favorite: next })
+          });
+        } catch { /* офлайн — просто перерисуем локальное состояние */ }
+      }
       const list = libLoad();
       const item = list.find(x => x.job === entry.job);
-      if (item) { item.fav = !item.fav; libSave(list); renderLibrary(); }
+      if (item) { item.fav = next; libSave(list); }
+      renderLibrary();
     });
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'action';
     del.textContent = '🗑 Удалить';
-    del.addEventListener('click', () => {
+    del.addEventListener('click', async () => {
       if (!confirm('Удалить из библиотеки? Файл на стенде останется.')) return;
+      if (entry.server) {
+        try { await fetch(server() + '/jobs/' + encodeURIComponent(entry.job), { method: 'DELETE', headers: headers() }); } catch { /* offline */ }
+      }
       libSave(libLoad().filter(x => x.job !== entry.job));
       blobCache.delete(entry.job);
       renderLibrary();

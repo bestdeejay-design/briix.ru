@@ -288,8 +288,12 @@ function bffServer(port) {
   await p.locator('#lyrics').fill('[Verse]\nГород спит\n[Chorus]\nА я не сплю');
   await p.locator('#musicPrompt').fill('dream pop, 90 BPM, female vocals');
   await p.locator('#durationChip').click();
-  await p.locator('#durationMenu button', { hasText: '60 с' }).click();
-  assert.equal(await p.locator('#durationName').innerText(), '60 с');
+  await p.locator('#durationMenu button', { hasText: 'Полная' }).click();
+  assert.match(await p.locator('#durationName').innerText(), /Полная/, 'duration preset selected');
+  // Дефолт-пресет «Стандарт»: переключаемся обратно и проверяем.
+  await p.locator('#durationChip').click();
+  await p.locator('#durationMenu button', { hasText: 'Стандарт' }).click();
+  assert.match(await p.locator('#durationName').innerText(), /Стандарт/);
   assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'true', 'vocal «Песня» is the default again (infra#79 fixed)');
   assert.equal(await p.locator('.seg-btn[data-vocal="1"]').getAttribute('aria-pressed'), 'false');
   await p.evaluate(() => {
@@ -309,6 +313,8 @@ function bffServer(port) {
     const el = document.querySelector('.card.stage [data-wait]');
     return el && el.textContent.length > 5;
   }, {}, { timeout: 10000 });
+  await p.waitForSelector('.stage-progress-label', { timeout: 5000 });
+  assert.match(await p.locator('.stage-progress-label').innerText(), /этап \d из 3/, 'progress bar label present');
   await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
   const seen = await p.evaluate(() => window.__stageSeen);
   assert.ok(seen.length >= 1, 'polling stages were shown: ' + seen.join(','));
@@ -317,7 +323,7 @@ function bffServer(port) {
   assert.equal(musicPost.prompt, 'dream pop, 90 BPM, female vocals');
   assert.match(musicPost.params.lyrics, /\[Chorus\]/);
   assert.equal(musicPost.params.model, 'ace-step-flash');
-  assert.equal(musicPost.params.duration, 60, 'duration sent under the bus contract key (infra: params.duration)');
+  assert.equal(musicPost.params.duration, 90, 'std preset = 90 s under the bus contract key (params.duration)');
   assert.equal(musicPost.params.duration_seconds, undefined, 'legacy key must not be sent');
   assert.equal(musicPost.params.instrumental, undefined);
   // Pro через чип модели + снова инструментал (режим «Инструментал» выбран явно).

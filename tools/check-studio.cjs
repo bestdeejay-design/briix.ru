@@ -22,7 +22,7 @@ let state;
 function resetBff() {
   state = {
     chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false,
-    jobPosts: [], jobBlock: false, polls: 0
+    jobPosts: [], jobBlock: false, polls: 0, deleted: {}, favs: {}
   };
 }
 resetBff();
@@ -92,7 +92,36 @@ function bffServer(port) {
         return;
       }
 
+      // infra#77 контракт: список / мягкое удаление / избранное
+      if (req.url === '/jobs' && req.method === 'GET') {
+        const items = state.jobPosts
+          .map((post, i) => ({ post, id: 'job-studio-1', n: i }))
+          .filter(({ id }) => !state.deleted[id])
+          .map(({ post, id, n }) => ({
+            id,
+            type: post.type || 'image',
+            status: 'ready',
+            prompt: post.prompt || '',
+            params: { ...(post.params || {}) },
+            result_url: post.type === 'music' ? '/files/job-studio-1.m4a' : '/files/job-studio-1.png',
+            favorite: !!state.favs[id],
+            created_at: 1794000000 + n
+          }));
+        send(200, { total: items.length, limit: 100, offset: 0, items });
+        return;
+      }
+      if (req.url === '/jobs/job-studio-1/favorite' && req.method === 'POST') {
+        readBody(body => { if (typeof body.favorite !== 'boolean') return send(400, { error: { code: 'bad_schema', message: 'bad' } }); state.favs['job-studio-1'] = body.favorite; send(200, { id: 'job-studio-1', favorite: body.favorite }); });
+        return;
+      }
+      if (req.url === '/jobs/job-studio-1' && req.method === 'DELETE') {
+        state.deleted['job-studio-1'] = true;
+        send(200, { id: 'job-studio-1', deleted: true });
+        return;
+      }
+
       if (req.url.startsWith('/jobs/job-studio-1')) {
+        if (state.deleted['job-studio-1']) { send(404, { error: { code: 'job_not_found', message: 'deleted' } }); return; }
         state.polls++;
         const post = state.jobPosts.at(-1) || {};
         if (state.polls <= 2) {

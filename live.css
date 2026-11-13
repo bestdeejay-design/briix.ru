@@ -82,7 +82,7 @@
 }
 
 /* Фаза 3, п.4: живое ожидание — мелкая строка под прогрессом. */
-.wait-line { margin: 6px 0 0; font-size: 10px; line-height: 1.6; color: var(--faint); min-height: 16px; }
+.wait-line { margin: 6px 0 0; font-size: 10px; line-height: 1.6; color: var(--faint); min-height: 3.2em; } /* резерв 2 строк: live-опрос перезаполняет фразу рандомом, перенос не должен менять высоту */
 .media-mini-job .wait-line, .music-queue-row .wait-line { font-size: 9px; }
 .message .wait-line { margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) { .wait-line { transition: none; } }

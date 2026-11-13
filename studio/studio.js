@@ -227,7 +227,6 @@
   let instrumental = false; // вокальный контур починен (infra#79) — дефолт снова «Песня»; выбор хранится в браузере
   try { const savedInstr = localStorage.getItem('briix-studio-instrumental'); if (savedInstr !== null) instrumental = savedInstr === '1'; } catch {}
   let advanced = false;
-  let busy = false;
   let history = []; // chat mode: {role, content}
   // Лента переживает перезагрузку: сериализованный журнал карточек в localStorage (per-ник).
   let feedLog = [];
@@ -260,6 +259,7 @@
           } else {
             const audio = document.createElement('audio');
             audio.controls = true;
+            audio.controlsList = 'nodownload';
             audio.preload = 'none';
             audio.src = URL.createObjectURL(blob);
             slot.append(audio);
@@ -502,9 +502,9 @@
 
   function updateEnabled() {
     els.send.disabled = !promptValue(); // генерации параллельные: send не глушим
-    els.improveLyrics.disabled = busy || !els.lyrics.value.trim();
-    els.improvePrompt.disabled = busy || !els.musicPrompt.value.trim();
-    els.improvePhoto.disabled = busy || mode !== 'photo' || !els.prompt.value.trim();
+    els.improveLyrics.disabled = runningOps > 0 || !els.lyrics.value.trim();
+    els.improvePrompt.disabled = runningOps > 0 || !els.musicPrompt.value.trim();
+    els.improvePhoto.disabled = runningOps > 0 || mode !== 'photo' || !els.prompt.value.trim();
   }
 
   let runningOps = 0;
@@ -726,8 +726,7 @@
           if (advanced) els.lyrics.value = lyrics;
         } catch (error) {
           wait.stop(); clearInterval(barTimer); watchStage.disconnect();
-          stageBody.closest('.card').remove();
-          setBusy(false); updateEnabled();
+          stageBody.closest('.card').remove(); // setBusy(false) не нужен: finally в createMusic сделает декремент
           const why = error.name === 'AbortError' ? 'Остановлено вручную.'
             : error.code === 'timeout' ? error.message
             : error.code === 'content_blocked' ? 'Модерация не пропустила тему.'
@@ -749,10 +748,19 @@
       stageBody.closest('.card').remove();
       const audio = document.createElement('audio');
       audio.controls = true;
+      audio.controlsList = 'nodownload'; // скачивание только через нашу кнопку: имя .m4a, обложка и текст внутри
       const blob = await fileBlob(result.result_url);
       audio.src = URL.createObjectURL(blob);
       const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', '');
       wrap.textContent = '';
+      const coverPath = (result.result_url || '').replace(/\.m4a$/, '-cover.png');
+      if (coverPath !== result.result_url) {
+        const cimg = new Image();
+        cimg.className = 'feed-cover';
+        cimg.alt = 'Обложка трека';
+        wrap.append(cimg);
+        fileBlob(coverPath).then(b => { cimg.src = URL.createObjectURL(b); }).catch(() => cimg.remove());
+      }
       wrap.append(audio);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать M4A');
       feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', kind: 'music', file: result.result_url });
@@ -785,7 +793,7 @@
   }
 
   async function improve(field) {
-    if (busy) return;
+    if (runningOps > 0) return;
     if (!needKey()) return;
     const el = field === 'lyrics' ? els.lyrics : els.musicPrompt;
     const original = el.value;
@@ -810,7 +818,7 @@
 
   // ✨ в режиме «Фото»: арт-директор улучшает промпт перед отправкой.
   async function improvePhoto() {
-    if (busy) return;
+    if (runningOps > 0) return;
     const original = els.prompt.value.trim();
     if (!original || !needKey()) return;
     setBusy(true, 'Улучшаем промпт…');
@@ -840,7 +848,7 @@
 
   // Новый чат: чистим ленту, журнал и историю (мод/качество/ключ не трогаем).
   function newChat() {
-    if (busy) return;
+    if (runningOps > 0) return;
     if (feedLog.length && !confirm('Очистить ленту диалога? Генерации останутся в «Библиотеке», но переписка на экране сотрётся.')) return;
     history = [];
     feedLog = [];
@@ -968,7 +976,10 @@
   let libSeq = 0;
   async function serverJobs() {
     const response = await fetch(server() + '/jobs?limit=100', { headers: headers() });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      if (response.status === 401) throw new BusError('unauthorized', 'Ключ не принят (401).', 401);
+      return [];
+    }
     const payload = await response.json();
     return Array.isArray(payload?.items) ? payload.items : [];
   }
@@ -986,7 +997,11 @@
       filterRow.append(chip);
     }
     els.lib.append(filterRow);
-    const render = (list, note) => {
+    const render = (list, note, replace) => {
+      if (replace && list.length) { // серверный список заменяет предварительный локальный рендер, а не дополняет его
+        els.lib.innerHTML = '';
+        els.lib.append(filterRow);
+      }
       if (list.length) note?.remove();
       if (!list.length) {
         if (note) note.textContent = libFilter === 'all'
@@ -1017,6 +1032,7 @@
           localEntry.fav = !!j.favorite;
           localEntry.server = true;
           localEntry.file = j.result_url || localEntry.file;
+          localEntry.cover = j.cover_url || localEntry.cover || '';
           localEntry.created = localEntry.created || (j.created_at || 0) * 1000;
           merged.push(localEntry);
           byId.delete(j.id);
@@ -1031,8 +1047,14 @@
       }
       for (const e of byId.values()) merged.push(e);
       merged.sort((a, b) => (b.created || 0) - (a.created || 0));
-      render(merged.filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter), note);
-    }).catch(() => { if (seq === libSeq) note.textContent = 'Серверная библиотека недоступна — показаны локальные записи.'; });
+      render(merged.filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter), note, true);
+    }).catch((error) => {
+      if (seq !== libSeq) return;
+      if (!note.isConnected) els.lib.append(note); // note мог отцепиться после успешного локального рендера
+      note.textContent = error instanceof BusError && error.status === 401
+        ? 'Серверная библиотека недоступна: проверьте ключ (профиль → «Ключ стенда…»).'
+        : 'Серверная библиотека недоступна — показаны локальные записи.';
+    });
   }
 
   function libCard(entry) {
@@ -1040,6 +1062,13 @@
     div.className = 'card lib-item' + (entry.fav ? ' fav' : '');
     const who = document.createElement('div');
     who.className = 'who';
+    if (entry.kind === 'music' && entry.cover) { // миниатюра обложки (infra#77: /files/{id}-cover.png)
+      const cov = document.createElement('img');
+      cov.className = 'lib-cover';
+      cov.alt = 'Обложка';
+      div.append(cov);
+      fileBlob(entry.cover).then(b => { cov.src = URL.createObjectURL(b); }).catch(() => cov.remove());
+    }
     let whoText = KIND_LABELS[entry.kind] || entry.kind;
     if (entry.kind === 'music' && entry.model) whoText += ' · ' + entry.model;
     if (entry.kind === 'music' && entry.duration) whoText += ' · ' + entry.duration + ' с';
@@ -1138,6 +1167,7 @@
     container.textContent = 'Файл готов — нажмите ▶, чтобы загрузить и слушать.';
     if (entry.kind !== 'music') container.textContent = 'Загружаем…';
     const observer = new IntersectionObserver((records, obs) => {
+      if (!container.isConnected) { obs.disconnect(); return; } // карточку перерисовали — наблюдение больше не нужно
       for (const r of records) if (r.isIntersecting) {
         obs.disconnect();
         libQueue.push(async () => {
@@ -1163,6 +1193,7 @@
     } else {
       const audio = document.createElement('audio');
       audio.controls = true;
+      audio.controlsList = 'nodownload'; // то же: имя файла даёт наша кнопка
       audio.preload = 'none';
       audio.src = url;
       container.append(audio);

@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>BRIIX Студия</title>
+<script>
+// Зеркало на Pages (briix.ru) без шины /api — сразу на рабочую студию (demo.briix.ru).
+if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
+  location.replace('https://demo.briix.ru/studio/' + location.hash);
+}
+</script>
 <link rel="stylesheet" href="studio.css">
 </head>
 <body>

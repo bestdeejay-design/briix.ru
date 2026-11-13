@@ -249,17 +249,33 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 }
 @keyframes card-in { from { opacity: 0; transform: translateY(4px); } }
 
-/* ---- живое ожидание: спиннер + ротация фраз (wait-ui.js) -------------------- */
+/* ---- живое ожидание: футуристичный спиннер + ротация фраз (wait-ui.js) -------
+ * Три слоя: коническое кольцо (accent, свечение) · орбитальная точка (blue) ·
+ * пульсирующее ядро. Только токены палитры; reduced-motion гасит глобально. */
 .wait-line { display: flex; align-items: center; gap: 8px; min-height: 20px; }
 .wait-spin {
-  width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
-  border: 2px solid var(--line-focus); border-top-color: var(--accent);
-  animation: waitspin .8s linear infinite;
+  position: relative; width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--accent), transparent 110deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  animation: waitspin 1s linear infinite;
+  filter: drop-shadow(0 0 5px var(--accent-ring));
+}
+.wait-spin::before { /* ядро: дыхание энергии */
+  content: ''; position: absolute; inset: 5px; border-radius: 50%;
+  background: var(--accent); opacity: .8; filter: blur(.4px);
+  animation: waitcore 1.3s ease-in-out infinite;
+}
+.wait-spin::after { /* орбитальная точка на кольце */
+  content: ''; position: absolute; top: -2px; left: 50%; width: 4px; height: 4px;
+  margin-left: -2px; border-radius: 50%;
+  background: var(--blue); box-shadow: 0 0 6px var(--blue-soft), 0 0 2px var(--blue);
 }
 @keyframes waitspin { to { transform: rotate(360deg); } }
+@keyframes waitcore { 0%, 100% { transform: scale(.55); opacity: .45; } 50% { transform: scale(1); opacity: .95; } }
 .card.assistant .wait-line { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
-  .wait-spin { animation-duration: 2.4s; }
+  .wait-spin, .wait-spin::before { animation-duration: 3s; }
 }
 .card img, .card audio, .card video { width: 100%; border-radius: 10px; margin-top: 8px; display: block; }
 .card img.media-in { opacity: 0; transition: opacity 200ms ease; }

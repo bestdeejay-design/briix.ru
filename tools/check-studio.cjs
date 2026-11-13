@@ -312,7 +312,8 @@ function bffServer(port) {
   assert.equal(musicPost.prompt, 'dream pop, 90 BPM, female vocals');
   assert.match(musicPost.params.lyrics, /\[Chorus\]/);
   assert.equal(musicPost.params.model, 'ace-step-flash');
-  assert.equal(musicPost.params.duration_seconds, 60);
+  assert.equal(musicPost.params.duration, 60, 'duration sent under the bus contract key (infra: params.duration)');
+  assert.equal(musicPost.params.duration_seconds, undefined, 'legacy key must not be sent');
   assert.equal(musicPost.params.instrumental, undefined);
   // Pro через чип модели + снова инструментал (режим «Инструментал» выбран явно).
   await p.locator('.seg-btn[data-vocal="1"]').click();
@@ -367,25 +368,45 @@ function bffServer(port) {
   assert.ok(css.includes('#d97757'), 'single accent color used');
   ok('interactive states defined in css (hover/active/disabled/focus + accent)', {});
 
-  // 11. Enter отправляет в чате; стоп-кнопка прерывает стрим, текст возвращается в поле.
+  // 11. Параллельная лента: стрим в чате + джоба одновременно; ✕ в карточке гасит только свой поток.
   p = await page();
   state.chatSlow = true;
   await p.locator('#prompt').fill('останови меня');
   await p.locator('#prompt').press('Enter'); // Enter = отправка в чате
-  await p.waitForSelector('.card.user');
-  await p.waitForFunction(() => document.getElementById('send').classList.contains('stop'), {}, { timeout: 10000 });  await p.waitForTimeout(700); // пусть стрим успеет отдать несколько слов
-  const lenBefore = await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length);
-  await p.locator('#send').click(); // во время работы кнопка = стоп
-  await p.waitForSelector('.card.notice', { timeout: 10000 });
-  assert.match(await p.locator('.card.notice').last().innerText(), /остановлено/i);
-  const lenAfter = await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length);
-  await p.waitForTimeout(900);
-  assert.equal(await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length), lenAfter, 'stream frozen after stop');
-  assert.equal(await p.locator('#prompt').inputValue(), 'останови меня', 'text returned to the field after stop');
+  await p.waitForSelector('.card.assistant .stream-stop, .card.assistant .wait-row .stage-stop', { timeout: 10000 });
+  // Не дожидаясь конца стрима — запускаем фото-джобу (переключение режимов и генерация параллельно).
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('параллельный маяк');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.stage .stage-stop', { timeout: 10000 });
+  // Пока джоба жива: режим чата, печатаем — send разблокируется, отправка уходит второй параллельной операцией.
+  await p.locator('.mode[data-mode="chat"]').click();
+  await p.locator('#prompt').fill('пока жду — ещё вопрос');
+  assert.equal(await p.evaluate(() => document.getElementById('send').disabled), false, 'send enabled for new content while a job runs');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.assistant .stage-stop', { timeout: 10000 }); // второй стрим пошёл
+  // ✕ гасит только чат-стрим: джоба продолжает жить.
+  await p.locator('.card.assistant .stage-stop').first().click();
+  await p.waitForSelector('.card.assistant .stopped-note', { timeout: 10000 });
+  const stageStillThere = await p.locator('.card.stage').count();
+  assert.equal(stageStillThere >= 1, true, 'job card survives chat stream stop');
+  await p.waitForSelector('.card img', { timeout: 20000 }); // джоба завершилась успехом
   state.chatSlow = false;
-  ok('Enter-to-send in chat + stop button aborts the stream and keeps the text', {});
+  ok('parallel feed: chat stream + job simultaneously, per-card stop kills only its own op', {});
+
+  // 11b. Стоп поллинга джобы: ✕ на stage-карточке останавливает ожидание.
+  p = await page();
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('стоп-маяк');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.stage .stage-stop', { timeout: 10000 });
+  await p.locator('.card.stage .stage-stop').click();
+  await p.waitForSelector('.card.notice', { timeout: 10000 });
+  assert.match(await p.locator('.card.notice').last().innerText(), /остановили/i);
+  ok('job polling stop via in-card ✕ shows a notice and frees the composer', {});
 
   // 12. «Новый чат» чистит ленту и историю.
+  await p.locator('.mode[data-mode="chat"]').click();
   await p.locator('#newChat').click();
   assert.equal(await p.locator('#feed .card').count(), 0, 'feed emptied');
   ok('new chat clears the feed and history', {});

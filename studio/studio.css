@@ -273,6 +273,14 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 .stage-elapsed { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--faint); margin-left: auto; }
 .wait-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.stage-stop {
+  width: 28px; height: 28px; flex-shrink: 0;
+  border-radius: 50%; background: var(--hover); color: var(--muted);
+  font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+  transition: background 150ms ease, color 150ms ease;
+}
+.stage-stop:hover { background: var(--danger-soft); color: var(--danger); }
+.stopped-note { margin-top: 4px; font-size: 12px; color: var(--faint); }
 .card .actions { display: flex; gap: 8px; margin-top: 10px; }
 .action {
   display: inline-flex; align-items: center; gap: 6px;

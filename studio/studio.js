@@ -137,7 +137,8 @@
     return payload.job_id;
   }
 
-  async function pollJob(id, { onStatus, intervalMs = 2000, timeoutMs = 15 * 60000, shouldStop }) {
+  async function pollJob(id, { onStatus, intervalMs = 2000, timeoutMs = 40 * 60000, shouldStop }) {
+    // 40 мин = серверный потолок vocal (2400 c). Длинные песни на CPU идут дольше 15 минут — ждём честно.
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       if (shouldStop?.()) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
@@ -789,6 +790,7 @@
   // Новый чат: чистим ленту, журнал и историю (мод/качество/ключ не трогаем).
   function newChat() {
     if (busy) return;
+    if (feedLog.length && !confirm('Очистить ленту диалога? Генерации останутся в «Библиотеке», но переписка на экране сотрётся.')) return;
     history = [];
     feedLog = [];
     feedSave();
@@ -1067,16 +1069,40 @@
     return div;
   }
 
-  async function libMedia(entry, container) {
-    container.textContent = 'Загружаем…';
-    let url = blobCache.get(entry.job);
-    if (!url) {
-      try {
-        const blob = await fileBlob(entry.file);
-        url = URL.createObjectURL(blob);
-        blobCache.set(entry.job, url);
-      } catch { container.textContent = 'Файл недоступен.'; return; }
+  // Медиа библиотеки грузим лениво и по очереди: 12 параллельных m4a душат канал,
+  // карточки висят в «Загружаем…». Очередь с 2 воркерами + IntersectionObserver.
+  const libQueue = [];
+  let libActive = 0;
+  const LIB_PARALLEL = 2;
+  function libPump() {
+    while (libActive < LIB_PARALLEL && libQueue.length) {
+      const task = libQueue.shift();
+      libActive++;
+      task().finally(() => { libActive--; libPump(); });
     }
+  }
+  function libMedia(entry, container) {
+    const cached = blobCache.get(entry.job);
+    if (cached) return renderMedia(entry, container, cached);
+    container.textContent = 'Файл готов — нажмите ▶, чтобы загрузить и слушать.';
+    if (entry.kind !== 'music') container.textContent = 'Загружаем…';
+    const observer = new IntersectionObserver((records, obs) => {
+      for (const r of records) if (r.isIntersecting) {
+        obs.disconnect();
+        libQueue.push(async () => {
+          try {
+            const blob = await fileBlob(entry.file);
+            const url = URL.createObjectURL(blob);
+            blobCache.set(entry.job, url);
+            renderMedia(entry, container, url);
+          } catch { container.textContent = 'Файл недоступен.'; }
+        });
+        libPump();
+      }
+    }, { rootMargin: '150px' });
+    observer.observe(container);
+  }
+  function renderMedia(entry, container, url) {
     container.textContent = '';
     if (entry.kind === 'photo') {
       const img = new Image();

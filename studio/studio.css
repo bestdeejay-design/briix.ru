@@ -256,8 +256,8 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .wait-spin {
   position: relative; width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%;
   background: conic-gradient(from 0deg, var(--accent), transparent 110deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--ink) calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--ink) calc(100% - 2.5px));
   animation: waitspin 1s linear infinite;
   filter: drop-shadow(0 0 5px var(--accent-ring));
 }
@@ -419,6 +419,9 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 }
 .lib-item .lib-media { min-height: 20px; font-size: 13px; color: var(--faint); }
 .lib-item .lib-media img, .lib-item .lib-media audio { width: 100%; border-radius: 10px; margin-top: 8px; display: block; }
+.lib-item { overflow: hidden; }
+.lib-cover { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; float: left; margin: 1px 10px 6px 0; }
+.feed-cover { width: 132px; max-width: 40%; border-radius: 10px; margin-top: 8px; display: block; }
 .lib-item.fav { border-color: var(--amber); }
 .lib-lyrics { margin-top: 8px; }
 .lib-lyrics-toggle { font-size: 12px; }

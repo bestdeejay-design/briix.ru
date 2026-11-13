@@ -223,6 +223,50 @@
   let advanced = false;
   let busy = false;
   let history = []; // chat mode: {role, content}
+  // Лента переживает перезагрузку: сериализованный журнал карточек в localStorage (per-ник).
+  let feedLog = [];
+  const FEED_KEY = nick => 'briix-studio-feed-' + nick;
+  const FEED_MAX = 80;
+  function feedSave() {
+    const nick = currentUser();
+    if (!nick) return;
+    try { localStorage.setItem(FEED_KEY(nick), JSON.stringify(feedLog.slice(-FEED_MAX))); } catch { /* переполнение */ }
+  }
+  function feedPush(d) { feedLog.push(d); feedLog = feedLog.slice(-FEED_MAX); feedSave(); }
+  // Восстановление: тексты сразу, медиа дозабираем с шины по /files/{id}.
+  function feedRestore() {
+    let log = [];
+    try { log = JSON.parse(localStorage.getItem(FEED_KEY(currentUser()))) || []; } catch { /* пусто */ }
+    feedLog = log;
+    for (const d of feedLog) {
+      if (d.t === 'media') {
+        const body = card('assistant', d.who, '');
+        body.textContent = '';
+        const slot = document.createElement('div');
+        body.append(slot);
+        if (d.track) addMakeTrackAction(body.closest('.card'), d.track);
+        fileBlob(d.file).then(blob => {
+          if (d.kind === 'photo') {
+            const img = new Image();
+            img.alt = 'Результат';
+            img.src = URL.createObjectURL(blob);
+            slot.append(img);
+          } else {
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.preload = 'none';
+            audio.src = URL.createObjectURL(blob);
+            slot.append(audio);
+          }
+          addDownloadAction(body.closest('.card'), blob, d.kind === 'photo' ? 'briix-photo' : 'briix-track', d.kind === 'music' ? '⬇ Скачать M4A' : '⬇ Скачать');
+        }).catch(() => { slot.textContent = 'Файл недоступен (см. Библиотеку).'; });
+        continue;
+      }
+      const body = card(d.t, d.who, d.text);
+      if (d.t === 'assistant' && d.track) addMakeTrackAction(body.closest('.card'), d.track);
+    }
+    if (feedLog.length) els.feed.scrollIntoView({ block: 'end' });
+  }
   let controller = null;
   const assistantId = { chat: 'mentor', photo: 'art-dir', music: 'producer' };
   const undoBackup = { lyrics: null, musicPrompt: null };
@@ -495,6 +539,7 @@
   async function createChat(text) {
     history.push({ role: 'user', content: text });
     card('user', 'Вы', text);
+    feedPush({ t: 'user', who: 'Вы', text });
     els.prompt.value = '';
     updateEnabled();
     const who = currentAssistant().name;
@@ -511,6 +556,7 @@
         scrollFeed();
       } });
       history.push({ role: 'assistant', content: full });
+      feedPush({ t: 'assistant', who, text: full, track: full }); // track = бриф «Сделать из этого трек»
       addMakeTrackAction(body.closest('.card'), full);
     } catch (error) {
       if (!body.textContent.trim()) body.closest('.card').remove(); // пустая карточка без ответа не висит
@@ -522,6 +568,7 @@
 
   async function createPhoto(text) {
     card('user', 'Вы', text);
+    feedPush({ t: 'user', who: 'Вы', text });
     els.prompt.value = '';
     updateEnabled();
     setBusy(true, 'Отправляем задачу…');
@@ -548,6 +595,7 @@
       wrap.textContent = '';
       wrap.append(item);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-photo');
+      feedPush({ t: 'media', who: 'Фото готово', kind: 'photo', file: result.result_url });
       libAdd({ job: id, kind: 'photo', prompt: text, file: result.result_url, created: Date.now(), fav: false });
     } catch (error) {
       wait.stop();
@@ -587,6 +635,9 @@
     if (!advanced) els.prompt.value = '';
     else els.musicPrompt.value = '';
     updateEnabled();
+    const requestText = style || lyrics; // что просили — карточка в ленте и в журнале
+    card('user', 'Вы', requestText);
+    feedPush({ t: 'user', who: 'Вы', text: requestText });
     const stageBody = card('stage', 'Музыка', ''); // мгновенно, включая фазу автолирики
     const wait = waitRow('music', vocal && !lyrics ? 'writing-lyrics' : 'synthesizing');
     stageBody.append(wait.row);
@@ -626,6 +677,7 @@
       wrap.textContent = '';
       wrap.append(audio);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать M4A');
+      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', kind: 'music', file: result.result_url });
       const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
       libAdd({
         job: id, kind: 'music', prompt: (style || lyrics || '').slice(0, 200),
@@ -705,10 +757,12 @@
     updateEnabled();
   }
 
-  // Новый чат: чистим ленту и историю (мод/качество/ключ не трогаем).
+  // Новый чат: чистим ленту, журнал и историю (мод/качество/ключ не трогаем).
   function newChat() {
     if (busy) return;
     history = [];
+    feedLog = [];
+    feedSave();
     els.feed.innerHTML = '';
   }
 
@@ -790,6 +844,7 @@
     els.studio.hidden = false;
     els.profileNick.textContent = nick;
     setView('chat');
+    feedRestore(); // лента прошлого сеанса
     renderKeyChip();
   }
 

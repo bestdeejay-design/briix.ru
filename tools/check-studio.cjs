@@ -21,7 +21,7 @@ const POLICY_MESSAGE = 'Запрос нарушает политику конт�
 let state;
 function resetBff() {
   state = {
-    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false,
+    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false, improveDelay: 0, favoriteFail: false,
     jobPosts: [], jobBlock: false, polls: 0, deleted: {}, favs: {}
   };
 }
@@ -76,7 +76,11 @@ function bffServer(port) {
           if (state.chatBlocked) { send(422, { error: { code: 'content_blocked', message: POLICY_MESSAGE } }); return; }
           const last = body.messages.at(-1)?.content || '';
           // Кнопка «Улучшить» ходит non-stream, чат — stream.
-          if (body.stream === false) return send(200, { choices: [{ message: { content: state.chatImproveText } }] });
+          if (body.stream === false) {
+            const reply = () => send(200, { choices: [{ message: { content: state.chatImproveText } }] });
+            if (state.improveDelay) setTimeout(reply, state.improveDelay); else reply();
+            return;
+          }
           if (state.chatSlow) return sse(res, 'медленное слово '.repeat(80), 120);
           sse(res, 'Стрим пришёл: ' + last.slice(-40));
         });
@@ -87,15 +91,15 @@ function bffServer(port) {
         readBody(body => {
           state.jobPosts.push(body);
           if (state.jobBlock) { send(422, { error: { code: 'content_blocked', message: POLICY_MESSAGE } }); return; }
-          send(202, { job_id: 'job-studio-1' });
+          send(202, { job_id: 'job-studio-' + state.jobPosts.length });
         });
         return;
       }
 
       // infra#77 контракт: список / мягкое удаление / избранное
-      if (req.url === '/jobs' && req.method === 'GET') {
+      if (req.url.split('?')[0] === '/jobs' && req.method === 'GET') {
         const items = state.jobPosts
-          .map((post, i) => ({ post, id: 'job-studio-1', n: i }))
+          .map((post, i) => ({ post, id: 'job-studio-' + (i + 1), n: i }))
           .filter(({ id }) => !state.deleted[id])
           .map(({ post, id, n }) => ({
             id,
@@ -103,38 +107,36 @@ function bffServer(port) {
             status: 'ready',
             prompt: post.prompt || '',
             params: { ...(post.params || {}) },
-            result_url: post.type === 'music' ? '/files/job-studio-1.m4a' : '/files/job-studio-1.png',
+            result_url: post.type === 'music' ? '/files/' + id + '.m4a' : '/files/' + id + '.png',
+            cover_url: post.type === 'music' ? '/files/' + id + '-cover.png' : undefined,
             favorite: !!state.favs[id],
             created_at: 1794000000 + n
           }));
         send(200, { total: items.length, limit: 100, offset: 0, items });
         return;
       }
-      if (req.url === '/jobs/job-studio-1/favorite' && req.method === 'POST') {
-        readBody(body => { if (typeof body.favorite !== 'boolean') return send(400, { error: { code: 'bad_schema', message: 'bad' } }); state.favs['job-studio-1'] = body.favorite; send(200, { id: 'job-studio-1', favorite: body.favorite }); });
-        return;
-      }
-      if (req.url === '/jobs/job-studio-1' && req.method === 'DELETE') {
-        state.deleted['job-studio-1'] = true;
-        send(200, { id: 'job-studio-1', deleted: true });
-        return;
-      }
-
-      if (req.url.startsWith('/jobs/job-studio-1')) {
-        if (state.deleted['job-studio-1']) { send(404, { error: { code: 'job_not_found', message: 'deleted' } }); return; }
-        state.polls++;
-        const post = state.jobPosts.at(-1) || {};
-        if (state.polls <= 2) {
-          const stage = post.type === 'music' ? (state.polls === 1 ? 'writing-lyrics' : 'synthesizing') : 'generating';
-          send(200, { id: 'job-studio-1', type: post.type, status: 'running', stage });
+      const jobMatch = req.url.match(/^\/jobs\/(job-studio-(\d+))(\/favorite)?$/);
+      if (jobMatch) {
+        const id = jobMatch[1];
+        const post = state.jobPosts[Number(jobMatch[2]) - 1] || {};
+        if (jobMatch[3] && req.method === 'POST') {
+          if (state.favoriteFail) { send(503, { error: { code: 'unavailable' } }); return; }
+          readBody(body => { if (typeof body.favorite !== 'boolean') return send(400, { error: { code: 'bad_schema', message: 'bad' } }); state.favs[id] = body.favorite; send(200, { id, favorite: body.favorite }); });
           return;
         }
-        send(200, { id: 'job-studio-1', type: post.type, status: 'ready', result_url: post.type === 'music' ? '/files/job-studio-1.m4a' : '/files/job-studio-1.png' });
+        if (req.method === 'DELETE') { state.deleted[id] = true; send(200, { id, deleted: true }); return; }
+        if (state.deleted[id]) { send(404, { error: { code: 'job_not_found', message: 'deleted' } }); return; }
+        state.polls++;
+        if (state.polls <= 2) {
+          const stage = post.type === 'music' ? (state.polls === 1 ? 'writing-lyrics' : 'synthesizing') : 'generating';
+          send(200, { id, type: post.type, status: 'running', stage });
+          return;
+        }
+        send(200, { id, type: post.type, status: 'ready', result_url: post.type === 'music' ? '/files/' + id + '.m4a' : '/files/' + id + '.png' });
         return;
       }
-
-      if (req.url.startsWith('/files/job-studio-1.png')) { res.writeHead(200, { 'Content-Type': 'image/png', ...cors }); res.end(PNG); return; }
-      if (req.url.startsWith('/files/job-studio-1.m4a')) { res.writeHead(200, { 'Content-Type': 'audio/mp4', ...cors }); res.end(M4A); return; }
+      if (/^\/files\/job-studio-\d+-cover\.png/.test(req.url) || /^\/files\/job-studio-\d+\.png/.test(req.url)) { res.writeHead(200, { 'Content-Type': 'image/png', ...cors }); res.end(PNG); return; }
+      if (/^\/files\/job-studio-\d+\.m4a/.test(req.url)) { res.writeHead(200, { 'Content-Type': 'audio/mp4', ...cors }); res.end(M4A); return; }
       send(404, { error: { code: 'not_found', message: 'nf' } });
     });
     s.listen(port, '127.0.0.1', () => resolve(s));
@@ -189,7 +191,11 @@ function bffServer(port) {
   assert.match(await p.locator('#assistantMenu').innerText(), /Универсальный/);
   assert.match(await p.locator('#assistantMenu').innerText(), /Маркетолог/);
   assert.match(await p.locator('#assistantMenu').innerText(), /Наставник/);
+  assert.equal(await p.locator('#assistantMenu button').first().evaluate(el => el === document.activeElement), true);
+  await p.keyboard.press('ArrowDown');
+  assert.equal(await p.locator('#assistantMenu button').nth(1).evaluate(el => el === document.activeElement), true);
   await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#assistantChip').evaluate(el => el === document.activeElement), true);
   assert.equal(await p.locator('#assistantMenu').isVisible(), false, 'Escape closes the menu');
   // Фото: 1 помощник, музыкальные чипы скрыты.
   await p.locator('.mode[data-mode="photo"]').click();
@@ -314,7 +320,7 @@ function bffServer(port) {
     return el && el.textContent.length > 5;
   }, {}, { timeout: 10000 });
   await p.waitForSelector('.stage-progress-label', { timeout: 5000 });
-  assert.match(await p.locator('.stage-progress-label').innerText(), /этап \d из 3/, 'progress bar label present');
+  assert.match(await p.locator('.stage-progress-label').innerText(), /этап:/i, 'progress bar label present');
   await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
   const seen = await p.evaluate(() => window.__stageSeen);
   assert.ok(seen.length >= 1, 'polling stages were shown: ' + seen.join(','));
@@ -343,7 +349,7 @@ function bffServer(port) {
   await p.locator('.mode[data-mode="photo"]').click();
   await p.locator('#prompt').fill('neon city at night');
   await p.locator('#send').click();
-  await p.waitForSelector('.card img', { timeout: 20000 });
+  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 });
   const photoPost = state.jobPosts.at(-1);
   assert.equal(photoPost.type, 'image');
   const natural = await p.locator('.card img').first().evaluate(img => img.naturalWidth);
@@ -390,18 +396,18 @@ function bffServer(port) {
   await p.locator('#prompt').fill('параллельный маяк');
   await p.locator('#send').click();
   await p.waitForSelector('.card.stage .stage-stop', { timeout: 10000 });
-  // Пока джоба жива: режим чата, печатаем — send разблокируется, отправка уходит второй параллельной операцией.
+  // Пока ответ идёт, можно писать черновик, но второй ход ждёт завершения первого.
   await p.locator('.mode[data-mode="chat"]').click();
   await p.locator('#prompt').fill('пока жду — ещё вопрос');
-  assert.equal(await p.evaluate(() => document.getElementById('send').disabled), false, 'send enabled for new content while a job runs');
-  await p.locator('#send').click();
-  await p.waitForSelector('.card.assistant .stage-stop', { timeout: 10000 }); // второй стрим пошёл
+  assert.equal(await p.evaluate(() => document.getElementById('send').disabled), true, 'second chat turn waits for current reply');
+  assert.equal(await p.locator('#chatPending').isVisible(), true);
   // ✕ гасит только чат-стрим: джоба продолжает жить.
   await p.locator('.card.assistant .stage-stop').first().click();
   await p.waitForSelector('.card.assistant .stopped-note', { timeout: 10000 });
+  assert.equal(await p.locator('#send').isDisabled(), false, 'chat draft can be sent after stopping reply');
   const stageStillThere = await p.locator('.card.stage').count();
   assert.equal(stageStillThere >= 1, true, 'job card survives chat stream stop');
-  await p.waitForSelector('.card img', { timeout: 20000 }); // джоба завершилась успехом
+  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 }); // джоба завершилась успехом
   state.chatSlow = false;
   ok('parallel feed: chat stream + job simultaneously, per-card stop kills only its own op', {});
 
@@ -413,7 +419,7 @@ function bffServer(port) {
   await p.waitForSelector('.card.stage .stage-stop', { timeout: 10000 });
   await p.locator('.card.stage .stage-stop').click();
   await p.waitForSelector('.card.notice', { timeout: 10000 });
-  assert.match(await p.locator('.card.notice').last().innerText(), /остановили/i);
+  assert.match(await p.locator('.card.notice').last().innerText(), /ожидание остановлено/i);
   ok('job polling stop via in-card ✕ shows a notice and frees the composer', {});
 
   // 12. «Новый чат» чистит ленту и историю — с подтверждением (генерации остаются в Библиотеке).
@@ -442,7 +448,7 @@ function bffServer(port) {
   // 14. Кнопка «Скачать» у готового фото.
   await p.locator('#prompt').fill('a lighthouse');
   await p.locator('#send').click();
-  await p.waitForSelector('.card img', { timeout: 20000 });
+  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 });
   const dl = await p.locator('.card a.action[download]').last().getAttribute('download');
   assert.match(dl, /^briix-photo-.*\.png$/, 'download link carries a filename');
   ok('photo card carries a download link', { dl });
@@ -489,6 +495,7 @@ function bffServer(port) {
   ok('gate: nick+pinpad login, registration, session persistence, logout, wrong pin', {});
 
   // 17. Вкладки/библиотека: вокальный трек БЕЗ лирики (автолирика на свежей странице) и фото в библиотеке.
+  resetBff();
   p = await page();
   // Вокальный джоб без лирики: автолирика обязана сработать на свежей странице (регресс null-controller).
   await p.locator('.mode[data-mode="music"]').click();
@@ -511,25 +518,26 @@ function bffServer(port) {
   await p.locator('.mode[data-mode="photo"]').click();
   await p.locator('#prompt').fill('a lighthouse in fog');
   await p.locator('#send').click();
-  await p.waitForSelector('.card img', { timeout: 20000 });
+  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 });
   // Лента переживает перезагрузку (фид-журнал в localStorage).
   await p.reload();
   await p.waitForSelector('#studio:not([hidden])');
   await p.waitForSelector('.feed .card.user', { timeout: 10000 });
   const restored = await p.locator('#feed .card').count();
   assert.ok(restored >= 4, 'feed restored after reload: ' + restored + ' cards');
-  assert.match(await p.locator('#feed .card.assistant .who').last().innerText(), /готово/i);
+  assert.match(await p.locator('#feed .card.assistant .who').last().innerText(), /готов/i);
   await p.locator('.tab[data-tab="library"]').click();
   assert.equal(await p.locator('#lib').isVisible(), true, 'library tab opens');
   assert.equal(await p.locator('#composer').isVisible(), false, 'composer hidden in library');
   await p.waitForSelector('.lib-item', { timeout: 10000 });
+  await p.waitForTimeout(300);
   assert.match(await p.locator('.lib-item .lib-prompt', { hasText: 'lighthouse' }).innerText(), /lighthouse/);
   // Музыкальная запись: модель в .who, подпись M4A, сворачиваемый текст песни.
   const musicItem = p.locator('.lib-item', { hasText: /Музыка/i }).first();
   const musicWho = await musicItem.locator('.who').innerText();
   assert.match(musicWho, /ace-step/i, 'music .who carries the model');
   assert.match(musicWho, /\d+\s*с/i, 'music .who carries the duration');
-  assert.match(await musicItem.locator('a.action').first().innerText(), /M4A/, 'music download labelled M4A');
+  assert.match(await musicItem.locator('a.action').first().innerText(), /Скачать аудио/, 'music download labelled generically');
   const lyricsToggle = musicItem.locator('.lib-lyrics-toggle');
   assert.equal(await lyricsToggle.isVisible(), true, 'lyrics toggle exists');
   await lyricsToggle.click();
@@ -561,7 +569,7 @@ function bffServer(port) {
     const wrap = (document.querySelector('.tabs') || document.querySelector('.composer-wrap')).getBoundingClientRect();
     const sizes = [...document.querySelectorAll('button, textarea, input')]
       .filter(el => el.offsetParent !== null && !el.closest('[hidden]'))
-      .map(el => Math.max(el.getBoundingClientRect().width, el.getBoundingClientRect().height));
+      .map(el => Math.min(el.getBoundingClientRect().width, el.getBoundingClientRect().height));
     return { bottomGap: window.innerHeight - Math.round(wrap.bottom), minTarget: Math.min(...sizes.filter(s => s > 0)) };
   });
   assert.ok(geo.bottomGap >= 0 && geo.bottomGap <= 16, 'composer + tabs pinned to viewport bottom, gap=' + geo.bottomGap);
@@ -574,6 +582,124 @@ function bffServer(port) {
   assert.ok(overflow2 <= 0, 'no h-scroll in music advanced at 390px, overflow=' + overflow2);
   await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-390-music.png'), fullPage: false });
   ok('mobile 390x844: composer sticky bottom, no h-scroll, touch targets >=44', { ...geo });
+
+
+  // Регресс: после reload в запрос действительно уходит восстановленный контекст.
+  resetBff();
+  p = await page();
+  await p.locator('#prompt').fill('Первый вопрос для контекста');
+  await p.locator('#send').click();
+  await p.waitForSelector('.make-track');
+  await p.reload();
+  await p.locator('#prompt').fill('Второй вопрос');
+  await p.locator('#send').click();
+  await p.waitForFunction(() => document.querySelectorAll('.make-track').length >= 2);
+  const lastChat = state.chatPosts.at(-1).messages;
+  assert.ok(lastChat.some(m => m.role === 'user' && m.content === 'Первый вопрос для контекста'));
+  assert.ok(lastChat.some(m => m.role === 'assistant' && m.content.includes('Первый вопрос для контекста')));
+  ok('completed chat context survives reload');
+
+  // Черновики режимов не подменяют друг друга.
+  p = await page();
+  await p.locator('#prompt').fill('черновик чата');
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('черновик фото');
+  await p.locator('.mode[data-mode="chat"]').click();
+  assert.equal(await p.locator('#prompt').inputValue(), 'черновик чата');
+  await p.locator('.mode[data-mode="photo"]').click();
+  assert.equal(await p.locator('#prompt').inputValue(), 'черновик фото');
+  ok('mode drafts remain separate');
+
+  // Настройки фиксируются до автолирики, даже если пользователь меняет их во время ожидания.
+  resetBff();
+  state.chatSlow = true;
+  p = await page();
+  await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('#prompt').fill('Песня о море');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.stage .stage-stop');
+  await p.locator('#modelChip').click();
+  await p.locator('#modelMenu button', { hasText: 'Pro' }).click();
+  await p.locator('#durationChip').click();
+  await p.locator('#durationMenu button', { hasText: 'Короткая' }).click();
+  await p.locator('.seg-btn[data-vocal="1"]').click();
+  await p.waitForSelector('.card.assistant audio', { timeout: 30000 });
+  const frozen = state.jobPosts.at(-1);
+  assert.equal(frozen.params.model, 'ace-step-flash');
+  assert.equal(frozen.params.duration, 90);
+  assert.equal(frozen.params.instrumental, undefined);
+  assert.match(await p.locator('.card.assistant .who').last().innerText(), /Flash.*90/i);
+  await p.waitForSelector('.card.assistant .track-cover img', { timeout: 10000 });
+  state.chatSlow = false;
+  ok('music snapshot and server artwork survive settings changes');
+
+  // Серверная + локальная запись не дублируется, реальное скачивание не вызывает рекурсию.
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.waitForSelector('.lib-item .track-cover img', { timeout: 10000 });
+  assert.equal(await p.locator('.lib-item').count(), 1, 'one merged record per job');
+  const downloadPromise = p.waitForEvent('download');
+  await p.locator('.lib-item a.action').first().click();
+  const downloaded = await downloadPromise;
+  assert.match(downloaded.suggestedFilename(), /\.m4a$/);
+  ok('merged library, artwork and actual file download');
+
+
+  state.favoriteFail = true;
+  await p.locator('.lib-item button', { hasText: 'В избранное' }).click();
+  await p.waitForSelector('.lib-error');
+  assert.equal(await p.locator('.lib-item.fav').count(), 0, 'failed server mutation is not shown as success');
+  state.favoriteFail = false;
+  ok('library reports failed favorite without corrupting state');
+
+  // Помощник не перезаписывает текст, изменённый пока запрос был в пути.
+  resetBff();
+  state.improveDelay = 500;
+  p = await page();
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('Первый вариант');
+  await p.locator('#improvePhoto').click();
+  await p.locator('#prompt').fill('Мои новые правки');
+  await p.waitForSelector('.card.notice', { timeout: 5000 });
+  assert.equal(await p.locator('#prompt').inputValue(), 'Мои новые правки');
+  assert.match(await p.locator('.card.notice').last().innerText(), /УЛУЧШЕННЫЙ ТЕКСТ/);
+  ok('late improvement preserves newer edits');
+
+  // Во время активного ответа выход запрещён, пока ответ не остановлен/не завершился.
+  resetBff(); state.chatSlow = true;
+  p = await page();
+  await p.locator('#prompt').fill('Долгий ответ');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card.assistant .stage-stop');
+  p.once('dialog', d => d.accept());
+  await p.locator('#profileBtn').click();
+  await p.locator('#profileLogoutBtn').click();
+  assert.equal(await p.locator('#studio').isVisible(), true);
+  assert.match(await p.locator('.card.notice').last().innerText(), /активных операций/);
+  await p.locator('.card.assistant .stage-stop').click();
+  await p.waitForFunction(() => !document.querySelector('#status').classList.contains('busy'));
+  p.once('dialog', d => d.accept());
+  await p.locator('#profileBtn').click();
+  await p.locator('#profileLogoutBtn').click();
+  assert.equal(await p.locator('#gate').isVisible(), true);
+  state.chatSlow = false;
+  ok('active session cannot leak into another profile');
+
+  // Узкий и низкий экран: оба измерения видимых кнопок и отсутствие горизонтального переполнения.
+  p = await page({ viewport: { width: 320, height: 568 } });
+  await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('#tuneToggle').click();
+  const small = await p.evaluate(() => ({
+    overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    send: document.getElementById('send').getBoundingClientRect().toJSON(),
+    viewHeight: window.innerHeight,
+    smallButtons: [...document.querySelectorAll('button')].filter(e => e.offsetParent !== null && !e.closest('[hidden]'))
+      .map(e => ({ text: e.textContent.trim(), w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height }))
+      .filter(r => r.w < 44 || r.h < 44)
+  }));
+  assert.ok(small.overflow <= 0, 'no overflow at 320px');
+  assert.ok(small.send.bottom <= small.viewHeight && small.send.top >= 0, 'send visible in short viewport');
+  assert.deepEqual(small.smallButtons, [], 'visible mobile buttons meet both 44px dimensions');
+  ok('mobile 320x568 advanced controls remain accessible');
 
   assert.deepEqual(errors, [], 'no page errors anywhere');
   await browser.close();

@@ -11,7 +11,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
   location.replace('https://demo.briix.ru/studio/' + location.hash);
 }
 </script>
-<link rel="stylesheet" href="studio.css">
+<link rel="stylesheet" href="studio.css?v=20261113-2">
 </head>
 <body>
 
@@ -20,7 +20,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
   <div class="gate-card">
     <div class="gate-title">BRIIX Студия</div>
     <p class="gate-sub">Вход по нику и PIN-коду</p>
-    <input id="nickInput" class="nick" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ник">
+    <input id="nickInput" class="nick" aria-label="Ник" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ник">
     <div id="pinDots" class="pin-dots" aria-label="PIN"></div>
     <div class="pinpad" id="pinpad" aria-label="Пин-пад">
       <button class="pk" data-digit="1">1</button>
@@ -42,6 +42,10 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
 </div>
 
 <main class="studio" id="studio" hidden>
+  <header class="studio-header">
+    <div><span class="brand-mark">B</span><strong>BRIIX</strong><span class="header-divider"></span><span>Студия</span></div>
+    <span class="header-note">Пространство для идей</span>
+  </header>
 
   <!-- Лента: чат-стрим, фото, треки — скроллится над композером -->
   <section id="feed" class="feed" aria-live="polite"></section>
@@ -69,14 +73,14 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
       </nav>
 
       <!-- Одиночное крупное поле (чат / фото / музыка-Simple) -->
-      <textarea id="prompt" class="prompt" rows="2" placeholder="Что создаём?"></textarea>
+      <textarea id="prompt" class="prompt" aria-label="Ваш запрос" rows="2" placeholder="Что создаём?"></textarea>
 
       <!-- Музыка, «Тонко настроить»: лирика + стиль/промпт -->
       <div class="advanced" id="advanced" hidden>
         <div class="field-block">
           <span class="field-label">Лирика</span>
           <div class="field-shell">
-            <textarea id="lyrics" class="ta" rows="5" placeholder="Текст песни…"></textarea>
+            <textarea id="lyrics" class="ta" aria-label="Лирика" rows="2" placeholder="Текст песни…"></textarea>
             <button id="improveLyrics" class="improve" disabled aria-label="Улучшить лирику">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>
               Улучшить
@@ -93,7 +97,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
         <div class="field-block">
           <span class="field-label">Стиль / промпт</span>
           <div class="field-shell">
-            <textarea id="musicPrompt" class="ta" rows="3" placeholder="Жанр, темп, вокал, инструменты…"></textarea>
+            <textarea id="musicPrompt" class="ta" aria-label="Стиль и музыкальный промпт" rows="2" placeholder="Жанр, темп, вокал, инструменты…"></textarea>
             <button id="improvePrompt" class="improve" disabled aria-label="Улучшить стиль">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>
               Улучшить
@@ -102,6 +106,8 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
           <button id="undoPrompt" class="undo" hidden>↩ Вернуть как было</button>
         </div>
       </div>
+
+      <p id="chatPending" class="composer-hint" role="status" hidden>Дождитесь ответа или остановите его, чтобы отправить следующий вопрос.</p>
 
       <!-- Тулбар инструментов под полем -->
       <div class="toolbar">
@@ -116,21 +122,21 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
             <span id="assistantName">Наставник</span>
             <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
-          <div id="assistantMenu" class="menu" role="menu" hidden></div>
+          <div id="assistantMenu" class="menu" role="menu" aria-labelledby="assistantChip" hidden></div>
         </div>
         <div class="menu-anchor music-only" hidden>
           <button id="modelChip" class="tool chip" aria-haspopup="menu" aria-expanded="false">
             <span id="modelName">Flash</span>
             <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
-          <div id="modelMenu" class="menu" role="menu" hidden></div>
+          <div id="modelMenu" class="menu" role="menu" aria-labelledby="modelChip" hidden></div>
         </div>
         <div class="menu-anchor music-only" hidden>
           <button id="durationChip" class="tool chip" aria-haspopup="menu" aria-expanded="false">
             <span id="durationName">30 с</span>
             <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
-          <div id="durationMenu" class="menu" role="menu" hidden></div>
+          <div id="durationMenu" class="menu" role="menu" aria-labelledby="durationChip" hidden></div>
         </div>
         <div id="vocalSeg" class="seg music-only" hidden role="group" aria-label="Режим трека">
           <button class="seg-btn" data-vocal="0" aria-pressed="true">🎤 Песня</button>
@@ -170,7 +176,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
       <button id="profileBtn" class="tool icon-only" aria-haspopup="menu" aria-expanded="false" aria-label="Профиль" title="Профиль">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
       </button>
-      <div id="profileMenu" class="menu" role="menu" hidden>
+      <div id="profileMenu" class="menu" role="menu" aria-labelledby="profileBtn" hidden>
         <span id="profileNick" class="menu-nick"></span>
         <button type="button" role="menuitem" id="profileKeyBtn">Ключ стенда…</button>
         <button type="button" role="menuitem" id="profileLogoutBtn">Выйти</button>
@@ -180,6 +186,6 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
 </main>
 <script src="../wait-phrases.js?v=20261114"></script>
 <script src="../wait-ui.js?v=20261114"></script>
-<script src="studio.js?v=20261114"></script>
+<script src="studio.js?v=20261113-2"></script>
 </body>
 </html>

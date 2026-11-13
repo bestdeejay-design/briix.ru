@@ -265,6 +265,7 @@
           } else {
             const audio = document.createElement('audio');
             audio.controls = true;
+            audio.controlsList = 'nodownload';
             audio.preload = 'none';
             audio.src = URL.createObjectURL(blob);
             addTrackCover(slot, d.job, d.cover);
@@ -786,6 +787,7 @@
       stageBody.closest('.card').remove();
       const audio = document.createElement('audio');
       audio.controls = true;
+      audio.controlsList = 'nodownload'; // скачивание только через нашу кнопку: имя .m4a, обложка и текст внутри
       const blob = await fileBlob(result.result_url);
       audio.src = URL.createObjectURL(blob);
       const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ' · ' + snapshot.duration + ' с)', '');
@@ -1032,7 +1034,10 @@
   let libSeq = 0;
   async function serverJobs() {
     const response = await fetch(server() + '/jobs?limit=100', { headers: headers() });
-    if (!response.ok) throw new BusError('http', 'Библиотека недоступна (' + response.status + ').');
+    if (!response.ok) {
+      if (response.status === 401) throw new BusError('unauthorized', 'Ключ не принят (401).', 401);
+      throw new BusError('http', 'Библиотека недоступна (' + response.status + ').', response.status);
+    }
     const payload = await response.json();
     return Array.isArray(payload?.items) ? payload.items : [];
   }
@@ -1100,7 +1105,13 @@
       for (const e of byId.values()) merged.push(e);
       merged.sort((a, b) => (b.created || 0) - (a.created || 0));
       render(merged.filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter), note);
-    }).catch(() => { if (seq === libSeq) { note.hidden = false; note.textContent = 'Серверная библиотека недоступна — показаны локальные записи.'; } });
+    }).catch((error) => {
+      if (seq !== libSeq) return;
+      note.hidden = false;
+      note.textContent = error instanceof BusError && error.status === 401
+        ? 'Серверная библиотека недоступна: проверьте ключ (профиль → «Ключ стенда…»).'
+        : 'Серверная библиотека недоступна — показаны локальные записи.';
+    });
   }
 
   function showLibError(container, message) {
@@ -1246,6 +1257,7 @@
     container.textContent = 'Файл готов — нажмите ▶, чтобы загрузить и слушать.';
     if (entry.kind !== 'music') container.textContent = 'Загружаем…';
     const observer = new IntersectionObserver((records, obs) => {
+      if (!container.isConnected) { obs.disconnect(); return; } // карточку перерисовали — наблюдение больше не нужно
       for (const r of records) if (r.isIntersecting) {
         obs.disconnect();
         libQueue.push(async () => {
@@ -1272,6 +1284,7 @@
     } else {
       const audio = document.createElement('audio');
       audio.controls = true;
+      audio.controlsList = 'nodownload'; // то же: имя файла даёт наша кнопка
       audio.preload = 'none';
       audio.src = url;
       addTrackCover(container, entry.job, entry.cover);

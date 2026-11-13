@@ -22,7 +22,7 @@ let state;
 function resetBff() {
   state = {
     chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false, improveDelay: 0, favoriteFail: false,
-    jobPosts: [], jobBlock: false, polls: 0, deleted: {}, favs: {}
+    jobPosts: [], jobBlock: false, polls: 0, deleted: {}, favs: {}, jobSeq: 1, pollsOf: {}
   };
 }
 resetBff();
@@ -63,7 +63,7 @@ function bffServer(port) {
     const s = http.createServer((req, res) => {
       const origin = req.headers.origin;
       const cors = { 'Access-Control-Allow-Origin': origin === `http://127.0.0.1:${STATIC_PORT}` ? origin : '', Vary: 'Origin' };
-      if (req.method === 'OPTIONS') { res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'authorization,content-type' }); res.end(); return; }
+      if (req.method === 'OPTIONS') { res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'authorization,content-type' }); res.end(); return; }
       const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json', ...cors }); res.end(JSON.stringify(body)); };
       const readBody = cb => { let raw = ''; req.on('data', c => { raw += c; }); req.on('end', () => cb(JSON.parse(raw || '{}'))); };
 
@@ -91,52 +91,59 @@ function bffServer(port) {
         readBody(body => {
           state.jobPosts.push(body);
           if (state.jobBlock) { send(422, { error: { code: 'content_blocked', message: POLICY_MESSAGE } }); return; }
-          send(202, { job_id: 'job-studio-' + state.jobPosts.length });
+          body.id = 'job-' + String(state.jobSeq++).padStart(3, '0');
+          send(202, { job_id: body.id });
         });
         return;
       }
 
-      // infra#77 контракт: список / мягкое удаление / избранное
-      if (req.url.split('?')[0] === '/jobs' && req.method === 'GET') {
+      // infra#77 контракт: список / мягкое удаление / избранное (id уникальны, как на живом bff)
+      if (req.url.split('?')[0] === '/jobs' && req.method === 'GET') { // клиент зовёт /jobs?limit=100
         const items = state.jobPosts
-          .map((post, i) => ({ post, id: 'job-studio-' + (i + 1), n: i }))
           .filter(({ id }) => !state.deleted[id])
-          .map(({ post, id, n }) => ({
+          .map(({ id, type, prompt, params }, i) => ({
             id,
-            type: post.type || 'image',
+            type: type || 'image',
             status: 'ready',
-            prompt: post.prompt || '',
-            params: { ...(post.params || {}) },
-            result_url: post.type === 'music' ? '/files/' + id + '.m4a' : '/files/' + id + '.png',
-            cover_url: post.type === 'music' ? '/files/' + id + '-cover.png' : undefined,
+            prompt: prompt || '',
+            params: { ...(params || {}) },
+            result_url: type === 'music' ? '/files/' + id + '.m4a' : '/files/' + id + '.png',
+            cover_url: type === 'music' ? '/files/' + id + '-cover.png' : '',
             favorite: !!state.favs[id],
-            created_at: 1794000000 + n
+            created_at: 1794000000 + i
           }));
         send(200, { total: items.length, limit: 100, offset: 0, items });
         return;
       }
-      const jobMatch = req.url.match(/^\/jobs\/(job-studio-(\d+))(\/favorite)?$/);
-      if (jobMatch) {
-        const id = jobMatch[1];
-        const post = state.jobPosts[Number(jobMatch[2]) - 1] || {};
-        if (jobMatch[3] && req.method === 'POST') {
-          if (state.favoriteFail) { send(503, { error: { code: 'unavailable' } }); return; }
-          readBody(body => { if (typeof body.favorite !== 'boolean') return send(400, { error: { code: 'bad_schema', message: 'bad' } }); state.favs[id] = body.favorite; send(200, { id, favorite: body.favorite }); });
-          return;
-        }
-        if (req.method === 'DELETE') { state.deleted[id] = true; send(200, { id, deleted: true }); return; }
-        if (state.deleted[id]) { send(404, { error: { code: 'job_not_found', message: 'deleted' } }); return; }
-        state.polls++;
-        if (state.polls <= 2) {
-          const stage = post.type === 'music' ? (state.polls === 1 ? 'writing-lyrics' : 'synthesizing') : 'generating';
-          send(200, { id, type: post.type, status: 'running', stage });
-          return;
-        }
-        send(200, { id, type: post.type, status: 'ready', result_url: post.type === 'music' ? '/files/' + id + '.m4a' : '/files/' + id + '.png' });
+      const favM = req.url.match(/^\/jobs\/([^/]+)\/favorite$/);
+      if (favM && req.method === 'POST') {
+        if (state.favoriteFail) { send(503, { error: { code: 'unavailable' } }); return; }
+        readBody(body => { if (typeof body.favorite !== 'boolean') return send(400, { error: { code: 'bad_schema', message: 'bad' } }); state.favs[favM[1]] = body.favorite; send(200, { id: favM[1], favorite: body.favorite }); });
         return;
       }
-      if (/^\/files\/job-studio-\d+-cover\.png/.test(req.url) || /^\/files\/job-studio-\d+\.png/.test(req.url)) { res.writeHead(200, { 'Content-Type': 'image/png', ...cors }); res.end(PNG); return; }
-      if (/^\/files\/job-studio-\d+\.m4a/.test(req.url)) { res.writeHead(200, { 'Content-Type': 'audio/mp4', ...cors }); res.end(M4A); return; }
+      const delM = req.url.match(/^\/jobs\/([^/]+)$/);
+      if (delM && req.method === 'DELETE') {
+        state.deleted[delM[1]] = true;
+        send(200, { id: delM[1], deleted: true });
+        return;
+      }
+
+      const getM = req.url.match(/^\/jobs\/([^/]+)$/);
+      if (getM && req.method === 'GET') {
+        const post = state.jobPosts.find(p => p.id === getM[1]);
+        if (!post || state.deleted[post.id]) { send(404, { error: { code: 'job_not_found', message: 'deleted' } }); return; }
+        if ((state.pollsOf[post.id] || 0) < 2) {
+          state.pollsOf[post.id] = (state.pollsOf[post.id] || 0) + 1;
+          const stage = post.type === 'music' ? (state.pollsOf[post.id] === 1 ? 'writing-lyrics' : 'synthesizing') : 'generating';
+          send(200, { id: post.id, type: post.type, status: 'running', stage });
+          return;
+        }
+        send(200, { id: post.id, type: post.type, status: 'ready', result_url: post.type === 'music' ? '/files/' + post.id + '.m4a' : '/files/' + post.id + '.png' });
+        return;
+      }
+
+      if (req.url.startsWith('/files/') && req.url.includes('.m4a')) { res.writeHead(200, { 'Content-Type': 'audio/mp4', ...cors }); res.end(M4A); return; }
+      if (req.url.startsWith('/files/') && req.url.includes('.png')) { res.writeHead(200, { 'Content-Type': 'image/png', ...cors }); res.end(PNG); return; }
       send(404, { error: { code: 'not_found', message: 'nf' } });
     });
     s.listen(port, '127.0.0.1', () => resolve(s));
@@ -349,10 +356,10 @@ function bffServer(port) {
   await p.locator('.mode[data-mode="photo"]').click();
   await p.locator('#prompt').fill('neon city at night');
   await p.locator('#send').click();
-  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 });
+  await p.waitForSelector('.card img.media-in', { timeout: 20000 });
   const photoPost = state.jobPosts.at(-1);
   assert.equal(photoPost.type, 'image');
-  const natural = await p.locator('.card img').first().evaluate(img => img.naturalWidth);
+  const natural = await p.locator('.card img.media-in').first().evaluate(img => img.naturalWidth);
   assert.ok(natural > 0, 'PNG preview actually decoded');
   ok('photo job renders decoded PNG preview', {});
 
@@ -407,7 +414,7 @@ function bffServer(port) {
   assert.equal(await p.locator('#send').isDisabled(), false, 'chat draft can be sent after stopping reply');
   const stageStillThere = await p.locator('.card.stage').count();
   assert.equal(stageStillThere >= 1, true, 'job card survives chat stream stop');
-  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 }); // джоба завершилась успехом
+  await p.waitForSelector('.card img.media-in', { timeout: 20000 }); // джоба завершилась успехом
   state.chatSlow = false;
   ok('parallel feed: chat stream + job simultaneously, per-card stop kills only its own op', {});
 
@@ -448,7 +455,7 @@ function bffServer(port) {
   // 14. Кнопка «Скачать» у готового фото.
   await p.locator('#prompt').fill('a lighthouse');
   await p.locator('#send').click();
-  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 });
+  await p.waitForSelector('.card img.media-in', { timeout: 20000 });
   const dl = await p.locator('.card a.action[download]').last().getAttribute('download');
   assert.match(dl, /^briix-photo-.*\.png$/, 'download link carries a filename');
   ok('photo card carries a download link', { dl });
@@ -495,7 +502,7 @@ function bffServer(port) {
   ok('gate: nick+pinpad login, registration, session persistence, logout, wrong pin', {});
 
   // 17. Вкладки/библиотека: вокальный трек БЕЗ лирики (автолирика на свежей странице) и фото в библиотеке.
-  resetBff();
+  resetBff(); // чистый список джобов для детерминированного мерджа библиотеки
   p = await page();
   // Вокальный джоб без лирики: автолирика обязана сработать на свежей странице (регресс null-controller).
   await p.locator('.mode[data-mode="music"]').click();
@@ -518,7 +525,7 @@ function bffServer(port) {
   await p.locator('.mode[data-mode="photo"]').click();
   await p.locator('#prompt').fill('a lighthouse in fog');
   await p.locator('#send').click();
-  await p.waitForSelector('.card img[alt="Результат"]', { timeout: 20000 });
+  await p.waitForSelector('.card img.media-in', { timeout: 20000 });
   // Лента переживает перезагрузку (фид-журнал в localStorage).
   await p.reload();
   await p.waitForSelector('#studio:not([hidden])');
@@ -534,6 +541,7 @@ function bffServer(port) {
   assert.match(await p.locator('.lib-item .lib-prompt', { hasText: 'lighthouse' }).innerText(), /lighthouse/);
   // Музыкальная запись: модель в .who, подпись M4A, сворачиваемый текст песни.
   const musicItem = p.locator('.lib-item', { hasText: /Музыка/i }).first();
+  await musicItem.locator('.track-cover img').waitFor({ state: 'visible', timeout: 10000 }); // обложка-миниатюра (infra#77)
   const musicWho = await musicItem.locator('.who').innerText();
   assert.match(musicWho, /ace-step/i, 'music .who carries the model');
   assert.match(musicWho, /\d+\s*с/i, 'music .who carries the duration');
@@ -548,6 +556,7 @@ function bffServer(port) {
   assert.equal(await p.locator('.lib-item').count(), 0, 'not a favorite yet');
   await p.locator('.lib-filters .tag', { hasText: 'Все' }).click();
   await p.locator('.lib-item .action', { hasText: 'В избранное' }).first().click();
+  await p.waitForSelector('.lib-item.fav', { timeout: 10000 }); // флаг летит на шину и обратно — ждём перерисовку
   assert.ok(await p.locator('.lib-item.fav').count() >= 1, 'favorite applied');
   await p.locator('.lib-filters .tag', { hasText: '★ Избранное' }).click();
   assert.ok(await p.locator('.lib-item').count() >= 1, 'favorite filter shows it');

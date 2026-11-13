@@ -304,6 +304,11 @@ function bffServer(port) {
   });
   await p.locator('#send').click();
   await p.waitForSelector('.card.stage', { timeout: 10000 });
+  // Фраза рядом со спиннером обязана заполниться (регресс: 404 на ../wait-ui.js молча убивал фразы).
+  await p.waitForFunction(() => {
+    const el = document.querySelector('.card.stage [data-wait]');
+    return el && el.textContent.length > 5;
+  }, {}, { timeout: 10000 });
   await p.waitForSelector('.card.assistant audio', { timeout: 20000 });
   const seen = await p.evaluate(() => window.__stageSeen);
   assert.ok(seen.length >= 1, 'polling stages were shown: ' + seen.join(','));

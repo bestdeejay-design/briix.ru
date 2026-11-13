@@ -373,8 +373,7 @@ function bffServer(port) {
   await p.locator('#prompt').fill('останови меня');
   await p.locator('#prompt').press('Enter'); // Enter = отправка в чате
   await p.waitForSelector('.card.user');
-  await p.waitForFunction(() => document.getElementById('send').classList.contains('stop'), {}, { timeout: 10000 });
-  await p.waitForTimeout(700); // пусть стрим успеет отдать несколько слов
+  await p.waitForFunction(() => document.getElementById('send').classList.contains('stop'), {}, { timeout: 10000 });  await p.waitForTimeout(700); // пусть стрим успеет отдать несколько слов
   const lenBefore = await p.evaluate(() => document.querySelector('.card.assistant .body').textContent.length);
   await p.locator('#send').click(); // во время работы кнопка = стоп
   await p.waitForSelector('.card.notice', { timeout: 10000 });
@@ -477,6 +476,13 @@ function bffServer(port) {
   await p.locator('#prompt').fill('a lighthouse in fog');
   await p.locator('#send').click();
   await p.waitForSelector('.card img', { timeout: 20000 });
+  // Лента переживает перезагрузку (фид-журнал в localStorage).
+  await p.reload();
+  await p.waitForSelector('#studio:not([hidden])');
+  await p.waitForSelector('.feed .card.user', { timeout: 10000 });
+  const restored = await p.locator('#feed .card').count();
+  assert.ok(restored >= 4, 'feed restored after reload: ' + restored + ' cards');
+  assert.match(await p.locator('#feed .card.assistant .who').last().innerText(), /готово/i);
   await p.locator('.tab[data-tab="library"]').click();
   assert.equal(await p.locator('#lib').isVisible(), true, 'library tab opens');
   assert.equal(await p.locator('#composer').isVisible(), false, 'composer hidden in library');

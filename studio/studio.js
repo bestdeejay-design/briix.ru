@@ -11,7 +11,13 @@
   const TOKEN_KEY = 'briix-media-live-token';
   const MUSIC_MODELS = { flash: 'ace-step-flash', pro: 'ace-step-pro' };
   const MODEL_LABELS = { flash: 'Flash', pro: 'Pro' };
-  const DURATIONS = [30, 60, 120, 240, 300];
+  // Длительность — пресеты (владелец: не жёсткие секунды, дефолт не 5 минут).
+  const DUR_PRESETS = [
+    { key: 'short', label: 'Короткая', sub: '~30 с', sec: 30 },
+    { key: 'std', label: 'Стандарт', sub: '~1,5 мин', sec: 90 },
+    { key: 'full', label: 'Полная', sub: '~3–5 мин', sec: 300 },
+  ];
+  const durationSec = () => (DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1]).sec;
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
   const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const PLACEHOLDERS = {
@@ -215,8 +221,9 @@
 
   let mode = 'chat';
   let quality = 'flash';
-  let duration = 300; // по умолчанию — полная песня
-  try { const saved = Number(localStorage.getItem('briix-studio-duration')); if (saved >= 5) duration = saved; } catch {}
+  let durKey = 'std'; // «Стандарт» по умолчанию: типичная песня заметно короче 5 минут
+  try { const savedKey = localStorage.getItem('briix-studio-duration-key'); if (DUR_PRESETS.some(p => p.key === savedKey)) durKey = savedKey; } catch {}
+  let duration = durationSec();
   let instrumental = false; // вокальный контур починен (infra#79) — дефолт снова «Песня»; выбор хранится в браузере
   try { const savedInstr = localStorage.getItem('briix-studio-instrumental'); if (savedInstr !== null) instrumental = savedInstr === '1'; } catch {}
   let advanced = false;
@@ -301,7 +308,7 @@
 
   function meta() {
     const bits = [location.hostname, MODE_LABELS[mode]];
-    if (mode === 'music') bits.push(MODEL_LABELS[quality] + ' · ' + duration + ' с');
+    if (mode === 'music') { const pr = DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1]; bits.push(MODEL_LABELS[quality] + ' · ' + pr.label + ' · ' + pr.sub); }
     else bits.push(currentAssistant().name.replace(/\s*\(.*\)\s*$/, ''));
     els.metaLeft.textContent = bits.join(' · ');
   }
@@ -346,9 +353,9 @@
     label: MODEL_LABELS[q], sub: MUSIC_MODELS[q], selected: q === quality,
     onPick: () => { quality = q; renderChrome(); }
   })));
-  attachMenu(els.durationChip, els.durationMenu, () => DURATIONS.map(d => ({
-    label: d + ' с', selected: d === duration,
-    onPick: () => { duration = d; try { localStorage.setItem('briix-studio-duration', String(d)); } catch {} renderChrome(); }
+  attachMenu(els.durationChip, els.durationMenu, () => DUR_PRESETS.map(p => ({
+    label: p.label, sub: p.sub, selected: p.key === durKey,
+    onPick: () => { durKey = p.key; duration = p.sec; try { localStorage.setItem('briix-studio-duration-key', p.key); } catch {} renderChrome(); }
   })));
 
   // ---- карточки ленты ---------------------------------------------------------
@@ -477,7 +484,8 @@
     els.prompt.placeholder = PLACEHOLDERS[mode];
     els.assistantName.textContent = currentAssistant().name.replace(/\s*\(.*\)\s*$/, '');
     els.modelName.textContent = MODEL_LABELS[quality];
-    els.durationName.textContent = duration + ' с';
+    const preset = DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1];
+    els.durationName.textContent = preset.label + ' · ' + preset.sub;
     els.vocalSeg.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.vocal) === (instrumental ? 1 : 0))));
     els.tuneToggle.setAttribute('aria-pressed', String(advanced));
     meta();
@@ -668,6 +676,48 @@
     const handle = makeCancelHandle(); // ✕ гасит автолирику и поллинг этой джобы
     appendStop(wait.row, handle);
     stageBody.append(wait.row);
+    // Прогресс по трём стадиям: оценки из живых замеров (flash GPU + cover на CPU ~3 мин).
+    const stages = ['writing-lyrics', 'synthesizing', 'album-cover'];
+    const stageNames = { 'writing-lyrics': 'лирика', 'synthesizing': 'синтез', 'album-cover': 'обложка' };
+    const estSec = () => {
+      const per = MUSIC_MODELS[quality] === 'ace-step-pro' ? { wl: 1.3, syn: 0.15 } : { wl: 0.45, syn: 0.08 };
+      return [Math.round(duration * per.wl), Math.round(duration * per.syn + 10), 180];
+    };
+    let curStage = stageBody.querySelector('[data-wait]')?.getAttribute('data-wait-stage') || stages[0];
+    let stageAt = Date.now();
+    const est = estSec();
+    const bar = document.createElement('div');
+    bar.className = 'stage-progress';
+    const segs = stages.map(s => {
+      const seg = document.createElement('div');
+      seg.className = 'sp-seg';
+      seg.title = stageNames[s];
+      const fill = document.createElement('div');
+      fill.className = 'sp-fill';
+      seg.append(fill);
+      bar.append(seg);
+      return { el: seg, fill, name: s, est: est[stages.indexOf(s)] };
+    });
+    const barLabel = document.createElement('div');
+    barLabel.className = 'stage-progress-label';
+    const paint = () => {
+      const idx = stages.indexOf(curStage);
+      segs.forEach((s, i) => {
+        s.el.classList.toggle('done', i < idx);
+        s.el.classList.toggle('active', i === idx);
+        s.fill.style.width = i < idx ? '100%' : i === idx ? Math.min(92, Math.round((Date.now() - stageAt) / 1000 / s.est * 100)) + '%' : '0%';
+      });
+      const left = Math.max(0, Math.round(segs.filter((s, i) => i >= idx).reduce((a, s, i) => a + Math.max(0, s.est - (i === idx ? (Date.now() - stageAt) / 1000 : 0)), 0)));
+      barLabel.textContent = 'этап ' + (idx + 1) + ' из 3 · ' + stageNames[curStage] + ' · осталось ≈ ' + fmtElapsed(left * 1000);
+    };
+    paint();
+    const barTimer = setInterval(paint, 1000);
+    stageBody.append(bar, barLabel);
+    const watchStage = new MutationObserver(() => {
+      const now = stageBody.querySelector('[data-wait]')?.getAttribute('data-wait-stage');
+      if (now && now !== curStage) { curStage = now; stageAt = Date.now(); paint(); }
+    });
+    watchStage.observe(stageBody, { subtree: true, attributes: true, attributeFilter: ['data-wait-stage'] });
     setBusy(true, vocal && !lyrics && !instrumental ? 'Пишем текст песни…' : 'Отправляем задачу…');
     try {
       if (vocal && !lyrics) {
@@ -675,7 +725,7 @@
           lyrics = await autoLyrics(style || lyrics || 'песня', handle.controller.signal);
           if (advanced) els.lyrics.value = lyrics;
         } catch (error) {
-          wait.stop();
+          wait.stop(); clearInterval(barTimer); watchStage.disconnect();
           stageBody.closest('.card').remove();
           setBusy(false); updateEnabled();
           const why = error.name === 'AbortError' ? 'Остановлено вручную.'
@@ -695,6 +745,7 @@
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
       wait.stop();
+      clearInterval(barTimer); watchStage.disconnect();
       stageBody.closest('.card').remove();
       const audio = document.createElement('audio');
       audio.controls = true;
@@ -713,7 +764,7 @@
         model: MUSIC_MODELS[quality], duration, file: result.result_url, created: Date.now(), fav: false
       });
     } catch (error) {
-      wait.stop();
+      wait.stop(); clearInterval(barTimer); watchStage.disconnect();
       stageBody.closest('.card').remove();
       if (error.name === 'AbortError' || error.code === 'cancelled') {
         card('notice', 'Остановлено', 'Генерацию остановили — запрос можно повторить.');

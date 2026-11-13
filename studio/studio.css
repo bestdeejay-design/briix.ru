@@ -297,6 +297,12 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 }
 .stage-stop:hover { background: var(--danger-soft); color: var(--danger); }
 .stopped-note { margin-top: 4px; font-size: 12px; color: var(--faint); }
+/* прогресс по стадиям генерации трека */
+.stage-progress { display: flex; gap: 3px; margin-top: 8px; }
+.sp-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--hover); overflow: hidden; }
+.sp-fill { height: 100%; width: 0; background: var(--accent); transition: width .6s ease; }
+.sp-seg.done .sp-fill { width: 100%; opacity: .5; }
+.stage-progress-label { margin-top: 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .card .actions { display: flex; gap: 8px; margin-top: 10px; }
 .action {
   display: inline-flex; align-items: center; gap: 6px;

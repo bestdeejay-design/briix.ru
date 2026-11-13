@@ -405,8 +405,12 @@ function bffServer(port) {
   assert.match(await p.locator('.card.notice').last().innerText(), /остановили/i);
   ok('job polling stop via in-card ✕ shows a notice and frees the composer', {});
 
-  // 12. «Новый чат» чистит ленту и историю.
+  // 12. «Новый чат» чистит ленту и историю — с подтверждением (генерации остаются в Библиотеке).
   await p.locator('.mode[data-mode="chat"]').click();
+  p.once('dialog', d => d.dismiss()); // отказ — лента должна остаться
+  await p.locator('#newChat').click();
+  assert.ok(await p.locator('#feed .card').count() >= 1, 'dismissed confirm keeps the feed');
+  p.once('dialog', d => d.accept());
   await p.locator('#newChat').click();
   assert.equal(await p.locator('#feed .card').count(), 0, 'feed emptied');
   ok('new chat clears the feed and history', {});

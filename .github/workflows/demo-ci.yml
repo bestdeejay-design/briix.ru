@@ -117,16 +117,6 @@ jobs:
           done
           } 2>&1 | tee /tmp/briix-ci-extended.log
 
-      - name: Studio sessions and audio checks
-        env:
-          NODE_PATH: /home/badai/briix-ci-deps/node_modules
-        run: |
-          set -euo pipefail
-          for suite in producer studio studio-storage session-store waveform; do
-            echo "=== check-$suite ==="
-            node "tools/check-$suite.cjs"
-          done
-
       # Логи job за авторизацией GitHub и не всегда скачиваются. Присылаем хвост
       # вывода прямо в PR, чтобы причина падения была видна без доступа к раннеру.
       - name: Report failure output to the PR

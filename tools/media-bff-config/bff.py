@@ -67,6 +67,18 @@ MAX_LYRICS = 8000
 # внутренним, result_url отдаёт MP3.
 FFMPEG = Path.home() / "ffmpeg" / "ffmpeg"
 FFPROBE = Path.home() / "ffmpeg" / "ffprobe"
+# infra#102: параметры трима хвостовой тишины (крутилка владельца). infra#93
+# недобивал: порог -40 дБ не видел плавный fade хвоста, оставалось до ~6 с.
+# Порог -45 дБ (вторая итерация -50), остаток тишины в хвосте <= 1.5 с,
+# обрабатывается только хвост (последние TRIM_TAIL_ZONE секунд).
+TRIM_THRESHOLD_DB = -45      # порог silencedetect первого прохода
+TRIM_THRESHOLD_DB_2 = -50    # порог итераций докрутки (со 2-го прохода)
+TRIM_MIN_SILENCE = 1.0       # окно d= у silencedetect, с
+TRIM_TAIL_TARGET = 1.5       # допустимый остаток тишины в хвосте, с
+TRIM_MAX_PASSES = 4          # максимум итеративных проходов
+TRIM_TAIL_ZONE = 20.0        # трогаем только последние N секунд трека
+TRIM_MIN_TAIL = 2.0          # хвостовая тишина короче — файл не трогаем
+TRIM_FADE = 1.0              # fade-out после трима, с
 COVER_PROMPT_SUFFIX = "album cover art, square, atmospheric, no text"
 COVER_TIMEOUT = 300
 MUX_TIMEOUT = 120
@@ -1098,21 +1110,28 @@ def _track_title(j):
 
 
 def trim_tail_silence(jid):
-    """infra#93: трим хвостовой тишины после синтеза (замеры job-7556: до 14 с).
+    """infra#102: трим хвостовой тишины до <= TRIM_TAIL_TARGET с (infra#93
+    недобивал: порог -40 дБ пропускал плавный fade хвоста между -45 и -40 дБ,
+    оставалось до ~6.1 с тишины выше -45 дБ на 190-секундном треке).
 
-    silencedetect (noise=-40dB:d=1.5): если последний детект — тишина, уходящая
-    в конец файла, обрезаем до неё с мягким fade-out ~1.5 с. Середину трека не
-    трогаем: правится только хвостовая тишина длиной >= 2 с. После обрезки
-    fade может сделать смежный участок тише порога -40dB — поэтому проход
-    повторяется (до 3 раз), пока хвостовая тишина не станет короче ~1.5 с.
-    Без тишины в конце файл не изменяется."""
+    Итеративно (до TRIM_MAX_PASSES проходов): silencedetect c порогом
+    TRIM_THRESHOLD_DB дБ (со 2-го прохода — TRIM_THRESHOLD_DB_2 дБ, окно
+    TRIM_MIN_SILENCE с); если последний блок тишины уходит в конец файла,
+    обрезаем, оставляя ~1 с тишины, и накладываем fade-out TRIM_FADE с.
+    После обрезки fade может открыть тишину глубже — проход повторяется,
+    пока хвост не станет короче TRIM_MIN_TAIL с (<= TRIM_TAIL_TARGET).
+    Защита живого материала: правится только хвост — тишина обязана
+    начинаться в последних TRIM_TAIL_ZONE секундах и не раньше 5-й секунды
+    трека; середину не трогаем. Без значимого хвоста файл не изменяется."""
     wav = RESULTS / f"{jid}.wav"
     if not wav.exists():
         return
-    for _pass in range(3):
+    for _pass in range(TRIM_MAX_PASSES):
+        thr = TRIM_THRESHOLD_DB if _pass == 0 else TRIM_THRESHOLD_DB_2
         try:
             probe = subprocess.run(
-                [str(FFMPEG), "-i", str(wav), "-af", "silencedetect=noise=-40dB:d=1.5",
+                [str(FFMPEG), "-i", str(wav), "-af",
+                 f"silencedetect=noise={thr}dB:d={TRIM_MIN_SILENCE}",
                  "-f", "null", "-"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
             events = re.findall(r"silence_(start|end):\s*([\d.]+)",
@@ -1136,10 +1155,16 @@ def trim_tail_silence(jid):
                 tail_start = float(t)
             elif dur - float(t) > 0.3:
                 tail_start = None
-        if tail_start is None or (dur - tail_start) < 2.0 or tail_start < 5.0:
-            return  # значимого хвоста тишины нет — файл не трогаем
-        cut = min(dur, tail_start + 1.0)
-        fade_start = max(0.0, cut - 1.5)
+        if tail_start is None:
+            return
+        tail_len = dur - tail_start
+        # Защита: только хвост (последние TRIM_TAIL_ZONE секунд), не раньше 5-й
+        # секунды; короче TRIM_MIN_TAIL — значимого хвоста нет, файл не трогаем.
+        if (tail_len < TRIM_MIN_TAIL or tail_start < 5.0
+                or tail_start < dur - TRIM_TAIL_ZONE):
+            return
+        cut = min(dur, tail_start + (TRIM_TAIL_TARGET - 0.5))
+        fade_start = max(0.0, cut - TRIM_FADE)
         tmp = RESULTS / f"{jid}.trim.wav"
         cmd = [str(FFMPEG), "-y", "-loglevel", "error", "-i", str(wav),
                "-af", f"afade=t=out:st={fade_start:.2f}:d={cut - fade_start:.2f}",
@@ -1148,7 +1173,8 @@ def trim_tail_silence(jid):
             r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
             if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
                 tmp.replace(wav)
-                log(f"tail trimmed {jid} pass{_pass + 1}: {dur:.1f}s -> {cut:.1f}s")
+                log(f"tail trimmed {jid} pass{_pass + 1} ({thr}dB): "
+                    f"{dur:.1f}s -> {cut:.1f}s")
             else:
                 log(f"tail trim failed {jid}: rc={r.returncode} "
                     f"{(r.stderr or b'')[-150:].decode('utf-8', 'replace')}")

@@ -432,15 +432,16 @@ function bffServer(port) {
   assert.match(await p.locator('.card.notice').last().innerText(), /ожидание остановлено/i);
   ok('job polling stop via in-card ✕ shows a notice and frees the composer', {});
 
-  // 12. «Новый чат» чистит ленту и историю — с подтверждением (генерации остаются в Библиотеке).
+  // 12. Новый чат сохраняет старый; его можно открыть через историю.
   await p.locator('.mode[data-mode="chat"]').click();
-  p.once('dialog', d => d.dismiss()); // отказ — лента должна остаться
   await p.locator('#newChat').click();
-  assert.ok(await p.locator('#feed .card').count() >= 1, 'dismissed confirm keeps the feed');
-  p.once('dialog', d => d.accept());
-  await p.locator('#newChat').click();
-  assert.equal(await p.locator('#feed .card').count(), 0, 'feed emptied');
-  ok('new chat clears the feed and history', {});
+  await p.waitForFunction(() => document.querySelectorAll('#feed .session-feed:not([hidden]) .card').length === 0);
+  await p.locator('#sessionsOpen').click();
+  assert.equal(await p.locator('#sessionsList .session-item').count(), 2);
+  await p.locator('#sessionsList .session-item').filter({ hasText: 'стоп-маяк' }).click();
+  await p.waitForSelector('#feed .session-feed:not([hidden]) .card');
+  assert.ok(await p.locator('#feed .session-feed:not([hidden]) .card').count() >= 1);
+  ok('new chat preserves previous session', {});
 
   // 13. ✨ в Фото: арт-директор улучшает промпт, undo возвращает.
   await p.locator('.mode[data-mode="photo"]').click();
@@ -693,6 +694,7 @@ function bffServer(port) {
   p.once('dialog', d => d.accept());
   await p.locator('#profileBtn').click();
   await p.locator('#profileLogoutBtn').click();
+  await p.waitForSelector('#gate:not([hidden])');
   assert.equal(await p.locator('#gate').isVisible(), true);
   state.chatSlow = false;
   ok('active session cannot leak into another profile');
@@ -737,25 +739,123 @@ function bffServer(port) {
   assert.deepEqual(small.smallButtons, [], 'visible mobile buttons meet both 44px dimensions');
   ok('mobile 320x568 advanced controls remain accessible');
 
+  // Вход с существующими legacy-данными: миграция, backup, возврат и контекст.
+  resetBff();
+  {
+    const context = await browser.newContext({ viewport: { width: 320, height: 568 } });
+    const legacy = await context.newPage();
+    legacy.on('pageerror', e => errors.push(e.message));
+    const oldFeed = [{ t: 'user', who: 'Вы', text: 'Старый запрос' }, { t: 'assistant', who: 'Наставник', text: 'Старый ответ', track: 'Старый ответ' }];
+    const oldHistory = [{ role: 'user', content: 'Старый запрос' }, { role: 'assistant', content: 'Старый ответ' }];
+    await legacy.addInitScript(({ port, token, oldFeed, oldHistory }) => {
+      localStorage.setItem('briix-media-live-server', JSON.stringify('http://127.0.0.1:' + port));
+      localStorage.setItem('briix-media-live-token', token);
+      localStorage.setItem('briix-studio-user', 'legacy');
+      localStorage.setItem('briix-studio-profiles', JSON.stringify({ legacy: { pinHash: 'x', created: 0 } }));
+      if (!localStorage.getItem('briix-studio-feed-legacy')) localStorage.setItem('briix-studio-feed-legacy', JSON.stringify(oldFeed));
+      if (!localStorage.getItem('briix-studio-history-legacy')) localStorage.setItem('briix-studio-history-legacy', JSON.stringify(oldHistory));
+    }, { port: BFF_PORT, token: TOKEN, oldFeed, oldHistory });
+    await legacy.goto(URL_);
+    await legacy.getByText('Старый ответ').waitFor();
+    await legacy.locator('#newChat').click();
+    await legacy.waitForFunction(() => document.querySelectorAll('#feed .session-feed:not([hidden]) .card').length === 0);
+    await legacy.locator('#prompt').fill('Новая идея'); await legacy.locator('#send').click();
+    await legacy.waitForSelector('#feed .session-feed:not([hidden]) .make-track');
+    await legacy.locator('#sessionsOpen').click();
+    await legacy.locator('#sessionsList .session-item').filter({ hasText: 'Старый запрос' }).click();
+    await legacy.getByText('Старый ответ').waitFor({ state: 'visible' });
+    await legacy.locator('#prompt').fill('После миграции'); await legacy.locator('#send').click();
+    await legacy.waitForFunction(() => [...document.querySelectorAll('#feed .session-feed:not([hidden]) .make-track')].length >= 2);
+    assert.ok(state.chatPosts.at(-1).messages.some(m => m.content === 'Старый ответ'));
+    const retained = await legacy.evaluate(() => [localStorage.getItem('briix-studio-feed-legacy'), localStorage.getItem('briix-studio-history-legacy')]);
+    assert.deepEqual(retained, [JSON.stringify(oldFeed), JSON.stringify(oldHistory)]);
+    await context.close();
+  }
+  ok('legacy feed and context migrate through studio without altering source keys');
+
+  // Два диалога, результат генерации после переключения, возврат и контекст после reload.
+  resetBff();
+  p = await page({ viewport: { width: 390, height: 844 } });
+  await p.locator('#prompt').fill('Идея первой сессии');
+  await p.locator('#send').click();
+  await p.waitForSelector('.make-track');
+  await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('.seg-btn[data-vocal="1"]').click();
+  const fullPrompt = 'Музыкальная идея ' + 'ритм '.repeat(70);
+  await p.locator('#prompt').fill(fullPrompt);
+  await p.locator('#send').click();
+  await p.locator('.mode[data-mode="chat"]').click();
+  await p.locator('#newChat').click();
+  await p.waitForFunction(() => document.querySelectorAll('#feed .session-feed:not([hidden]) .card').length === 0);
+  await p.locator('#prompt').fill('Вторая сессия');
+  await p.locator('#send').click();
+  await p.waitForSelector('#feed .session-feed:not([hidden]) .make-track');
+  await p.waitForSelector('#feed .session-feed[hidden] audio', { state: 'attached', timeout: 25000 });
+  assert.equal(await p.locator('#feed .session-feed:not([hidden]) audio').count(), 0, 'late track does not leak into active session');
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.locator('.lib-item .action', { hasText: 'Открыть сессию: Идея первой сессии' }).first().click();
+  await p.waitForSelector('#feed .session-feed:not([hidden]) audio');
+  assert.ok(await p.locator('#feed .session-feed:not([hidden])').innerText().then(t => t.includes('Идея первой сессии')));
+  await p.reload();
+  await p.waitForSelector('#feed .session-feed:not([hidden]) audio', { timeout: 15000 });
+  await p.locator('#prompt').fill('Продолжение первой');
+  await p.locator('#send').click();
+  await p.waitForFunction(() => [...document.querySelectorAll('#feed .session-feed:not([hidden]) .make-track')].length >= 2);
+  const sessionContext = state.chatPosts.at(-1).messages;
+  assert.ok(sessionContext.some(m => m.content === 'Идея первой сессии'));
+  assert.ok(!sessionContext.some(m => m.content === 'Вторая сессия'));
+  const savedTrack = await p.evaluate(async () => {
+    const { profile } = await BriixSessionStore.open('tester');
+    return profile.sessions.flatMap(s => s.feed).find(item => item.kind === 'music');
+  });
+  assert.equal(savedTrack.input.prompt, fullPrompt.trim(), 'full sent prompt is saved without truncation');
+  await p.locator('#sessionsOpen').click();
+  await p.locator('#sessionsList .session-item').filter({ hasText: 'Вторая сессия' }).click();
+  await p.waitForSelector('#sessionsOverlay[hidden]', { state: 'attached' });
+  await p.waitForSelector('#feed .session-feed:not([hidden]) .card.user');
+  assert.match(await p.locator('#feed .session-feed:not([hidden])').innerText(), /Вторая сессия/);
+  assert.equal(await p.locator('#feed .session-feed:not([hidden]) audio').count(), 0);
+  ok('two sessions keep context and late track isolated, linked in library after reload');
+
+  // Контролируемый 429-шторм: считаем реальные попытки и восстановленные карточки в mock.
+  resetBff(); state.coverRateLimit = 4;
+  state.jobPosts = Array.from({ length: 4 }, (_, i) => ({ id: 'job-storm-' + i, type: 'music', prompt: 'Шторм ' + i, params: { model: 'ace-step-flash' } }));
+  p = await page();
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.waitForFunction(() => document.querySelectorAll('.lib-cover img').length === 4, {}, { timeout: 30000 });
+  assert.equal(await p.locator('.lib-cover img').count(), 4);
+  assert.equal(state.coverRequests, 8, 'four failed attempts plus four successful cover fetches');
+  ok('mock 429 storm: four failures, eight attempts, four covers recovered', { requests: state.coverRequests, recovered: 4 });
+
   // Сохранённые URL не могут заставить отправить ключ на чужой origin, даже через redirect.
   p = await page();
-  let foreignRequests = 0, redirectRequests = 0;
+  let foreignRequests = 0, redirectRequests = 0, traversalRequests = 0;
+  let redirectUrl = '', redirectHeader = '';
   p.on('request', request => {
     if (request.url().startsWith('http://127.0.0.1:19877/')) foreignRequests++;
-    if (request.url().endsWith('/files/redirect-test')) redirectRequests++;
+    if (request.url().endsWith('/steal')) traversalRequests++;
+    if (request.url().endsWith('/files/redirect-test')) { redirectRequests++; redirectUrl = request.url(); redirectHeader = request.headers().authorization; }
   });
   await p.route(`http://127.0.0.1:${BFF_PORT}/files/redirect-test`, route => route.fulfill({
     status: 302, headers: { Location: 'http://127.0.0.1:19877/steal', 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` }
   }));
-  await p.evaluate(() => localStorage.setItem('briix-studio-feed-tester', JSON.stringify([
-    { t: 'media', who: 'Чужой адрес', kind: 'photo', file: 'http://127.0.0.1:19877/steal' },
-    { t: 'media', who: 'Переадресация', kind: 'photo', file: '/files/redirect-test' }
-  ])));
+  await p.evaluate(async () => {
+    const { profile, backend } = await BriixSessionStore.open('tester');
+    profile.sessions[0].feed.push(
+      { t: 'media', who: 'Чужой адрес', kind: 'photo', file: 'http://127.0.0.1:19877/steal' },
+      { t: 'media', who: 'Переадресация', kind: 'photo', file: '/files/redirect-test' },
+      { t: 'media', who: 'Обход', kind: 'photo', file: '/files/../steal' }
+    );
+    await BriixSessionStore.save(profile, profile.revision, backend);
+  });
   await p.reload();
-  await p.waitForFunction(() => [...document.querySelectorAll('#feed .card .body')].filter(x => x.textContent.includes('Файл недоступен')).length === 2);
+  await p.waitForFunction(() => [...document.querySelectorAll('#feed .card .body')].filter(x => x.textContent.includes('Файл недоступен')).length === 3);
   assert.equal(redirectRequests, 1, 'trusted URL was requested');
+  assert.equal(redirectHeader, 'Bearer ' + TOKEN, 'token is sent only in the authorization header');
+  assert.ok(!redirectUrl.includes(TOKEN), 'token is not embedded in the URL');
   assert.equal(foreignRequests, 0, 'neither foreign URL nor redirect target was requested');
-  ok('file fetch blocks foreign origins and redirects');
+  assert.equal(traversalRequests, 0, 'relative traversal outside /files was not requested');
+  ok('file fetch blocks foreign origins, traversal and redirects without URL credentials');
 
   assert.deepEqual(errors, [], 'no page errors anywhere');
   await browser.close();

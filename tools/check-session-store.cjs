@@ -79,8 +79,36 @@ const { launch } = require('./browser-env.cjs');
       return result;
     }, { feedRaw });
     assert.deepEqual(failures, { corrupt: 'legacy_invalid', original: '{bad', afterRetry: 106, noIdb: 'idb_unavailable', denied: 'storage_unavailable', invalid: 'invalid_profile', quota: 'QuotaExceededError', quotaOriginal: true, quotaRetry: 106 });
+    const fallback = await page.evaluate(async () => {
+      const opts = { indexedDB: null };
+      localStorage.setItem('briix-studio-feed-fallback', JSON.stringify([{ t: 'user', text: 'Старый текст' }]));
+      const first = await BriixSessionStore.open('fallback', opts);
+      first.profile.sessions[0].feed.push({ t: 'user', text: 'Новый текст' });
+      const saved = await BriixSessionStore.save(first.profile, first.profile.revision, first.backend, opts);
+      const reopened = await BriixSessionStore.open('fallback');
+      let conflict;
+      try { await BriixSessionStore.save(first.profile, 0, 'local', opts); } catch (e) { conflict = e.code; }
+      return { backend: first.backend, reopenBackend: reopened.backend, saved, reopened: reopened.profile, conflict,
+        legacy: localStorage.getItem('briix-studio-feed-fallback') };
+    });
+    assert.equal(fallback.backend, 'local');
+    assert.equal(fallback.reopenBackend, 'local', 'fallback is sticky even when IDB returns');
+    assert.deepEqual(fallback.reopened, fallback.saved);
+    assert.equal(fallback.conflict, 'conflict');
+    assert.equal(fallback.legacy, JSON.stringify([{ t: 'user', text: 'Старый текст' }]));
+    const measured = await page.evaluate(async () => {
+      const before = await navigator.storage.estimate();
+      const { profile, backend } = await BriixSessionStore.open('измерение');
+      profile.sessions.push({ id: 'measure', title: '100 событий', createdAt: Date.now(), updatedAt: Date.now(), history: [],
+        feed: Array.from({ length: 100 }, (_, i) => ({ t: 'user', who: 'Вы', text: 'Тестовое сообщение ' + i + ' ' + 'пример '.repeat(30) })) });
+      await BriixSessionStore.save(profile, profile.revision, backend);
+      const after = await navigator.storage.estimate();
+      return { jsonBytes: new TextEncoder().encode(JSON.stringify(profile)).length, beforeUsage: before.usage, afterUsage: after.usage };
+    });
+    assert.ok(measured.jsonBytes > 0);
+    console.log('Storage estimate for 100 synthetic events (whole origin, approximate):', JSON.stringify(measured));
     await context.close();
-    console.log('PASS session storage foundation: browser migration, backup, isolation, conflicts and failures');
+    console.log('PASS session storage: migration, backup, fallback, isolation, conflicts and failures');
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));

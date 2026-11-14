@@ -208,7 +208,9 @@
     enterBtn: $('enterBtn'), gateHint: $('gateHint'), studio: $('studio'),
     profileBtn: $('profileBtn'), profileMenu: $('profileMenu'), profileNick: $('profileNick'),
     profileKeyBtn: $('profileKeyBtn'), profileLogoutBtn: $('profileLogoutBtn'), keyStatus: $('keyStatus'),
-    tabs: $('tabs'), lib: $('lib')
+    tabs: $('tabs'), lib: $('lib'), sessionsOpen: $('sessionsOpen'), sessionsOverlay: $('sessionsOverlay'),
+    sessionsDialog: $('sessionsDialog'), sessionsClose: $('sessionsClose'), sessionsNew: $('sessionsNew'),
+    sessionsList: $('sessionsList'), storageWarning: $('storageWarning')
   };
 
   let mode = 'chat';
@@ -218,56 +220,82 @@
   let advanced = false;
   let chatActive = false;
   const improving = new Set();
-  let history = []; // Только завершённые ходы чата.
-  const HISTORY_KEY = nick => 'briix-studio-history-' + nick;
-  function saveHistory() {
-    try { localStorage.setItem(HISTORY_KEY(currentUser()), JSON.stringify(history.slice(-80))); } catch {}
+  let sessionProfile = null, sessionBackend = null, activeSession = null;
+  let storageBlocked = true, storageDirty = false, pendingSaves = 0, saveQueue = Promise.resolve();
+  const sessionRoots = new Map();
+
+  function warnStorage(error) {
+    storageDirty = true;
+    els.storageWarning.hidden = false;
+    els.storageWarning.textContent = 'Сессии не сохранены: ' + (error.message || 'ошибка хранилища') + ' Не закрывайте вкладку; сохраните важный текст отдельно. ';
+    if (sessionProfile) {
+      const exportButton = document.createElement('button'); exportButton.type = 'button'; exportButton.className = 'action';
+      exportButton.textContent = 'Скачать данные сессий';
+      exportButton.addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(sessionProfile, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob); const link = document.createElement('a');
+        link.href = url; link.download = 'briix-sessions-backup.json'; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+      els.storageWarning.append(exportButton);
+    }
   }
-  // Лента переживает перезагрузку: сериализованный журнал карточек в localStorage (per-ник).
-  let feedLog = [];
-  const FEED_KEY = nick => 'briix-studio-feed-' + nick;
-  const FEED_MAX = 80;
-  function feedSave() {
-    const nick = currentUser();
-    if (!nick) return;
-    try { localStorage.setItem(FEED_KEY(nick), JSON.stringify(feedLog.slice(-FEED_MAX))); } catch { /* переполнение */ }
+  function persistSessions() {
+    if (!sessionProfile) return Promise.resolve(false);
+    const snapshot = JSON.parse(JSON.stringify(sessionProfile));
+    storageDirty = true;
+    pendingSaves++;
+    saveQueue = saveQueue.then(async () => {
+      try {
+        const saved = await BriixSessionStore.save(snapshot, sessionProfile.revision, sessionBackend);
+        sessionProfile.revision = saved.revision;
+        storageDirty = false;
+        els.storageWarning.hidden = sessionBackend !== 'local';
+        if (sessionBackend === 'local') els.storageWarning.textContent = 'IndexedDB недоступна: сессии хранятся в localStorage этого браузера, объём ограничен.';
+        return true;
+      } catch (error) { warnStorage(error); return false; }
+      finally { pendingSaves--; }
+    });
+    return saveQueue;
   }
-  function feedPush(d) { feedLog.push(d); feedLog = feedLog.slice(-FEED_MAX); feedSave(); }
-  // Восстановление: тексты сразу, медиа дозабираем с шины по /files/{id}.
-  function feedRestore() {
-    let log = [];
-    try { log = JSON.parse(localStorage.getItem(FEED_KEY(currentUser()))) || []; } catch { /* пусто */ }
-    feedLog = log;
-    for (const d of feedLog) {
+  window.addEventListener('beforeunload', e => {
+    if (storageDirty || pendingSaves) { e.preventDefault(); e.returnValue = ''; }
+  });
+  function rootFor(session) { return sessionRoots.get(session.id); }
+  function feedPush(d, session = activeSession) {
+    if (!session) return;
+    session.feed.push(d);
+    if (d.t === 'user' && !session.titleSet && typeof d.text === 'string' && d.text.trim()) {
+      session.title = d.text.trim().replace(/\s+/g, ' ').slice(0, 80);
+      session.titleSet = true;
+    }
+    session.updatedAt = Date.now();
+    persistSessions();
+  }
+  function feedRestore(session) {
+    for (const d of session.feed) {
+      if (!d || typeof d !== 'object') continue;
       if (d.t === 'media') {
-        const body = card('assistant', d.who, '');
+        const body = card('assistant', d.who, '', session);
         body.textContent = '';
         const slot = document.createElement('div');
         body.append(slot);
         if (d.track) addMakeTrackAction(body.closest('.card'), d.track);
+        if (d.kind === 'music' && d.input) addMusicDetails(body, d.input);
         fileBlob(d.file).then(blob => {
           if (d.kind === 'photo') {
-            const img = new Image();
-            img.alt = 'Результат';
-            img.src = URL.createObjectURL(blob);
-            slot.append(img);
+            const img = new Image(); img.alt = 'Результат'; img.src = URL.createObjectURL(blob); slot.append(img);
           } else {
-            const audio = document.createElement('audio');
-            audio.controls = true;
-            audio.controlsList = 'nodownload';
-            audio.preload = 'none';
-            audio.src = URL.createObjectURL(blob);
-            addTrackCover(slot, d.job, d.cover);
-            slot.append(audio);
+            const audio = document.createElement('audio'); audio.controls = true; audio.controlsList = 'nodownload';
+            audio.preload = 'none'; audio.src = URL.createObjectURL(blob); addTrackCover(slot, d.job, d.cover); slot.append(audio);
           }
           addDownloadAction(body.closest('.card'), blob, d.kind === 'photo' ? 'briix-photo' : 'briix-track', d.kind === 'music' ? '⬇ Скачать ' + extOf(blob).toUpperCase() : '⬇ Скачать');
         }).catch(() => { slot.textContent = 'Файл недоступен (см. Библиотеку).'; });
-        continue;
+      } else {
+        const body = card(d.t, d.who, d.text, session);
+        if (d.t === 'assistant' && d.track) addMakeTrackAction(body.closest('.card'), d.track);
       }
-      const body = card(d.t, d.who, d.text);
-      if (d.t === 'assistant' && d.track) addMakeTrackAction(body.closest('.card'), d.track);
     }
-    if (feedLog.length) els.feed.scrollIntoView({ block: 'end' });
   }
   const assistantId = { chat: 'mentor', photo: 'art-dir', music: 'producer' };
   const undoBackup = { lyrics: null, musicPrompt: null };
@@ -377,7 +405,7 @@
     if (force || nearBottom) els.feed.scrollTop = els.feed.scrollHeight;
   }
 
-  function card(kind, who, text) {
+  function card(kind, who, text, session = activeSession) {
     const div = document.createElement('div');
     div.className = 'card ' + kind;
     const whoEl = document.createElement('div');
@@ -387,8 +415,9 @@
     body.className = 'body';
     body.textContent = text || '';
     div.append(whoEl, body);
-    els.feed.append(div);
-    scrollFeed(kind === 'user');
+    const root = session && rootFor(session);
+    (root || els.feed).append(div);
+    if (session === activeSession) scrollFeed(kind === 'user');
     return body;
   }
 
@@ -425,18 +454,18 @@
     return { row, stop: () => clearInterval(timer) };
   }
 
-  function errorCard(error) {
+  function errorCard(error, session = activeSession) {
     if (error.name === 'AbortError' || error.code === 'cancelled') {
-      card('notice', 'Остановлено', 'Генерацию остановили — текст остался в поле, можно править и запустить снова.');
+      card('notice', 'Остановлено', 'Генерацию остановили — текст остался в поле, можно править и запустить снова.', session);
       return;
     }
     if (error.code === 'content_blocked') {
-      const body = card('error', 'Модерация', 'Не пройдена проверка контента: ' + (error.message || 'запрос нарушает политику.') + ' Текст сохранён в поле ввода — отредактируйте и попробуйте снова.');
+      const body = card('error', 'Модерация', 'Не пройдена проверка контента: ' + (error.message || 'запрос нарушает политику.') + ' Текст сохранён в поле ввода — отредактируйте и попробуйте снова.', session);
       body.dataset.code = 'content_blocked';
       return;
     }
-    if (error.code === 'unauthorized') { els.keyCard.hidden = false; els.keyInput.focus(); }
-    card('error', 'Ошибка', error.message || 'Неизвестная ошибка.');
+    if (error.code === 'unauthorized' && session === activeSession) { els.keyCard.hidden = false; els.keyInput.focus(); }
+    card('error', 'Ошибка', error.message || 'Неизвестная ошибка.', session);
   }
 
   // «Сделать из этого трек»: чат → музыка с подставленным брифом.
@@ -454,6 +483,14 @@
     });
     row.append(button);
     container.append(row);
+  }
+
+  function addMusicDetails(container, input) {
+    const details = document.createElement('details'); details.className = 'track-details';
+    const summary = document.createElement('summary'); summary.textContent = 'Промпт и текст песни';
+    const text = document.createElement('div');
+    text.textContent = 'Промпт: ' + (input.prompt || '—') + '\n\nТекст песни: ' + (input.lyrics || (input.instrumental ? 'Инструментал' : '—'));
+    details.append(summary, text); container.append(details);
   }
 
   // Кнопка «Скачать» под готовым фото/треком (blob уже в памяти страницы).
@@ -517,7 +554,7 @@
   function updateEnabled() {
     // Один ход чата за раз: генерации медиа по-прежнему не блокируют чат.
     const hasInput = Boolean(promptValue() || (mode === 'music' && advanced && els.lyrics.value.trim()));
-    els.send.disabled = !hasInput || (mode === 'chat' && chatActive);
+    els.send.disabled = storageBlocked || !hasInput || (mode === 'chat' && chatActive);
     $('chatPending').hidden = !(mode === 'chat' && chatActive);
     els.improveLyrics.disabled = improving.has('lyrics') || !els.lyrics.value.trim();
     els.improvePrompt.disabled = improving.has('prompt') || !els.musicPrompt.value.trim();
@@ -555,7 +592,7 @@
 
   // ---- потоки -------------------------------------------------------------------
   async function create() {
-    if (!needKey()) return;
+    if (storageBlocked || !activeSession || !needKey()) return;
     const text = promptValue();
     if ((!text && !(mode === 'music' && advanced && els.lyrics.value.trim())) || (mode === 'chat' && chatActive)) return;
     if (mode === 'chat') return createChat(text);
@@ -564,15 +601,16 @@
   }
 
   async function createChat(text) {
+    const session = activeSession;
     chatActive = true;
     const turn = { role: 'user', content: text };
     const assistant = currentAssistant();
-    card('user', 'Вы', text);
-    feedPush({ t: 'user', who: 'Вы', text });
+    card('user', 'Вы', text, session);
+    feedPush({ t: 'user', who: 'Вы', text }, session);
     els.prompt.value = '';
     updateEnabled();
     const who = assistant.name;
-    const body = card('assistant', who, '');
+    const body = card('assistant', who, '', session);
     const handle = makeCancelHandle(); // ✕ в карточке гасит только этот стрим
     const textSpan = document.createElement('span'); // текст отдельно от ✕, чтобы не перемешивались
     const wait = waitLine('chat'); // мгновенный отклик: видно, что запрос ушёл
@@ -584,7 +622,7 @@
     body.classList.add('streaming');
     setBusy(true, who + ' печатает…');
     try {
-      const messages = [{ role: 'system', content: assistant.system }, ...history, turn];
+      const messages = [{ role: 'system', content: assistant.system }, ...session.history.filter(m => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string').slice(-80), turn];
       let first = true;
       const full = await chatStream({ messages, signal: handle.controller.signal, onChunk: piece => {
         if (first) { wait.remove(); first = false; } // ждущий блок уступает место стриму, ✕ остаётся
@@ -593,9 +631,8 @@
       } });
       stopRow.remove();
       body.textContent = full; // чистый текст вместо служебных узлов
-      history.push(turn, { role: 'assistant', content: full });
-      saveHistory();
-      feedPush({ t: 'assistant', who, text: full, track: full }); // track = бриф «Сделать из этого трек»
+      session.history.push(turn, { role: 'assistant', content: full });
+      feedPush({ t: 'assistant', who, text: full, track: full }, session); // track = бриф «Сделать из этого трек»
       addMakeTrackAction(body.closest('.card'), full);
     } catch (error) {
       stopRow.remove();
@@ -608,20 +645,21 @@
         } else body.closest('.card').remove();
       } else {
         if (!body.textContent.trim()) body.closest('.card').remove(); // пустая карточка без ответа не висит
-        if (mode === 'chat' && !els.prompt.value.trim()) els.prompt.value = text;
-        else if (mode !== 'chat' && !drafts.chat.trim()) drafts.chat = text;
-        errorCard(error);
+        if (session === activeSession && mode === 'chat' && !els.prompt.value.trim()) els.prompt.value = text;
+        else if (session === activeSession && mode !== 'chat' && !drafts.chat.trim()) drafts.chat = text;
+        errorCard(error, session);
       }
     } finally { chatActive = false; body.classList.remove('streaming'); setBusy(false); updateEnabled(); }
   }
 
   async function createPhoto(text) {
-    card('user', 'Вы', text);
-    feedPush({ t: 'user', who: 'Вы', text });
+    const session = activeSession;
+    card('user', 'Вы', text, session);
+    feedPush({ t: 'user', who: 'Вы', text }, session);
     els.prompt.value = '';
     updateEnabled();
     setBusy(true, 'Отправляем задачу…');
-    const stageBody = card('stage', 'Фото', ''); // мгновенно, до ответа шины
+    const stageBody = card('stage', 'Фото', '', session); // мгновенно, до ответа шины
     const skel = document.createElement('div');
     skel.className = 'skeleton-img';
     stageBody.append(skel);
@@ -642,21 +680,21 @@
       item.src = URL.createObjectURL(blob);
       item.className = 'media-in';
       requestAnimationFrame(() => item.classList.add('loaded'));
-      const wrap = card('assistant', 'Фото готово', '');
+      const wrap = card('assistant', 'Фото готово', '', session);
       wrap.textContent = '';
       wrap.append(item);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-photo');
-      feedPush({ t: 'media', who: 'Фото готово', kind: 'photo', file: result.result_url });
-      libAdd({ job: id, kind: 'photo', prompt: text, file: result.result_url, created: Date.now(), fav: false });
+      feedPush({ t: 'media', who: 'Фото готово', kind: 'photo', file: result.result_url, job: id }, session);
+      libAdd({ job: id, sessionId: session.id, kind: 'photo', prompt: text, file: result.result_url, created: Date.now(), fav: false });
     } catch (error) {
       wait.stop();
       stageBody.closest('.card').remove();
       if (error.name === 'AbortError' || error.code === 'cancelled') {
-        card('notice', 'Ожидание остановлено', 'Задача может продолжаться на сервере. Проверьте результат в библиотеке.');
+        card('notice', 'Ожидание остановлено', 'Задача может продолжаться на сервере. Проверьте результат в библиотеке.', session);
       } else {
-        if (mode === 'photo' && !els.prompt.value.trim()) els.prompt.value = text;
-        else if (mode !== 'photo' && !drafts.photo.trim()) drafts.photo = text;
-        errorCard(error);
+        if (session === activeSession && mode === 'photo' && !els.prompt.value.trim()) els.prompt.value = text;
+        else if (session === activeSession && mode !== 'photo' && !drafts.photo.trim()) drafts.photo = text;
+        errorCard(error, session);
       }
     } finally { setBusy(false); updateEnabled(); }
   }
@@ -680,6 +718,7 @@
   }
 
   async function createMusic(description) {
+    const session = activeSession;
     // Зафиксировать настройки до автолирики: пользователь может менять их во время ожидания.
     const snapshot = { advanced, quality, instrumental };
     const style = snapshot.advanced ? els.musicPrompt.value.trim() : description;
@@ -692,15 +731,16 @@
     updateEnabled();
     const requestText = style || lyrics; // что просили — карточка в ленте и в журнале
     const restoreMusicDraft = () => {
+      if (session !== activeSession) return;
       if (snapshot.advanced) {
         if (!els.musicPrompt.value.trim()) els.musicPrompt.value = style;
       } else if (mode === 'music') {
         if (!els.prompt.value.trim()) els.prompt.value = description;
       } else if (!drafts.music.trim()) drafts.music = description;
     };
-    card('user', 'Вы', requestText);
-    feedPush({ t: 'user', who: 'Вы', text: requestText });
-    const stageBody = card('stage', 'Музыка', ''); // мгновенно, включая фазу автолирики
+    card('user', 'Вы', requestText, session);
+    feedPush({ t: 'user', who: 'Вы', text: requestText }, session);
+    const stageBody = card('stage', 'Музыка', '', session); // мгновенно, включая фазу автолирики
     const wait = waitRow('music', vocal && !lyrics ? 'writing-lyrics' : 'synthesizing');
     const handle = makeCancelHandle(); // ✕ гасит автолирику и поллинг этой джобы
     appendStop(wait.row, handle);
@@ -744,7 +784,7 @@
       if (vocal && !lyrics) {
         try {
           lyrics = await autoLyrics(style || lyrics || 'песня', handle.controller.signal);
-          if (snapshot.advanced && mode === 'music' && !els.lyrics.value.trim()) els.lyrics.value = lyrics;
+          if (session === activeSession && snapshot.advanced && mode === 'music' && !els.lyrics.value.trim()) els.lyrics.value = lyrics;
         } catch (error) {
           wait.stop(); watchStage.disconnect();
           stageBody.closest('.card').remove();
@@ -754,7 +794,7 @@
             : error.code === 'content_blocked' ? 'Модерация не пропустила тему.'
             : 'Причина: ' + (error.message || 'неизвестная ошибка') + '.';
           card('notice', 'Музыка', 'Не удалось автоматически написать лирику. ' + why
-            + ' Можно заполнить поле «Лирика» вручную (кнопка ✨ тоже поможет) и попробовать снова.');
+            + ' Можно заполнить поле «Лирика» вручную (кнопка ✨ тоже поможет) и попробовать снова.', session);
           return;
         }
       }
@@ -773,16 +813,18 @@
       audio.controlsList = 'nodownload'; // скачивание только через нашу кнопку: имя .m4a, обложка и текст внутри
       const blob = await fileBlob(result.result_url);
       audio.src = URL.createObjectURL(blob);
-      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', '');
+      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', '', session);
       wrap.textContent = '';
       addTrackCover(wrap, id, result.cover_url);
       wrap.append(audio);
+      const input = { prompt: style || lyrics, lyrics, model: MUSIC_MODELS[snapshot.quality], instrumental: snapshot.instrumental };
+      addMusicDetails(wrap, input);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать ' + extOf(blob).toUpperCase());
-      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', kind: 'music', file: result.result_url, job: id, cover: result.cover_url || '' });
+      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', kind: 'music', file: result.result_url, job: id, cover: result.cover_url || '', input }, session);
       const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
       libAdd({
-        job: id, kind: 'music', prompt: (style || lyrics || '').slice(0, 200),
-        lyrics: (lyrics || '').slice(0, 8000),
+        job: id, sessionId: session.id, kind: 'music', prompt: style || lyrics || '',
+        lyrics: lyrics || '', instrumental: snapshot.instrumental,
         title: titleSource.slice(0, 60),
         model: MUSIC_MODELS[snapshot.quality], file: result.result_url, cover: result.cover_url || '', created: Date.now(), fav: false
       });
@@ -790,11 +832,11 @@
       wait.stop(); watchStage.disconnect();
       stageBody.closest('.card').remove();
       if (error.name === 'AbortError' || error.code === 'cancelled') {
-        card('notice', 'Ожидание остановлено', 'Задача может продолжаться на сервере. Проверьте результат в библиотеке.');
+        card('notice', 'Ожидание остановлено', 'Задача может продолжаться на сервере. Проверьте результат в библиотеке.', session);
       } else {
         // текст остаётся в полях для правки (в т.ч. после 422)
         restoreMusicDraft();
-        errorCard(error);
+        errorCard(error, session);
       }
     } finally { setBusy(false); updateEnabled(); }
   }
@@ -805,16 +847,24 @@
       trusted = new URL(server());
       url = new URL(pathOrUrl.startsWith('http') ? pathOrUrl : server() + pathOrUrl);
     } catch { throw new BusError('unsafe_url', 'Некорректный адрес файла.'); }
-    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== trusted.origin || url.username || url.password) {
+    const basePath = trusted.pathname.replace(/\/+$/, '');
+    const filePrefix = basePath + '/files/';
+    const fileName = url.pathname.startsWith(filePrefix) ? url.pathname.slice(filePrefix.length) : '';
+    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== trusted.origin || url.username || url.password ||
+        url.search || url.hash || !/^[a-zA-Z0-9._-]+$/.test(fileName) || fileName === '.' || fileName === '..') {
       throw new BusError('unsafe_url', 'Недоверенный адрес файла.');
     }
     const pauses = [1000, 2000, 4000]; // ретрай 429: 1с, 2с, 4с — бросаем только после последней попытки
     for (let attempt = 0; ; attempt++) {
       // Never follow redirects with the bearer: the destination may be another origin.
-      const response = await fetch(url.href, { headers: { Authorization: 'Bearer ' + token() }, redirect: 'error' });
+      let response;
+      try { response = await fetch(url.href, { headers: { Authorization: 'Bearer ' + token() }, redirect: 'error' }); }
+      catch (error) { throw new BusError('network', 'Файл недоступен: проверьте подключение или адрес.'); }
       if (response.ok) return response.blob();
       if (response.status !== 429 || attempt >= pauses.length) {
-        if (response.status === 429) throw new BusError('rate_limited', 'Сервер просит не спешить — повторите через минуту.', 429);
+        if (response.status === 429) throw new BusError('rate_limited', 'Слишком много запросов (429). Повторите через минуту.', 429);
+        if (response.status === 401) throw new BusError('unauthorized', 'Ключ стенда не принят (401).', 401);
+        if (response.status === 404) throw new BusError('not_found', 'Файл не найден (404); срок хранения мог истечь.', 404);
         throw new BusError('http', 'Файл не получен (' + response.status + ').', response.status);
       }
       await new Promise(r => setTimeout(r, pauses[attempt]));
@@ -822,8 +872,9 @@
   }
 
   async function improve(field) {
-    if (improving.has(field)) return;
+    if (storageBlocked || improving.has(field)) return;
     if (!needKey()) return;
+    const session = activeSession;
     improving.add(field);
     const el = field === 'lyrics' ? els.lyrics : els.musicPrompt;
     const original = el.value;
@@ -832,11 +883,15 @@
     button.classList.add('busy');
     try {
       const improved = await improveText(original, field);
-      if (el.value !== original) { card('notice', 'Предложение помощника', improved.trim()); return; }
+      if (session !== activeSession || el.value !== original) {
+        card('notice', 'Предложение помощника', improved.trim(), session);
+        feedPush({ t: 'notice', who: 'Предложение помощника', text: improved.trim() }, session);
+        return;
+      }
       undoBackup[field] = original;
       el.value = improved.trim();
       (field === 'lyrics' ? els.undoLyrics : els.undoPrompt).hidden = false;
-    } catch (error) { errorCard(error); } finally { improving.delete(field); button.classList.remove('busy'); setBusy(false); }
+    } catch (error) { errorCard(error, session); } finally { improving.delete(field); button.classList.remove('busy'); setBusy(false); }
   }
 
   function undo(field) {
@@ -849,7 +904,8 @@
 
   // ✨ в режиме «Фото»: арт-директор улучшает промпт перед отправкой.
   async function improvePhoto() {
-    if (improving.has('photo')) return;
+    if (storageBlocked || improving.has('photo')) return;
+    const session = activeSession;
     const original = els.prompt.value.trim();
     if (!original || !needKey()) return;
     improving.add('photo');
@@ -863,13 +919,15 @@
         ],
         maxTokens: 600
       });
-      if (mode !== 'photo' || els.prompt.value.trim() !== original) {
-        card('notice', 'Предложение арт-директора', improved.trim()); return;
+      if (session !== activeSession || mode !== 'photo' || els.prompt.value.trim() !== original) {
+        card('notice', 'Предложение арт-директора', improved.trim(), session);
+        feedPush({ t: 'notice', who: 'Предложение арт-директора', text: improved.trim() }, session);
+        return;
       }
       undoBackup.prompt = original;
       els.prompt.value = improved.trim();
       els.undoPhoto.hidden = false;
-    } catch (error) { errorCard(error); }
+    } catch (error) { errorCard(error, session); }
     finally { improving.delete('photo'); els.improvePhoto.classList.remove('busy'); setBusy(false); updateEnabled(); }
   }
 
@@ -881,15 +939,81 @@
     updateEnabled();
   }
 
-  // Новый чат: чистим ленту, журнал и историю (мод/качество/ключ не трогаем).
-  function newChat() {
-    if (runningOps) { card('notice', 'Новый чат', 'Сначала дождитесь завершения активных операций или остановите их.'); return; }
-    if (feedLog.length && !confirm('Очистить ленту диалога? Генерации останутся в «Библиотеке», но переписка на экране сотрётся.')) return;
-    history = [];
-    saveHistory();
-    feedLog = [];
-    feedSave();
-    els.feed.innerHTML = '';
+  function newSessionRecord() {
+    return { id: crypto.randomUUID(), title: 'Новый чат', titleSet: false, createdAt: Date.now(), updatedAt: Date.now(), feed: [], history: [] };
+  }
+  function saveDraft(session) {
+    if (!session) return;
+    drafts[mode] = els.prompt.value;
+    session.draft = { prompts: { ...drafts }, lyrics: els.lyrics.value, musicPrompt: els.musicPrompt.value, mode, advanced };
+  }
+  function loadDraft(session) {
+    const draft = session.draft || {};
+    for (const key of Object.keys(drafts)) drafts[key] = draft.prompts?.[key] || '';
+    mode = ['chat', 'photo', 'music'].includes(draft.mode) ? draft.mode : 'chat';
+    advanced = !!draft.advanced;
+    els.prompt.value = drafts[mode]; els.lyrics.value = draft.lyrics || ''; els.musicPrompt.value = draft.musicPrompt || '';
+    renderChrome();
+  }
+  function ensureRoot(session) {
+    if (rootFor(session)) return;
+    const root = document.createElement('div'); root.className = 'session-feed'; root.hidden = true;
+    sessionRoots.set(session.id, root); els.feed.append(root);
+    feedRestore(session);
+    if (!session.history.length && session.feed.some(item => item.t === 'assistant' && item.track)) {
+      card('notice', 'Контекст чата', 'Ранее сохранённая переписка показана выше, но её контекст не был сохранён.', session);
+    }
+  }
+  let sessionTransition = false;
+  async function activateSession(session) {
+    saveDraft(activeSession);
+    if (activeSession && !(await persistSessions())) return;
+    if (activeSession) rootFor(activeSession).hidden = true;
+    activeSession = session;
+    sessionProfile.activeSessionId = session.id;
+    ensureRoot(session);
+    rootFor(session).hidden = false;
+    loadDraft(session);
+    setView('chat');
+    closeSessions();
+    persistSessions();
+  }
+  async function selectSession(session) {
+    if (!session || storageBlocked || sessionTransition) return;
+    sessionTransition = true;
+    try { await activateSession(session); } finally { sessionTransition = false; }
+  }
+  async function newChat() {
+    if (storageBlocked || !activeSession || sessionTransition) return;
+    sessionTransition = true;
+    try {
+      saveDraft(activeSession);
+      if (!(await persistSessions())) return;
+      if (!activeSession.feed.length && !activeSession.history.length) { closeSessions(); return; }
+      const session = newSessionRecord();
+      sessionProfile.sessions.push(session);
+      await activateSession(session);
+    } finally { sessionTransition = false; }
+  }
+  function renderSessions() {
+    els.sessionsList.textContent = '';
+    const sessions = [...sessionProfile.sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+    if (!sessions.length) { els.sessionsList.textContent = 'Здесь появятся ваши диалоги.'; return; }
+    for (const session of sessions) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'session-item';
+      button.setAttribute('aria-current', String(session === activeSession));
+      const title = document.createElement('span'); title.textContent = session.title || 'Новый чат';
+      const date = document.createElement('time'); date.textContent = new Date(session.updatedAt || session.createdAt).toLocaleString('ru-RU');
+      button.append(title, date); button.addEventListener('click', () => selectSession(session)); els.sessionsList.append(button);
+    }
+  }
+  function openSessions() {
+    if (!sessionProfile) return;
+    closeMenus(); renderSessions(); els.sessionsOverlay.hidden = false; els.sessionsClose.focus();
+  }
+  function closeSessions() {
+    if (els.sessionsOverlay.hidden) return;
+    els.sessionsOverlay.hidden = true; els.sessionsOpen.focus();
   }
 
   function insertTag(tag) {
@@ -965,43 +1089,46 @@
     startSession(nick);
   }
 
-  function startSession(nick) {
-    els.feed.innerHTML = '';
+  async function startSession(nick) {
+    storageBlocked = true; updateEnabled();
+    els.gate.hidden = true; els.studio.hidden = false; els.profileNick.textContent = nick;
+    els.feed.innerHTML = ''; sessionRoots.clear(); sessionProfile = null; activeSession = null;
     els.prompt.value = ''; els.lyrics.value = ''; els.musicPrompt.value = '';
     Object.keys(drafts).forEach(k => { drafts[k] = ''; });
-    mode = 'chat'; advanced = false; renderChrome();
-    history = [];
+    mode = 'chat'; advanced = false; renderChrome(); setView('chat');
     try {
-      const saved = JSON.parse(localStorage.getItem(HISTORY_KEY(nick)) || '[]');
-      if (Array.isArray(saved)) history = saved.filter(m => ['user', 'assistant'].includes(m.role) && typeof m.content === 'string').slice(-80);
-    } catch {}
-    els.gate.hidden = true;
-    els.studio.hidden = false;
-    els.profileNick.textContent = nick;
-    setView('chat');
-    feedRestore(); // лента прошлого сеанса
-    if (!history.length && feedLog.some(item => item.t === 'assistant' && item.track)) {
-      card('notice', 'Контекст чата', 'Ранее сохранённая переписка показана выше, но её контекст не был сохранён. Начните новый диалог.');
+      const opened = await BriixSessionStore.open(nick);
+      sessionProfile = opened.profile; sessionBackend = opened.backend;
+      if (!sessionProfile.sessions.length) sessionProfile.sessions.push(newSessionRecord());
+      activeSession = sessionProfile.sessions.find(x => x.id === sessionProfile.activeSessionId) || sessionProfile.sessions[0];
+      sessionProfile.activeSessionId = activeSession.id;
+      ensureRoot(activeSession); rootFor(activeSession).hidden = false; loadDraft(activeSession);
+      storageBlocked = false;
+      await persistSessions();
+      if (sessionBackend === 'local' && !storageDirty) {
+        els.storageWarning.hidden = false;
+        els.storageWarning.textContent = 'IndexedDB недоступна: сессии хранятся в localStorage этого браузера, объём ограничен.';
+      }
+    } catch (error) {
+      warnStorage(error);
+      els.storageWarning.textContent = 'Не удалось открыть сессии: ' + (error.message || 'ошибка хранилища') + ' Старые данные не удалены. Обновите страницу или освободите место.';
     }
-    renderKeyChip();
+    updateEnabled(); renderKeyChip();
   }
 
-  function logout() {
+  async function logout() {
+    if (sessionTransition) return;
     if (runningOps) { card('notice', 'Выход', 'Сначала дождитесь завершения активных операций или остановите их.'); return; }
+    if (sessionProfile) { saveDraft(activeSession); if (!(await persistSessions())) return; }
     libSeq++;
-    history = []; feedLog = [];
+    sessionProfile = null; activeSession = null; storageBlocked = true; sessionRoots.clear();
     els.feed.innerHTML = ''; els.lib.innerHTML = '';
     els.prompt.value = ''; els.lyrics.value = ''; els.musicPrompt.value = '';
     Object.keys(drafts).forEach(k => { drafts[k] = ''; });
     blobCache.forEach(url => URL.revokeObjectURL(url)); blobCache.clear(); blobTypes.clear();
     localStorage.removeItem(USER_KEY);
-    els.studio.hidden = true;
-    els.gate.hidden = false;
-    els.nickInput.value = '';
-    pinBuf = '';
-    renderDots();
-    gateHint('PIN — 4–6 цифр. Новый ник регистрируется при первом входе.');
-    els.nickInput.focus();
+    els.studio.hidden = true; els.gate.hidden = false; els.nickInput.value = '';
+    pinBuf = ''; renderDots(); gateHint('PIN — 4–6 цифр. Новый ник регистрируется при первом входе.'); els.nickInput.focus();
   }
 
   // ---- библиотека (клиентская; переезд на GET /jobs — INFRA #77) ----------------
@@ -1144,7 +1271,14 @@
             if (frame.contains(image)) { frame.textContent = '♫'; frame.setAttribute('aria-label', 'Обложка недоступна'); }
           };
           image.src = url; frame.textContent = ''; frame.removeAttribute('aria-label'); frame.append(image);
-        } catch { /* Оставляем заглушку, если файл недоступен. */ }
+        } catch (error) {
+          if (!frame.isConnected || currentUser() !== owner) return;
+          const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'cover-retry';
+          retry.textContent = '↻'; retry.setAttribute('aria-label', (error.message || 'Обложка недоступна') + ' Повторить загрузку.');
+          retry.title = (error.message || 'Обложка недоступна') + ' Повторить';
+          retry.addEventListener('click', () => { frame.textContent = '…'; enqueue(); });
+          frame.textContent = ''; frame.append(retry);
+        }
       });
       libPump();
     };
@@ -1235,6 +1369,14 @@
       renderLibrary();
     });
     row.append(download, fav, del);
+    const sourceSession = sessionProfile?.sessions.find(s => s.id === entry.sessionId || s.feed.some(item => item && item.job === entry.job));
+    if (sourceSession) {
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'action';
+      open.textContent = 'Открыть сессию: ' + sourceSession.title;
+      open.addEventListener('click', () => selectSession(sourceSession)); row.append(open);
+    } else if (entry.kind === 'music') {
+      const unknown = document.createElement('span'); unknown.className = 'hint'; unknown.textContent = 'Сессия неизвестна'; row.append(unknown);
+    }
     main.append(who, promptEl, media, row);
     div.append(main);
     if (entry.kind === 'music' && entry.lyrics) {
@@ -1277,21 +1419,27 @@
     if (cached) return renderMedia(entry, container, cached);
     container.textContent = 'Файл готов — нажмите ▶, чтобы загрузить и слушать.';
     if (entry.kind !== 'music') container.textContent = 'Загружаем…';
+    const enqueue = () => {
+      container.textContent = 'Загружаем…';
+      libQueue.push(async () => {
+        try {
+          const blob = await fileBlob(entry.file);
+          if (currentUser() !== owner || !container.isConnected) return;
+          const url = URL.createObjectURL(blob);
+          blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type);
+          renderMedia(entry, container, url);
+        } catch (error) {
+          if (currentUser() !== owner || !container.isConnected) return;
+          container.textContent = error.message || 'Файл недоступен.';
+          const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'action';
+          retry.textContent = 'Повторить'; retry.addEventListener('click', enqueue); container.append(' ', retry);
+        }
+      });
+      libPump();
+    };
     const observer = new IntersectionObserver((records, obs) => {
-      if (!container.isConnected) { obs.disconnect(); return; } // карточку перерисовали — наблюдение больше не нужно
-      for (const r of records) if (r.isIntersecting) {
-        obs.disconnect();
-        libQueue.push(async () => {
-          try {
-            const blob = await fileBlob(entry.file);
-            if (currentUser() !== owner || !container.isConnected) return;
-            const url = URL.createObjectURL(blob);
-            blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type);
-            renderMedia(entry, container, url);
-          } catch { container.textContent = 'Файл недоступен.'; }
-        });
-        libPump();
-      }
+      if (!container.isConnected) { obs.disconnect(); return; }
+      for (const r of records) if (r.isIntersecting) { obs.disconnect(); enqueue(); break; }
     }, { rootMargin: '150px' });
     observer.observe(container);
   }
@@ -1344,6 +1492,19 @@
   els.improvePhoto.addEventListener('click', improvePhoto);
   els.undoPhoto.addEventListener('click', undoPhoto);
   els.newChat.addEventListener('click', newChat);
+  els.sessionsOpen.addEventListener('click', openSessions);
+  els.sessionsClose.addEventListener('click', closeSessions);
+  els.sessionsNew.addEventListener('click', newChat);
+  els.sessionsOverlay.addEventListener('click', e => { if (e.target === els.sessionsOverlay) closeSessions(); });
+  els.sessionsDialog.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeSessions(); return; }
+    if (e.key !== 'Tab') return;
+    const buttons = [...els.sessionsDialog.querySelectorAll('button:not(:disabled)')];
+    if (!buttons.length) { e.preventDefault(); return; }
+    const first = buttons[0], last = buttons[buttons.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   els.tags.addEventListener('click', e => {
     const tag = e.target.closest('.tag');
     if (tag) insertTag(tag.dataset.tag);

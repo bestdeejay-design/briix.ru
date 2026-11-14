@@ -1,4 +1,4 @@
-/* Session storage foundation. Not wired into the studio until migration and UI integration are verified. */
+/* Session storage: transactional IndexedDB with a sticky, lock-protected local fallback. */
 (() => {
   'use strict';
 
@@ -45,7 +45,7 @@
       nick,
       revision: 0,
       activeSessionId: hasLegacy ? 'legacy' : null,
-      sessions: hasLegacy ? [{ id: 'legacy', title, createdAt: now, updatedAt: now, feed, history }] : [],
+      sessions: hasLegacy ? [{ id: 'legacy', title, titleSet: Boolean(first), createdAt: now, updatedAt: now, feed, history }] : [],
       // Exact originals are committed in the same transaction as the import; legacy keys remain untouched.
       legacyBackup: { feedRaw, historyRaw, capturedAt: now }
     };
@@ -146,5 +146,83 @@
     } finally { db.close(); }
   }
 
-  globalThis.BriixSessionStore = Object.freeze({ openProfile, saveProfile, SessionStoreError });
+  const modeKey = nick => 'briix-studio-sessions-backend-' + nick;
+  const fallbackKey = nick => 'briix-studio-sessions-v1-' + nick;
+
+  function withProfileLock(nick, operation, options, allowIdbWithoutLock = false) {
+    const locks = options.locks === undefined ? globalThis.navigator?.locks : options.locks;
+    if (!locks) {
+      if (allowIdbWithoutLock) return operation();
+      throw new SessionStoreError('lock_unavailable', 'Без блокировки вкладок нельзя безопасно открыть локальное хранилище.');
+    }
+    return locks.request('briix-studio-sessions:' + nick, operation);
+  }
+
+  function localRead(storage, key) {
+    try { return storage.getItem(key); }
+    catch (error) { throw new SessionStoreError('storage_unavailable', 'Не удалось прочитать локальное хранилище.', error); }
+  }
+  function localWrite(storage, key, value) {
+    try { storage.setItem(key, value); }
+    catch (error) { throw new SessionStoreError('storage_write', 'Не удалось сохранить локальные данные.', error); }
+  }
+
+  // The backend choice is sticky: returning to IDB automatically after fallback would fork history.
+  async function open(nick, options = {}) {
+    if (typeof nick !== 'string' || !nick) throw new SessionStoreError('invalid_nick', 'Нужен ник профиля.');
+    const storage = options.storage === undefined ? globalThis.localStorage : options.storage;
+    return withProfileLock(nick, async () => {
+      let mode = localRead(storage, modeKey(nick));
+      if (mode !== null && mode !== 'idb' && mode !== 'local') throw new SessionStoreError('schema_unsupported', 'Неизвестный тип хранилища сессий.');
+      const locks = options.locks === undefined ? globalThis.navigator?.locks : options.locks;
+      if (mode === 'local' && !locks) throw new SessionStoreError('lock_unavailable', 'Локальные сессии доступны только с блокировкой вкладок.');
+      if (!mode) {
+        try {
+          const db = await openDatabase(options.indexedDB === undefined ? globalThis.indexedDB : options.indexedDB);
+          db.close();
+          mode = 'idb';
+        } catch (error) {
+          if (error.code !== 'idb_unavailable') throw error;
+          if (!locks) throw new SessionStoreError('lock_unavailable', 'IndexedDB и блокировка вкладок недоступны; безопасное сохранение невозможно.', error);
+          mode = 'local';
+        }
+        // Set before any profile write: an interruption cannot silently create two histories.
+        localWrite(storage, modeKey(nick), mode);
+      }
+      if (mode === 'idb') return { backend: mode, profile: await openProfile(nick, { ...options, storage }) };
+      const raw = localRead(storage, fallbackKey(nick));
+      if (raw !== null) {
+        let profile;
+        try { profile = JSON.parse(raw); } catch (error) { throw new SessionStoreError('legacy_invalid', 'Локальные сессии повреждены.', error); }
+        if (!profile || profile.nick !== nick || profile.schemaVersion !== SCHEMA_VERSION || !Array.isArray(profile.sessions)) {
+          throw new SessionStoreError('schema_unsupported', 'Неизвестный формат локальных сессий.');
+        }
+        return { backend: mode, profile };
+      }
+      const profile = legacyProfile(nick, storage);
+      localWrite(storage, fallbackKey(nick), JSON.stringify(profile));
+      return { backend: mode, profile };
+    }, options, true);
+  }
+
+  async function save(profile, expectedRevision, backend, options = {}) {
+    if (backend === 'idb') return saveProfile(profile, expectedRevision, options);
+    if (backend !== 'local' || !profile || !profile.nick || profile.schemaVersion !== SCHEMA_VERSION || !Array.isArray(profile.sessions)) {
+      throw new SessionStoreError('invalid_profile', 'Некорректные данные сессий.');
+    }
+    const storage = options.storage === undefined ? globalThis.localStorage : options.storage;
+    return withProfileLock(profile.nick, () => {
+      const raw = localRead(storage, fallbackKey(profile.nick));
+      let current;
+      try { current = JSON.parse(raw); } catch (error) { throw new SessionStoreError('legacy_invalid', 'Локальные сессии повреждены.', error); }
+      if (!current || current.schemaVersion !== SCHEMA_VERSION || current.nick !== profile.nick || current.revision !== expectedRevision) {
+        throw new SessionStoreError('conflict', 'Данные сессии изменились в другой вкладке.');
+      }
+      const next = { ...profile, revision: expectedRevision + 1, legacyBackup: current.legacyBackup };
+      localWrite(storage, fallbackKey(profile.nick), JSON.stringify(next));
+      return next;
+    }, options);
+  }
+
+  globalThis.BriixSessionStore = Object.freeze({ open, save, openProfile, saveProfile, SessionStoreError });
 })();

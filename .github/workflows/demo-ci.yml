@@ -212,7 +212,7 @@ jobs:
           rm -rf "$STAGE" "$OLD"
           mkdir -p "$STAGE"
           # Полное дерево репо (включая вложенные: site/, assets/), кроме служебного.
-          tar --exclude=./tools --exclude=./audits --exclude=./.git --exclude=./.github \
+          tar --exclude=./tools --exclude=./audits --exclude=./.git --exclude=./.github --exclude=./studio \
               -cf - . | (cd "$STAGE" && tar xf -)
           if [ -d /home/badai/briix-demo ]; then
             mv /home/badai/briix-demo "$OLD"

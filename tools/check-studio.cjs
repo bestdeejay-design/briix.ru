@@ -21,8 +21,8 @@ const POLICY_MESSAGE = 'Запрос нарушает политику конт�
 let state;
 function resetBff() {
   state = {
-    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false, improveDelay: 0, favoriteFail: false, coverRateLimit: 0, coverRequests: 0, fileDelay: 0, activeFiles: 0, maxActiveFiles: 0,
-    jobPosts: [], jobBlock: false, polls: 0, deleted: {}, favs: {}, jobSeq: 1, pollsOf: {}
+    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false, improveDelay: 0, favoriteFail: false, coverRateLimit: 0, coverRequests: 0, audioRequests: 0, photoRequests: 0, fileOrder: [], fileDelay: 0, activeFiles: 0, maxActiveFiles: 0,
+    jobPosts: [], jobBlock: false, pollFailures: [], pollAttempts: 0, polls: 0, deleted: {}, favs: {}, jobSeq: 1, pollsOf: {}
   };
 }
 resetBff();
@@ -130,6 +130,12 @@ function bffServer(port) {
 
       const getM = req.url.match(/^\/jobs\/([^/]+)$/);
       if (getM && req.method === 'GET') {
+        state.pollAttempts++;
+        if (state.pollFailures.length) {
+          const code = state.pollFailures.shift();
+          res.writeHead(code, { 'Content-Type': 'application/json', 'Retry-After': '0', 'Access-Control-Expose-Headers': 'Retry-After', ...cors });
+          res.end(JSON.stringify({ error: { code: 'busy' } })); return;
+        }
         const post = state.jobPosts.find(p => p.id === getM[1]);
         if (!post || state.deleted[post.id]) { send(404, { error: { code: 'job_not_found', message: 'deleted' } }); return; }
         if ((state.pollsOf[post.id] || 0) < 2) {
@@ -148,6 +154,9 @@ function bffServer(port) {
           if (state.coverRateLimit > 0) { state.coverRateLimit--; send(429, { error: { code: 'rate_limited' } }); return; }
         }
         const music = req.url.includes('.m4a');
+        state.fileOrder.push(req.url);
+        if (music) state.audioRequests++;
+        else if (!req.url.includes('-cover.png')) state.photoRequests++;
         const current = state;
         current.activeFiles++;
         current.maxActiveFiles = Math.max(current.maxActiveFiles, current.activeFiles);
@@ -659,6 +668,7 @@ function bffServer(port) {
 
 
   state.favoriteFail = true;
+  await p.locator('.lib-item .lib-more summary').click();
   await p.locator('.lib-item button', { hasText: 'В избранное' }).click();
   await p.waitForSelector('.lib-error');
   assert.equal(await p.locator('.lib-item.fav').count(), 0, 'failed server mutation is not shown as success');
@@ -712,15 +722,104 @@ function bffServer(port) {
     const cover = item.querySelector('.lib-cover').getBoundingClientRect();
     const content = item.querySelector('.lib-main').getBoundingClientRect();
     return { documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      filterHeight: document.querySelector('.lib-filters').getBoundingClientRect().height,
       cardOverflow: item.scrollWidth - item.clientWidth, coverRight: cover.right, contentLeft: content.left };
   });
   assert.ok(libraryLayout.documentOverflow <= 0 && libraryLayout.cardOverflow <= 0, 'library fits narrow viewport');
+  assert.ok(libraryLayout.filterHeight >= 44, 'filters remain visible and touchable on a long list');
   assert.ok(libraryLayout.coverRight <= libraryLayout.contentLeft, 'thumbnail is to the left of content');
   await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-library-320.png') });
   await p.locator('.lib-item').last().scrollIntoViewIfNeeded();
   await p.waitForSelector('.lib-item:last-child .lib-cover img', { timeout: 10000 });
   assert.ok(state.maxActiveFiles <= 2, 'media queue max concurrency is 2, got ' + state.maxActiveFiles);
   ok('narrow library layout and bounded media queue', { maxActiveFiles: state.maxActiveFiles });
+
+  // A restored long history never fetches audio until a user asks for it.
+  resetBff(); state.fileDelay = 250;
+  p = await page({ viewport: { width: 320, height: 568 } });
+  await p.evaluate(async () => {
+    const { profile, backend } = await BriixSessionStore.open('tester');
+    profile.sessions[0].feed = Array.from({ length: 100 }, (_, i) => ({
+      t: 'media', who: 'Трек ' + i, kind: 'music', file: '/files/shared.m4a'
+    }));
+    await BriixSessionStore.save(profile, profile.revision, backend);
+  });
+  await p.reload();
+  await p.waitForFunction(() => document.querySelectorAll('#feed .media-load').length === 100);
+  await p.waitForTimeout(500);
+  assert.equal(state.audioRequests, 0, 'restored history does not fetch 100 audio files');
+  await p.evaluate(() => [...document.querySelectorAll('#feed .media-load')].slice(0, 2).forEach(button => button.click()));
+  await p.waitForFunction(() => document.querySelectorAll('#feed audio').length === 2);
+  assert.equal(state.audioRequests, 1, 'same in-flight audio request is deduplicated');
+  assert.equal(await p.locator('#feed audio').first().getAttribute('controlslist'), 'nodownload');
+  ok('100 restored tracks: zero audio requests until action, deduplicated transfer');
+
+  resetBff(); state.fileDelay = 100;
+  state.jobPosts = Array.from({ length: 100 }, (_, i) => ({ id: 'library-' + i, type: 'music', prompt: 'Трек ' + i, params: {} }));
+  p = await page({ viewport: { width: 320, height: 568 } });
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.waitForFunction(() => document.querySelectorAll('.lib-item').length === 100);
+  await p.waitForTimeout(500);
+  assert.equal(state.audioRequests, 0, 'library does not fetch audio merely for being visible');
+  let attemptedAudio = 0;
+  await p.route('**/files/*.m4a', route => {
+    attemptedAudio++;
+    return attemptedAudio === 1 ? route.fulfill({ status: 404, headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` } }) : route.continue();
+  });
+  await p.locator('.lib-item .media-load').first().click();
+  await p.locator('.lib-item .lib-media button', { hasText: 'Повторить' }).first().click();
+  await p.locator('.lib-item audio').first().waitFor();
+  assert.equal(attemptedAudio, 2, 'failed audio is explicitly retried');
+  assert.equal(state.audioRequests, 1, 'explicit retry loads one audio file');
+  assert.ok(state.maxActiveFiles <= 2, 'all authenticated file transfers share the bound');
+  ok('100 library tracks: lazy audio and bounded transfers');
+
+  resetBff();
+  p = await page({ viewport: { width: 320, height: 568 } });
+  await p.evaluate(async () => {
+    const { profile, backend } = await BriixSessionStore.open('tester');
+    profile.sessions[0].feed = Array.from({ length: 100 }, (_, i) => ({
+      t: 'media', who: 'Изображение ' + i, kind: 'photo', file: '/files/photo-' + i + '.png'
+    }));
+    await BriixSessionStore.save(profile, profile.revision, backend);
+  });
+  await p.reload();
+  await p.waitForFunction(() => document.querySelectorAll('#feed .card.assistant').length === 100);
+  await p.waitForTimeout(1200);
+  assert.ok(state.photoRequests > 0 && state.photoRequests < 100, 'only near-viewport restored images are requested: ' + state.photoRequests);
+  ok('restored image history loads near the viewport', { requests: state.photoRequests });
+
+  resetBff(); state.fileDelay = 800;
+  p = await page({ viewport: { width: 390, height: 1200 } });
+  await p.evaluate(async () => {
+    const { profile, backend } = await BriixSessionStore.open('tester');
+    profile.sessions[0].feed = [
+      { t: 'media', who: 'Аудио', kind: 'music', file: '/files/priority.m4a' },
+      ...Array.from({ length: 12 }, (_, i) => ({ t: 'media', who: 'Фото', kind: 'photo', file: '/files/priority-' + i + '.png' }))
+    ];
+    await BriixSessionStore.save(profile, profile.revision, backend);
+  });
+  await p.reload();
+  await p.locator('#feed .media-load').waitFor();
+  await p.waitForTimeout(250);
+  assert.equal(state.photoRequests, 2, 'two image transfers occupy the slots');
+  await p.evaluate(() => document.querySelector('#feed .media-load').click());
+  await p.locator('#feed audio').waitFor({ state: 'attached', timeout: 10000 });
+  assert.match(state.fileOrder[2], /priority\.m4a$/, 'user audio takes priority over queued images');
+  assert.ok(state.maxActiveFiles <= 2);
+  await p.context().close();
+  ok('interactive audio is prioritized over queued image transfers');
+
+  // Polling retries safe GETs after temporary throttling, without resubmitting a job.
+  resetBff(); state.pollFailures = [429, 503];
+  p = await page();
+  await p.locator('.mode[data-mode="photo"]').click();
+  await p.locator('#prompt').fill('Проверка временной ошибки');
+  await p.locator('#send').click();
+  await p.waitForSelector('.card img.media-in', { timeout: 25000 });
+  assert.equal(state.jobPosts.length, 1, 'POST is never automatically retried');
+  assert.equal(state.pollAttempts, 5, 'two temporary errors followed by three status requests');
+  ok('429 and 503 polling recovers without duplicate generation');
 
   // Узкий и низкий экран: оба измерения видимых кнопок и отсутствие горизонтального переполнения.
   p = await page({ viewport: { width: 320, height: 568 } });
@@ -799,6 +898,7 @@ function bffServer(port) {
   await p.waitForSelector('#feed .session-feed:not([hidden]) audio');
   assert.ok(await p.locator('#feed .session-feed:not([hidden])').innerText().then(t => t.includes('Идея первой сессии')));
   await p.reload();
+  await p.locator('#feed .session-feed:not([hidden]) .media-load').click();
   await p.waitForSelector('#feed .session-feed:not([hidden]) audio', { timeout: 15000 });
   await p.locator('#prompt').fill('Продолжение первой');
   await p.locator('#send').click();

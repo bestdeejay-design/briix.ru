@@ -74,8 +74,13 @@
       const message = payload?.error?.message || (response.status === 422 ? 'Не пройдена проверка контента.' : 'Сервер отклонил параметры запроса.');
       throw new BusError(code, message, response.status);
     }
-    if (response.status === 429) throw new BusError('queue_full', 'Очередь сервера заполнена.', 429);
-    if (response.status === 503) throw new BusError('unavailable', 'Сервер или бэкенд недоступен.', 503);
+    if (response.status === 429 || response.status === 503) {
+      const error = response.status === 429
+        ? new BusError('queue_full', 'Очередь сервера заполнена.', 429)
+        : new BusError('unavailable', 'Сервер или бэкенд недоступен.', 503);
+      error.retryAfter = response.headers.get('Retry-After');
+      throw error;
+    }
     if (!response.ok) throw new BusError('http', 'Сервер ответил ' + response.status + '.', response.status);
     return response;
   }
@@ -136,25 +141,38 @@
     return payload.job_id;
   }
 
+  let activePolls = 0;
   async function pollJob(id, { onStatus, intervalMs = 2000, timeoutMs = 40 * 60000, shouldStop }) {
-    // 40 мин = серверный потолок vocal (2400 c). Длинные песни на CPU идут дольше 15 минут — ждём честно.
     const started = Date.now();
-    while (Date.now() - started < timeoutMs) {
-      if (shouldStop?.()) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
-      await new Promise(r => setTimeout(r, intervalMs));
-      if (shouldStop?.()) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
-      const response = await request('/jobs/' + encodeURIComponent(id), { headers: headers() });
-      const data = await response.json();
-      onStatus?.(data);
-      if (data.status === 'ready') {
-        if (!data.result_url) throw new BusError('bad_response', 'Сервер сообщил о готовности, но не отдал ссылку на файл.');
-        return data;
+    let failures = 0, retryWait = 0;
+    activePolls++;
+    try {
+      while (Date.now() - started < timeoutMs) {
+        if (shouldStop?.()) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
+        await new Promise(r => setTimeout(r, Math.max(intervalMs, activePolls * 2500, retryWait)));
+        if (shouldStop?.()) throw new BusError('cancelled', 'Ожидание остановлено. Задача продолжает выполняться на сервере — результат не сохранится.');
+        let response;
+        try { response = await request('/jobs/' + encodeURIComponent(id), { headers: headers() }); }
+        catch (error) {
+          if (![429, 503].includes(error.status) || failures >= 3) throw error;
+          const fakeResponse = { headers: { get: () => error.retryAfter } };
+          retryWait = retryDelay(fakeResponse, failures++);
+          if (retryWait > 30000) throw error;
+          continue;
+        }
+        failures = 0; retryWait = 0;
+        const data = await response.json();
+        onStatus?.(data);
+        if (data.status === 'ready') {
+          if (!data.result_url) throw new BusError('bad_response', 'Сервер сообщил о готовности, но не отдал ссылку на файл.');
+          return data;
+        }
+        if (['error', 'failed', 'cancelled', 'expired'].includes(data.status)) {
+          throw new BusError(data.status, 'Задача не завершена: ' + (data.error?.message || data.status) + '.');
+        }
       }
-      if (['error', 'failed', 'cancelled', 'expired'].includes(data.status)) {
-        throw new BusError(data.status, 'Задача не завершена: ' + (data.error?.message || data.status) + '.');
-      }
-    }
-    throw new BusError('timeout', 'Задача выполняется слишком долго — ожидание прервано.');
+      throw new BusError('timeout', 'Задача выполняется слишком долго — ожидание прервано.');
+    } finally { activePolls--; }
   }
 
   // ---- creative base --------------------------------------------------------
@@ -297,17 +315,41 @@
           if (d.input) addMusicDetails(body, d.input);
           addMusicActions(body.closest('.card'), { job: d.job, prompt: d.input?.prompt || '', title: d.input?.prompt || '' }, d.input);
         }
-        fileBlob(d.file).then(blob => {
-          if (!slot.isConnected || currentUser() !== sessionProfile?.nick) return;
-          if (d.kind === 'photo') {
-            const img = new Image(); img.alt = 'Результат'; img.src = feedObjectURL(blob); slot.append(img);
-          } else {
-            const audio = document.createElement('audio'); audio.controls = true; audio.controlsList = 'nodownload';
-            audio.preload = 'metadata'; audio.src = feedObjectURL(blob); addTrackCover(slot, d.job, d.cover); slot.append(audio);
-            BriixWaveform.attach(audio, blob, slot);
+        const owner = sessionProfile.nick;
+        const load = async () => {
+          slot.textContent = 'Загружаем файл…';
+          try {
+            const blob = await fileBlob(d.file, d.kind === 'music' ? 0 : 1);
+            if (!slot.isConnected || currentUser() !== owner) return;
+            slot.textContent = '';
+            if (d.kind === 'photo') {
+              const img = new Image(); img.alt = 'Результат'; img.src = feedObjectURL(blob); slot.append(img);
+            } else {
+              const audio = document.createElement('audio'); audio.controls = true; audio.controlsList = 'nodownload';
+              audio.preload = 'metadata'; audio.src = feedObjectURL(blob); slot.append(audio);
+              BriixWaveform.attach(audio, blob, slot);
+              tryPlay(audio, slot);
+            }
+            addDownloadAction(body.closest('.card'), blob, d.kind === 'photo' ? 'briix-photo' : 'briix-track', d.kind === 'music' ? '⬇ Скачать ' + extOf(blob).toUpperCase() : '⬇ Скачать');
+          } catch (error) {
+            if (!slot.isConnected || currentUser() !== owner) return;
+            slot.textContent = 'Файл недоступен. ' + (error.message || '') + ' ';
+            const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'action';
+            retry.textContent = 'Повторить'; retry.addEventListener('click', load); slot.append(retry);
           }
-          addDownloadAction(body.closest('.card'), blob, d.kind === 'photo' ? 'briix-photo' : 'briix-track', d.kind === 'music' ? '⬇ Скачать ' + extOf(blob).toUpperCase() : '⬇ Скачать');
-        }).catch(() => { slot.textContent = 'Файл недоступен (см. Библиотеку).'; });
+        };
+        if (d.kind === 'music') {
+          addTrackCover(body, d.job, d.cover);
+          const loadButton = document.createElement('button'); loadButton.type = 'button'; loadButton.className = 'action media-load';
+          loadButton.textContent = '▶ Слушать'; loadButton.addEventListener('click', load); slot.append(loadButton);
+        } else {
+          slot.textContent = 'Изображение готово';
+          const observer = new IntersectionObserver((records, obs) => {
+            if (!slot.isConnected) { obs.disconnect(); return; }
+            if (records.some(record => record.isIntersecting)) { obs.disconnect(); load(); }
+          }, { rootMargin: '150px' });
+          observer.observe(slot);
+        }
       } else {
         const body = card(d.t, d.who, d.text, session);
         if (d.t === 'assistant' && d.track) addMakeTrackAction(body.closest('.card'), d.track);
@@ -898,34 +940,69 @@
     } finally { setBusy(false); updateEnabled(); }
   }
 
-  async function fileBlob(pathOrUrl) {
+  // All authenticated file transfers share two slots. Interactive requests can pass
+  // queued thumbnails; duplicate requests share a transfer only within the same identity.
+  const fileQueue = [], fileInFlight = new Map();
+  let activeFiles = 0;
+  function pumpFiles() {
+    while (activeFiles < 2 && fileQueue.length) {
+      fileQueue.sort((a, b) => a.priority - b.priority);
+      const item = fileQueue.shift(); activeFiles++;
+      Promise.resolve().then(item.run).then(item.resolve, item.reject).finally(() => { activeFiles--; pumpFiles(); });
+    }
+  }
+  function scheduledFile(run, priority) {
+    return new Promise((resolve, reject) => { fileQueue.push({ run, priority, resolve, reject }); pumpFiles(); });
+  }
+  function retryDelay(response, attempt) {
+    const value = response.headers.get('Retry-After');
+    const seconds = value && /^\d+$/.test(value.trim()) ? Number(value) * 1000 : NaN;
+    const date = value && !Number.isFinite(seconds) ? Date.parse(value) - Date.now() : NaN;
+    const delay = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : 1000 * (2 ** attempt);
+    return delay + Math.random() * 150;
+  }
+  function fileBlob(pathOrUrl, priority = 0) {
     let url, trusted;
     try {
       trusted = new URL(server());
       url = new URL(pathOrUrl.startsWith('http') ? pathOrUrl : server() + pathOrUrl);
-    } catch { throw new BusError('unsafe_url', 'Некорректный адрес файла.'); }
+    } catch { return Promise.reject(new BusError('unsafe_url', 'Некорректный адрес файла.')); }
     const basePath = trusted.pathname.replace(/\/+$/, '');
     const filePrefix = basePath + '/files/';
     const fileName = url.pathname.startsWith(filePrefix) ? url.pathname.slice(filePrefix.length) : '';
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== trusted.origin || url.username || url.password ||
         url.search || url.hash || !/^[a-zA-Z0-9._-]+$/.test(fileName) || fileName === '.' || fileName === '..') {
-      throw new BusError('unsafe_url', 'Недоверенный адрес файла.');
+      return Promise.reject(new BusError('unsafe_url', 'Недоверенный адрес файла.'));
     }
-    const pauses = [1000, 2000, 4000]; // ретрай 429: 1с, 2с, 4с — бросаем только после последней попытки
-    for (let attempt = 0; ; attempt++) {
-      // Never follow redirects with the bearer: the destination may be another origin.
-      let response;
-      try { response = await fetch(url.href, { headers: { Authorization: 'Bearer ' + token() }, redirect: 'error' }); }
-      catch (error) { throw new BusError('network', 'Файл недоступен: проверьте подключение или адрес.'); }
-      if (response.ok) return response.blob();
-      if (response.status !== 429 || attempt >= pauses.length) {
-        if (response.status === 429) throw new BusError('rate_limited', 'Слишком много запросов (429). Повторите через минуту.', 429);
-        if (response.status === 401) throw new BusError('unauthorized', 'Ключ стенда не принят (401).', 401);
-        if (response.status === 404) throw new BusError('not_found', 'Файл не найден (404); срок хранения мог истечь.', 404);
-        throw new BusError('http', 'Файл не получен (' + response.status + ').', response.status);
+    const owner = currentUser(), credential = token(), origin = server();
+    const key = JSON.stringify([owner, credential, url.href]);
+    if (fileInFlight.has(key)) return fileInFlight.get(key);
+    const work = (async () => {
+      for (let attempt = 0; ; attempt++) {
+        const response = await scheduledFile(async () => {
+          if (currentUser() !== owner || token() !== credential || server() !== origin) throw new BusError('cancelled', 'Профиль или ключ изменился.');
+          try {
+            // Never follow redirects with the bearer: the destination may be another origin.
+            const result = await fetch(url.href, { headers: { Authorization: 'Bearer ' + credential }, redirect: 'error' });
+            return { response: result, blob: result.ok ? await result.blob() : null };
+          } catch (error) { throw new BusError('network', 'Файл недоступен: проверьте подключение или адрес.'); }
+        }, priority);
+        if (response.blob) return response.blob;
+        const status = response.response.status;
+        if ((status !== 429 && status !== 503) || attempt >= 3) {
+          if (status === 429) throw new BusError('rate_limited', 'Слишком много запросов (429). Повторите через минуту.', 429);
+          if (status === 401) throw new BusError('unauthorized', 'Ключ стенда не принят (401).', 401);
+          if (status === 404) throw new BusError('not_found', 'Файл не найден (404); срок хранения мог истечь.', 404);
+          throw new BusError('http', 'Файл не получен (' + status + ').', status);
+        }
+        const delay = retryDelay(response.response, attempt);
+        if (delay > 30000) throw new BusError('rate_limited', 'Сервер просит повторить позднее. Попробуйте позже.', status);
+        await new Promise(r => setTimeout(r, delay));
       }
-      await new Promise(r => setTimeout(r, pauses[attempt]));
-    }
+    })();
+    fileInFlight.set(key, work);
+    work.then(() => fileInFlight.delete(key), () => fileInFlight.delete(key));
+    return work;
   }
 
   async function improve(field) {
@@ -1216,14 +1293,24 @@
 
   // Серверная библиотека (infra#77): GET /jobs как первоисточник, клиентские записи — дополнение.
   let libSeq = 0;
-  async function serverJobs() {
-    const response = await fetch(server() + '/jobs?limit=100', { headers: headers() });
-    if (!response.ok) {
-      if (response.status === 401) throw new BusError('unauthorized', 'Ключ не принят (401).', 401);
-      throw new BusError('http', 'Библиотека недоступна (' + response.status + ').', response.status);
-    }
-    const payload = await response.json();
-    return Array.isArray(payload?.items) ? payload.items : [];
+  const jobsInFlight = new Map();
+  function serverJobs() {
+    const origin = server(), credential = token(), owner = currentUser();
+    const key = JSON.stringify([origin, credential, owner]);
+    if (jobsInFlight.has(key)) return jobsInFlight.get(key);
+    const work = (async () => {
+      const response = await fetch(origin + '/jobs?limit=100', { headers: { Authorization: 'Bearer ' + credential, 'Content-Type': 'application/json' } });
+      if (!response.ok) {
+        if (response.status === 401) throw new BusError('unauthorized', 'Ключ не принят (401).', 401);
+        throw new BusError('http', 'Библиотека недоступна (' + response.status + ').', response.status);
+      }
+      const payload = await response.json();
+      return Array.isArray(payload?.items) ? payload.items : [];
+    })();
+    jobsInFlight.set(key, work);
+    const clear = () => { if (jobsInFlight.get(key) === work) jobsInFlight.delete(key); };
+    work.then(clear, clear);
+    return work;
   }
 
   function renderLibrary() {
@@ -1241,16 +1328,34 @@
     els.lib.append(filterRow);
     const results = document.createElement('div');
     results.className = 'lib-results';
+    const cards = new Map();
     const render = (list, note) => {
-      results.textContent = '';
       if (list.length && note) note.hidden = true;
       if (!list.length) {
+        for (const item of cards.values()) item.node.remove();
+        cards.clear();
         if (note) { note.hidden = false; note.textContent = libFilter === 'all'
           ? 'Пока пусто — создайте фото или трек в чате, они появятся здесь.'
           : 'В этом фильтре пусто.'; }
         return;
       }
-      for (const entry of list) results.append(libCard(entry));
+      const wanted = new Set();
+      list.forEach((entry, index) => {
+        const signature = JSON.stringify([entry.kind, entry.prompt, entry.model, entry.created, entry.lyrics,
+          entry.fav, entry.file, entry.cover, entry.sessionId]);
+        let item = cards.get(entry.job);
+        if (!item || item.signature !== signature) {
+          const node = libCard(entry);
+          if (item) item.node.replaceWith(node);
+          item = { node, signature, entry }; cards.set(entry.job, item);
+        } else {
+          // Keep the existing player and handlers, but update server mutation capability.
+          Object.assign(item.entry, entry);
+        }
+        wanted.add(entry.job);
+        if (results.children[index] !== item.node) results.insertBefore(item.node, results.children[index] || null);
+      });
+      for (const [job, item] of cards) if (!wanted.has(job)) { item.node.remove(); cards.delete(job); }
     };
     // мгновенно — клиентские записи, чтобы вкладка не мигала пустотой
     const local = libLoad().filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter);
@@ -1320,7 +1425,7 @@
         try {
           const path = cover || (await serverJobs()).find(item => item.id === job)?.cover_url;
           if (!path || !frame.isConnected || currentUser() !== owner) return;
-          const blob = await fileBlob(path);
+          const blob = await fileBlob(path, 2);
           if (!frame.isConnected || currentUser() !== owner) return;
           const image = new Image(); image.alt = 'Обложка трека';
           const url = URL.createObjectURL(blob);
@@ -1341,7 +1446,6 @@
       });
       libPump();
     };
-    if (!miniature) { enqueue(); return; }
     const observer = new IntersectionObserver((records, obs) => {
       if (!frame.isConnected) { obs.disconnect(); return; }
       if (records.some(record => record.isIntersecting)) { obs.disconnect(); enqueue(); }
@@ -1409,6 +1513,7 @@
       const list = libLoad();
       const item = list.find(x => x.job === entry.job);
       if (item) { item.fav = next; libSave(list); }
+      jobsInFlight.clear();
       renderLibrary();
     });
     const del = document.createElement('button');
@@ -1425,15 +1530,18 @@
       libSave(libLoad().filter(x => x.job !== entry.job));
       if (blobCache.has(entry.job)) URL.revokeObjectURL(blobCache.get(entry.job));
       blobCache.delete(entry.job); blobTypes.delete(entry.job); blobBytes.delete(entry.job);
+      jobsInFlight.clear();
       renderLibrary();
     });
-    row.append(download, fav, del);
+    row.append(download);
+    if (entry.kind !== 'music') row.append(fav, del);
     const sourceSession = sessionProfile?.sessions.find(s => s.id === entry.sessionId || s.feed.some(item => item && item.job === entry.job) || s.jobs?.some(item => item.job === entry.job));
     let extra = row;
     if (entry.kind === 'music') {
       const details = document.createElement('details'); details.className = 'lib-more';
       const summary = document.createElement('summary'); summary.className = 'action'; summary.textContent = 'Ещё';
       extra = document.createElement('div'); extra.className = 'actions'; details.append(summary, extra); row.append(details);
+      extra.append(fav, del);
       const input = sourceSession?.feed.find(item => item && item.job === entry.job)?.input || sourceSession?.jobs?.find(item => item.job === entry.job)?.input;
       const repeat = document.createElement('button'); repeat.type = 'button'; repeat.className = 'action';
       repeat.textContent = 'Повторить с правками'; repeat.addEventListener('click', () => repeatMusic(entry, input)); extra.append(repeat);
@@ -1477,8 +1585,7 @@
     return div;
   }
 
-  // Медиа библиотеки грузим лениво и по очереди: 12 параллельных m4a душат канал,
-  // карточки висят в «Загружаем…». Очередь с 2 воркерами + IntersectionObserver.
+  // Cover lookup work is bounded separately; actual file transfers share fileQueue.
   const libQueue = [];
   let libActive = 0;
   const LIB_PARALLEL = 2;
@@ -1493,31 +1600,47 @@
     const owner = currentUser();
     const cached = blobCache.get(entry.job);
     if (cached) return renderMedia(entry, container, cached);
-    container.textContent = 'Файл готов — нажмите ▶, чтобы загрузить и слушать.';
-    if (entry.kind !== 'music') container.textContent = 'Загружаем…';
-    const enqueue = () => {
+    const load = async () => {
       container.textContent = 'Загружаем…';
-      libQueue.push(async () => {
-        try {
-          const blob = await fileBlob(entry.file);
-          if (currentUser() !== owner || !container.isConnected) return;
-          const url = URL.createObjectURL(blob);
+      try {
+        const blob = await fileBlob(entry.file, entry.kind === 'music' ? 0 : 1);
+        if (currentUser() !== owner || !container.isConnected) return;
+        let url = blobCache.get(entry.job);
+        if (!url) {
+          url = URL.createObjectURL(blob);
           blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type); blobBytes.set(entry.job, blob);
-          renderMedia(entry, container, url);
-        } catch (error) {
-          if (currentUser() !== owner || !container.isConnected) return;
-          container.textContent = error.message || 'Файл недоступен.';
-          const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'action';
-          retry.textContent = 'Повторить'; retry.addEventListener('click', enqueue); container.append(' ', retry);
         }
-      });
-      libPump();
+        const audio = renderMedia(entry, container, url);
+        if (audio) tryPlay(audio, container);
+      } catch (error) {
+        if (currentUser() !== owner || !container.isConnected) return;
+        container.textContent = (error.message || 'Файл недоступен.') + ' ';
+        const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'action';
+        retry.textContent = 'Повторить'; retry.addEventListener('click', load); container.append(retry);
+      }
     };
+    if (entry.kind === 'music') {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'action media-load';
+      button.textContent = '▶ Слушать'; button.addEventListener('click', load); container.append(button);
+      return;
+    }
+    container.textContent = 'Изображение готово';
     const observer = new IntersectionObserver((records, obs) => {
       if (!container.isConnected) { obs.disconnect(); return; }
-      for (const r of records) if (r.isIntersecting) { obs.disconnect(); enqueue(); break; }
+      if (records.some(r => r.isIntersecting)) { obs.disconnect(); load(); }
     }, { rootMargin: '150px' });
     observer.observe(container);
+  }
+
+  function tryPlay(audio, container) {
+    if (!audio.isConnected || audio.closest('[hidden]')) return;
+    const playing = audio.play();
+    if (playing && typeof playing.catch === 'function') playing.catch(() => {
+      if (!audio.isConnected) return;
+      const hint = document.createElement('p'); hint.className = 'media-play-hint';
+      hint.textContent = 'Аудио загружено. Нажмите воспроизведение в плеере.';
+      container.append(hint);
+    });
   }
   function renderMedia(entry, container, url) {
     container.textContent = '';
@@ -1534,7 +1657,9 @@
       audio.src = url;
       container.append(audio);
       BriixWaveform.attach(audio, blobBytes.get(entry.job), container);
+      return audio;
     }
+    return null;
   }
 
   // ---- вкладки: Чат / Библиотека -------------------------------------------------

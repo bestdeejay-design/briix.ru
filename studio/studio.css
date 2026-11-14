@@ -502,7 +502,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .session-feed { display: contents; }
 .session-feed:empty::before { content: 'Всё начинается с идеи'; color: var(--ink); font-size: 20px; font-weight: 650; margin: auto 0 0; }
 .session-feed:empty::after { content: 'Напишите сообщение или выберите режим, чтобы создать музыку или изображение.'; color: var(--muted); max-width: 280px; margin-bottom: auto; font-size: 14px; }
-.sessions-overlay { position: fixed; inset: 0; z-index: 40; background: var(--danger-soft); display: flex; }
+.sessions-overlay { position: fixed; inset: 0; z-index: 40; background: var(--shadow); display: flex; }
 .sessions-dialog { width: min(90vw, 380px); height: 100%; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: var(--surface-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
 .sessions-head { display: flex; align-items: center; justify-content: space-between; }
 .sessions-head h2 { margin: 0; font-size: 18px; }
@@ -528,3 +528,29 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .lib-more summary::-webkit-details-marker { display: none; }
 .lib-more .actions { width: 100%; }
 .lib-item { align-items: flex-start; }
+
+/* Compact mobile result hierarchy; secondary actions remain in the details menu. */
+.media-load { margin-top: 8px; color: var(--ink); }
+.lib-item .lib-media { color: var(--muted); }
+.lib-item .lib-media .media-load { margin-top: 6px; }
+.lib-item .lib-more[open] { flex-basis: 100%; }
+.lib-more .actions { padding-top: 4px; }
+@media (max-width: 480px) {
+  .lib-results { gap: 8px; }
+  .lib-item { gap: 10px; padding: 12px; }
+  .lib-item .lib-cover { width: 56px; height: 56px; }
+  .lib-item .who { line-height: 1.35; }
+  .lib-item .lib-prompt { color: var(--ink); }
+  .lib-item .actions { gap: 4px; }
+  .lib-item .action { padding-inline: 9px; }
+  .session-item { gap: 4px; }
+}
+.lib-item .action { color: var(--ink); text-decoration: none; }
+.lib-item .hint { color: var(--muted); }
+@media (max-width: 480px) {
+  .lib-filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .lib-filters .tag { flex: 0 0 auto; }
+  .lib-item .who { text-transform: none; letter-spacing: 0; }
+}
+.media-play-hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.lib-filters, .lib-results { flex-shrink: 0; }

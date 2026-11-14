@@ -554,3 +554,25 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 }
 .media-play-hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
 .lib-filters, .lib-results { flex-shrink: 0; }
+
+/* Optional producer: review first; no generation is submitted by this control. */
+.producer-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 0 2px; }
+.producer-entry span { color: var(--muted); font-size: 12px; }
+.producer-button { color: var(--ink); border-color: var(--line-focus); }
+.producer-draft { display: flex; flex-direction: column; gap: 10px; }
+.producer-draft .producer-note { margin: 0; color: var(--muted); font-size: 13px; }
+.producer-field { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 13px; }
+.producer-field input, .producer-field textarea {
+  width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line-focus);
+  border-radius: 10px; background: var(--surface-2); color: var(--ink); font-size: 16px;
+}
+.producer-field textarea { resize: vertical; min-height: 84px; line-height: 1.5; }
+.producer-field textarea.producer-lyrics { min-height: 150px; }
+.producer-idea { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.producer-idea summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.producer-idea pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.producer-warning { color: var(--amber); font-size: 13px; margin: 0; }
+.producer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.producer-actions .action { min-height: 44px; }
+@media (max-width: 480px) { .producer-entry span { display: none; } }
+.producer-raw { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }

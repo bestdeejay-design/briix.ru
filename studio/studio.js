@@ -203,7 +203,7 @@
       + 'Опирайся на стиль владельца: ' + sources.join('; ') + '. '
       + (kind === 'lyrics'
         ? 'Держи строки пропеваемыми, усили образность и структуру (куплет/припев), ремарки вокала — в скобках по-английски. '
-        : 'Промпт — компактная строка на английском: жанр, BPM, вокал, инструменты, продакшн, негативные указания через "no ...". ')
+        : 'Промпт — компактная строка на английском: жанр, BPM, вокал, инструменты, продакшн, уточняй ограничения без противоречий и не выдумывай темп. ')
       + 'Верни ТОЛЬКО улучшенный текст без пояснений и кавычек.\n\nПримеры стиля владельца:\n' + fewShot;
     return chatNonStream({ messages: [{ role: 'system', content: system }, { role: 'user', content: 'Улучши:\n\n' + fieldText }], maxTokens: 600 });
   }
@@ -218,7 +218,7 @@
     tags: $('tags'), addBtn: $('addBtn'),
     assistantChip: $('assistantChip'), assistantName: $('assistantName'), assistantMenu: $('assistantMenu'),
     modelChip: $('modelChip'), modelName: $('modelName'), modelMenu: $('modelMenu'),
-    vocalSeg: $('vocalSeg'), tuneToggle: $('tuneToggle'),
+    vocalSeg: $('vocalSeg'), tuneToggle: $('tuneToggle'), prepareMusic: $('prepareMusic'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
     composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
     newChat: $('newChat'), improvePhoto: $('improvePhoto'), undoPhoto: $('undoPhoto'),
@@ -241,6 +241,8 @@
   let sessionProfile = null, sessionBackend = null, activeSession = null;
   let storageBlocked = true, storageDirty = false, pendingSaves = 0, saveQueue = Promise.resolve();
   const sessionRoots = new Map();
+  const producerRequests = new Map();
+  let producerSaveTimer = null;
   const feedObjectUrls = new Set();
   function feedObjectURL(blob) {
     const url = URL.createObjectURL(blob);
@@ -283,7 +285,7 @@
     return saveQueue;
   }
   window.addEventListener('beforeunload', e => {
-    if (storageDirty || pendingSaves) { e.preventDefault(); e.returnValue = ''; }
+    if (storageDirty || pendingSaves || producerSaveTimer) { e.preventDefault(); e.returnValue = ''; }
   });
   function rootFor(session) { return sessionRoots.get(session.id); }
   function recordSessionJob(session, job, kind, input) {
@@ -300,12 +302,14 @@
       session.titleSet = true;
     }
     session.updatedAt = Date.now();
-    persistSessions();
+    return persistSessions();
   }
   function feedRestore(session) {
     for (const d of session.feed) {
       if (!d || typeof d !== 'object') continue;
-      if (d.t === 'media') {
+      if (d.t === 'producer_draft') {
+        renderProducerDraft(d, session);
+      } else if (d.t === 'media') {
         const body = card('assistant', d.who, '', session);
         body.textContent = '';
         const slot = document.createElement('div');
@@ -632,6 +636,7 @@
     els.modelName.textContent = MODEL_LABELS[quality];
     els.vocalSeg.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.vocal) === (instrumental ? 1 : 0))));
     els.tuneToggle.setAttribute('aria-pressed', String(advanced));
+    els.prepareMusic.textContent = instrumental ? '✦ Подготовить трек' : '✦ Подготовить песню';
     meta();
     updateEnabled();
   }
@@ -652,6 +657,7 @@
     els.improveLyrics.disabled = improving.has('lyrics') || !els.lyrics.value.trim();
     els.improvePrompt.disabled = improving.has('prompt') || !els.musicPrompt.value.trim();
     els.improvePhoto.disabled = improving.has('photo') || mode !== 'photo' || !els.prompt.value.trim();
+    els.prepareMusic.disabled = storageBlocked || mode !== 'music' || !hasInput || producerRequests.has(activeSession?.id);
   }
 
   let runningOps = 0;
@@ -796,7 +802,7 @@
   async function autoLyrics(topic, outerSignal) {
     // vocal-модели требуют текст: если лирика пустая — qwen3 пишет её сам
     const messages = [
-      { role: 'system', content: 'Ты — автор песен. Напиши текст песни на русском языке по теме пользователя. 8–16 строк. Обязательно используй структурные теги [verse] и [chorus] (можно [bridge], [outro]). Без пояснений и вступлений — только текст песни с тегами.' },
+      { role: 'system', content: 'Ты — автор песен. Напиши текст песни по теме пользователя на указанном им языке; если язык не указан, на русском. 8–16 строк. Обязательно используй структурные теги [verse] и [chorus] (можно [bridge], [outro]). Без пояснений и вступлений — только текст песни с тегами.' },
       { role: 'user', content: 'Тема песни: ' + topic }
     ];
     let full = '';
@@ -1003,6 +1009,152 @@
     fileInFlight.set(key, work);
     work.then(() => fileInFlight.delete(key), () => fileInFlight.delete(key));
     return work;
+  }
+
+  // The review lives in its originating session; it never submits a music job.
+  async function prepareMusic() {
+    if (storageBlocked || !activeSession || mode !== 'music' || producerRequests.has(activeSession.id) || !needKey()) return;
+    const session = activeSession;
+    const snapshot = { idea: (advanced ? els.musicPrompt.value : els.prompt.value), lyrics: els.lyrics.value,
+      quick: els.prompt.value, style: els.musicPrompt.value, advanced, instrumental };
+    if (!snapshot.idea.trim() && !snapshot.lyrics.trim()) return;
+    if (snapshot.idea.length > BriixProducer.MAX_IDEA || snapshot.lyrics.length > BriixProducer.MAX_LYRICS) {
+      card('notice', 'Продюсер', 'Идея или текст слишком длинные для подготовки. Сократите их самостоятельно.'); return;
+    }
+    const handle = makeCancelHandle();
+    producerRequests.set(session.id, handle);
+    const stage = card('stage', 'Музыкальный продюсер', '', session);
+    const wait = waitRow('music', 'writing-lyrics');
+    appendStop(wait.row, handle);
+    handle.stopBtn.setAttribute('aria-label', 'Отменить подготовку песни');
+    stage.append(wait.row);
+    setBusy(true, 'Подготавливаем черновик…');
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; handle.controller.abort(); }, 150000);
+    let raw = '';
+    try {
+      // Save the source before making the request, including when the user switches sessions.
+      saveDraft(session);
+      if (!(await persistSessions())) throw new Error('Не удалось сохранить исходный черновик. Подготовка не запущена.');
+      if (handle.cancelled) { card('notice', 'Подготовка отменена', 'Исходные поля не изменены.', session); return; }
+      raw = await chatNonStream({ messages: BriixProducer.messages({ idea: snapshot.idea, instrumental: snapshot.instrumental,
+        existingLyrics: snapshot.advanced && !snapshot.instrumental && snapshot.lyrics.trim() ? snapshot.lyrics : '' }), maxTokens: 1800, signal: handle.controller.signal });
+      if (handle.cancelled || timedOut || !sessionProfile?.sessions.includes(session)) return;
+      const result = BriixProducer.parse(raw, { instrumental: snapshot.instrumental, existingLyrics: snapshot.advanced && !snapshot.instrumental && snapshot.lyrics.trim() ? snapshot.lyrics : '' });
+      const entry = { t: 'producer_draft', version: BriixProducer.VERSION, snapshot, title: result.title,
+        prompt: result.prompt, lyrics: result.lyrics, applied: false, createdAt: Date.now() };
+      renderProducerDraft(entry, session);
+      await feedPush(entry, session);
+    } catch (error) {
+      if (handle.cancelled) card('notice', 'Подготовка отменена', 'Исходные поля не изменены.', session);
+      else if (timedOut) card('error', 'Продюсер', 'Сервер не ответил вовремя. Исходные поля не изменены.', session);
+      else {
+        errorCard(error, session);
+        if (raw) {
+          const body = card('notice', 'Ответ для ручного восстановления', '', session);
+          const pre = document.createElement('pre'); pre.className = 'producer-raw'; pre.textContent = raw; body.append(pre);
+          await feedPush({ t: 'notice', who: 'Ответ для ручного восстановления', text: raw }, session);
+        }
+      }
+    } finally {
+      clearTimeout(timer); wait.stop(); stage.closest('.card')?.remove();
+      producerRequests.delete(session.id); setBusy(false);
+    }
+  }
+
+  function renderProducerDraft(entry, session) {
+    const body = card('assistant', 'Музыкальный продюсер · черновик', '', session);
+    body.classList.add('producer-draft');
+    const note = document.createElement('p'); note.className = 'producer-note';
+    note.textContent = 'Проверьте смысл, язык и ограничения. Помощник может ошибаться. Название сохраняется в этом черновике и не передаётся как метаданные трека.';
+    const details = document.createElement('details'); details.className = 'producer-idea';
+    const summary = document.createElement('summary'); summary.textContent = 'Исходная идея и поля';
+    const original = document.createElement('pre');
+    original.textContent = 'Идея: ' + (entry.snapshot.idea || '—') + '\n\nБыстрый черновик: ' + (entry.snapshot.quick || '—') +
+      '\n\nСтиль до подготовки: ' + (entry.snapshot.style || '—') + '\n\nЛирика до подготовки: ' + (entry.snapshot.lyrics || '—');
+    details.append(summary, original);
+    const backups = document.createElement('pre');
+    const refreshBackups = () => { backups.textContent = (entry.backups || []).map((b, i) =>
+      'Резервная копия ' + (i + 1) + ':\nБыстрый черновик: ' + (b.quick || '—') + '\nСтиль: ' + (b.style || '—') + '\nЛирика: ' + (b.lyrics || '—')).join('\n\n'); };
+    refreshBackups(); details.append(backups);
+    body.append(note, details);
+    const makeField = (label, name, limit, multiline) => {
+      const wrapper = document.createElement('label'); wrapper.className = 'producer-field';
+      const text = document.createElement('span'); text.textContent = label;
+      const input = document.createElement(multiline ? 'textarea' : 'input');
+      if (!multiline) input.type = 'text';
+      input.value = entry[name] || ''; input.maxLength = limit;
+      input.dataset.producerField = name;
+      if (name === 'lyrics') input.classList.add('producer-lyrics');
+      input.addEventListener('input', () => {
+        entry[name] = input.value; session.updatedAt = Date.now();
+        if (producerSaveTimer) clearTimeout(producerSaveTimer);
+        producerSaveTimer = setTimeout(() => { producerSaveTimer = null; persistSessions(); }, 400);
+      });
+      wrapper.append(text, input); body.append(wrapper); return input;
+    };
+    const title = makeField('Название (для заметок)', 'title', BriixProducer.MAX_TITLE, false);
+    const style = makeField('Описание звучания', 'prompt', BriixProducer.MAX_PROMPT, true);
+    const lyrics = entry.snapshot.instrumental ? null : makeField('Лирика', 'lyrics', BriixProducer.MAX_LYRICS, true);
+    if (entry.snapshot.instrumental && entry.snapshot.lyrics.trim()) {
+      const hint = document.createElement('p'); hint.className = 'producer-note';
+      hint.textContent = 'Режим инструментала: ваша лирика не отправляется в генерацию и остаётся в поле студии.'; body.append(hint);
+    }
+    const warning = document.createElement('p'); warning.className = 'producer-warning'; warning.setAttribute('role', 'status');
+    const refreshWarning = () => {
+      const list = BriixProducer.warnings(entry.snapshot.idea, style.value, entry.snapshot.instrumental);
+      warning.textContent = list.join(' ');
+    };
+    style.addEventListener('input', refreshWarning); refreshWarning(); body.append(warning);
+    const state = document.createElement('p'); state.className = 'producer-note'; state.setAttribute('role', 'status');
+    state.textContent = entry.applied ? 'Черновик был принят. Генерация запускается отдельно.' : 'Пока ничего не изменено в полях генерации.';
+    body.append(state);
+    const actions = document.createElement('div'); actions.className = 'producer-actions';
+    const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'action'; apply.textContent = 'Принять в поля студии';
+    const revert = document.createElement('button'); revert.type = 'button'; revert.className = 'action'; revert.textContent = 'Вернуть поля до принятия';
+    revert.hidden = !entry.beforeApply;
+    let applying = false;
+    const runOnce = action => async () => {
+      if (applying) return;
+      applying = true; apply.disabled = true; revert.disabled = true;
+      try { await action(); } finally { applying = false; apply.disabled = false; revert.disabled = false; }
+    };
+    apply.addEventListener('click', runOnce(async () => {
+      if (storageBlocked || activeSession !== session || mode !== 'music') { state.textContent = 'Откройте эту сессию и режим «Музыка», чтобы принять черновик.'; return; }
+      if (!title.value.trim() || !style.value.trim() || (lyrics && !lyrics.value.trim())) { state.textContent = 'Заполните название, звучание и текст песни.'; return; }
+      if (instrumental !== entry.snapshot.instrumental) { state.textContent = 'Режим песни изменился. Верните исходный режим, чтобы принять черновик.'; return; }
+      const changed = els.prompt.value !== entry.snapshot.quick || els.musicPrompt.value !== entry.snapshot.style || els.lyrics.value !== entry.snapshot.lyrics || (!entry.snapshot.advanced && (!!els.musicPrompt.value.trim() || (!entry.snapshot.instrumental && !!els.lyrics.value.trim())));
+      if (changed && !confirm('В студии есть изменённые или скрытые поля. Заменить стиль и лирику подготовленным черновиком? Текущие поля сохранятся для возврата.')) return;
+      entry.beforeApply = { quick: els.prompt.value, style: els.musicPrompt.value, lyrics: els.lyrics.value, advanced };
+      (entry.backups ||= []).push(entry.beforeApply); refreshBackups();
+      // Persist backup before touching the form. If saving fails the form remains unchanged.
+      if (!(await persistSessions())) { state.textContent = 'Не удалось сохранить резервную копию; поля не изменены.'; return; }
+      if (activeSession !== session || mode !== 'music' || instrumental !== entry.snapshot.instrumental ||
+          els.prompt.value !== entry.beforeApply.quick || els.musicPrompt.value !== entry.beforeApply.style || els.lyrics.value !== entry.beforeApply.lyrics) {
+        state.textContent = 'Поля изменились во время сохранения. Проверьте их и попробуйте снова.'; return;
+      }
+      entry.applied = true;
+      els.musicPrompt.value = style.value;
+      if (lyrics) els.lyrics.value = lyrics.value;
+      advanced = true; renderChrome(); saveDraft(session); await persistSessions();
+      revert.hidden = false; state.textContent = 'Поля заполнены. Проверьте их и отдельно нажмите «Создать».';
+      els.musicPrompt.focus();
+    }));
+    revert.addEventListener('click', runOnce(async () => {
+      if (storageBlocked || activeSession !== session || mode !== 'music' || !entry.beforeApply) { state.textContent = 'Откройте эту сессию и режим «Музыка».'; return; }
+      if (!confirm('Вернуть поля до принятия? Текущие изменения полей будут заменены.')) return;
+      // Preserve what is being replaced as another recoverable snapshot.
+      entry.beforeRevert = { quick: els.prompt.value, style: els.musicPrompt.value, lyrics: els.lyrics.value, advanced };
+      (entry.backups ||= []).push(entry.beforeRevert); refreshBackups();
+      if (!(await persistSessions())) { state.textContent = 'Не удалось сохранить текущие поля.'; return; }
+      if (activeSession !== session || mode !== 'music' || els.prompt.value !== entry.beforeRevert.quick || els.musicPrompt.value !== entry.beforeRevert.style || els.lyrics.value !== entry.beforeRevert.lyrics) {
+        state.textContent = 'Поля изменились во время сохранения. Попробуйте снова.'; return;
+      }
+      els.prompt.value = entry.beforeApply.quick; els.musicPrompt.value = entry.beforeApply.style; els.lyrics.value = entry.beforeApply.lyrics;
+      advanced = entry.beforeApply.advanced; entry.applied = false; renderChrome(); saveDraft(session); await persistSessions();
+      state.textContent = 'Поля восстановлены. Подготовленный черновик остался в этой карточке.';
+    }));
+    actions.append(apply, revert); body.append(actions);
   }
 
   async function improve(field) {
@@ -1255,6 +1407,7 @@
     if (runningOps) { card('notice', 'Выход', 'Сначала дождитесь завершения активных операций или остановите их.'); return; }
     if (sessionProfile) { saveDraft(activeSession); if (!(await persistSessions())) return; }
     libSeq++;
+    if (producerSaveTimer) { clearTimeout(producerSaveTimer); producerSaveTimer = null; }
     sessionProfile = null; activeSession = null; storageBlocked = true; sessionRoots.clear();
     els.feed.innerHTML = ''; els.lib.innerHTML = '';
     els.prompt.value = ''; els.lyrics.value = ''; els.musicPrompt.value = '';
@@ -1687,6 +1840,7 @@
   });
 
   els.send.addEventListener('click', create);
+  els.prepareMusic.addEventListener('click', prepareMusic);
   els.improveLyrics.addEventListener('click', () => improve('lyrics'));
   els.improvePrompt.addEventListener('click', () => improve('prompt'));
   els.undoLyrics.addEventListener('click', () => undo('lyrics'));

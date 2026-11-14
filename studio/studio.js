@@ -11,13 +11,6 @@
   const TOKEN_KEY = 'briix-media-live-token';
   const MUSIC_MODELS = { flash: 'ace-step-flash', pro: 'ace-step-pro' };
   const MODEL_LABELS = { flash: 'Flash', pro: 'Pro' };
-  // Длительность — пресеты (владелец: не жёсткие секунды, дефолт не 5 минут).
-  const DUR_PRESETS = [
-    { key: 'short', label: 'Короткая', sub: '~30 с', sec: 30 },
-    { key: 'std', label: 'Стандарт', sub: '~1,5 мин', sec: 90 },
-    { key: 'full', label: 'Полная', sub: '~3–5 мин', sec: 300 },
-  ];
-  const durationSec = () => (DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1]).sec;
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
   const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const PLACEHOLDERS = {
@@ -207,7 +200,6 @@
     tags: $('tags'), addBtn: $('addBtn'),
     assistantChip: $('assistantChip'), assistantName: $('assistantName'), assistantMenu: $('assistantMenu'),
     modelChip: $('modelChip'), modelName: $('modelName'), modelMenu: $('modelMenu'),
-    durationChip: $('durationChip'), durationName: $('durationName'), durationMenu: $('durationMenu'),
     vocalSeg: $('vocalSeg'), tuneToggle: $('tuneToggle'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
     composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
@@ -221,9 +213,6 @@
 
   let mode = 'chat';
   let quality = 'flash';
-  let durKey = 'std'; // «Стандарт» по умолчанию: типичная песня заметно короче 5 минут
-  try { const savedKey = localStorage.getItem('briix-studio-duration-key'); if (DUR_PRESETS.some(p => p.key === savedKey)) durKey = savedKey; } catch {}
-  let duration = durationSec();
   let instrumental = false; // вокальный контур починен (infra#79) — дефолт снова «Песня»; выбор хранится в браузере
   try { const savedInstr = localStorage.getItem('briix-studio-instrumental'); if (savedInstr !== null) instrumental = savedInstr === '1'; } catch {}
   let advanced = false;
@@ -308,7 +297,7 @@
 
   function meta() {
     const bits = [location.hostname, MODE_LABELS[mode]];
-    if (mode === 'music') { const pr = DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1]; bits.push(MODEL_LABELS[quality] + ' · ' + pr.label + ' · ' + pr.sub); }
+    if (mode === 'music') bits.push(MODEL_LABELS[quality]);
     else bits.push(currentAssistant().name.replace(/\s*\(.*\)\s*$/, ''));
     els.metaLeft.textContent = bits.join(' · ');
   }
@@ -352,10 +341,6 @@
   attachMenu(els.modelChip, els.modelMenu, () => Object.keys(MUSIC_MODELS).map(q => ({
     label: MODEL_LABELS[q], sub: MUSIC_MODELS[q], selected: q === quality,
     onPick: () => { quality = q; renderChrome(); }
-  })));
-  attachMenu(els.durationChip, els.durationMenu, () => DUR_PRESETS.map(p => ({
-    label: p.label, sub: p.sub, selected: p.key === durKey,
-    onPick: () => { durKey = p.key; duration = p.sec; try { localStorage.setItem('briix-studio-duration-key', p.key); } catch {} renderChrome(); }
   })));
 
   // ---- карточки ленты ---------------------------------------------------------
@@ -484,8 +469,6 @@
     els.prompt.placeholder = PLACEHOLDERS[mode];
     els.assistantName.textContent = currentAssistant().name.replace(/\s*\(.*\)\s*$/, '');
     els.modelName.textContent = MODEL_LABELS[quality];
-    const preset = DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1];
-    els.durationName.textContent = preset.label + ' · ' + preset.sub;
     els.vocalSeg.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.vocal) === (instrumental ? 1 : 0))));
     els.tuneToggle.setAttribute('aria-pressed', String(advanced));
     meta();
@@ -680,8 +663,8 @@
     const stages = ['writing-lyrics', 'synthesizing', 'album-cover'];
     const stageNames = { 'writing-lyrics': 'лирика', 'synthesizing': 'синтез', 'album-cover': 'обложка' };
     const estSec = () => {
-      const per = MUSIC_MODELS[quality] === 'ace-step-pro' ? { wl: 1.3, syn: 0.15 } : { wl: 0.45, syn: 0.08 };
-      return [Math.round(duration * per.wl), Math.round(duration * per.syn + 10), 180];
+      // длительность трека больше не задаётся клиентом — оценки стадий фиксированные на модель (UI-only)
+      return MUSIC_MODELS[quality] === 'ace-step-pro' ? [120, 40, 180] : [40, 20, 180];
     };
     let curStage = stageBody.querySelector('[data-wait]')?.getAttribute('data-wait-stage') || stages[0];
     let stageAt = Date.now();
@@ -736,7 +719,7 @@
           return;
         }
       }
-      const params = { model: MUSIC_MODELS[quality], duration }; // контракт шины: params.duration (не duration_seconds!)
+      const params = { model: MUSIC_MODELS[quality] }; // длительность не отправляем (infra#93): длина по содержанию лирики
       if (instrumental) params.instrumental = true;
       if (lyrics) params.lyrics = lyrics;
       const id = await submitJob({ type: 'music', prompt: style || lyrics, params });
@@ -751,7 +734,7 @@
       audio.controlsList = 'nodownload'; // скачивание только через нашу кнопку: имя .m4a, обложка и текст внутри
       const blob = await fileBlob(result.result_url);
       audio.src = URL.createObjectURL(blob);
-      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', '');
+      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[quality] + ')', '');
       wrap.textContent = '';
       const coverPath = (result.result_url || '').replace(/\.m4a$/, '-cover.png');
       if (coverPath !== result.result_url) {
@@ -763,13 +746,13 @@
       }
       wrap.append(audio);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать M4A');
-      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[quality] + ' · ' + duration + ' с)', kind: 'music', file: result.result_url });
+      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[quality] + ')', kind: 'music', file: result.result_url });
       const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
       libAdd({
         job: id, kind: 'music', prompt: (style || lyrics || '').slice(0, 200),
         lyrics: (lyrics || '').slice(0, 8000),
         title: titleSource.slice(0, 60),
-        model: MUSIC_MODELS[quality], duration, file: result.result_url, created: Date.now(), fav: false
+        model: MUSIC_MODELS[quality], file: result.result_url, created: Date.now(), fav: false
       });
     } catch (error) {
       wait.stop(); clearInterval(barTimer); watchStage.disconnect();
@@ -1048,7 +1031,7 @@
             job: j.id, kind, prompt: j.prompt || '',
             file: j.result_url, cover: j.cover_url || '',
             created: (j.created_at || 0) * 1000, fav: !!j.favorite, server: true,
-            lyrics: j.params?.lyrics || '', model: j.params?.model || '', duration: j.params?.duration_seconds || ''
+            lyrics: j.params?.lyrics || '', model: j.params?.model || ''
           });
         }
       }
@@ -1089,7 +1072,6 @@
     }
     let whoText = KIND_LABELS[entry.kind] || entry.kind;
     if (entry.kind === 'music' && entry.model) whoText += ' · ' + entry.model;
-    if (entry.kind === 'music' && entry.duration) whoText += ' · ' + entry.duration + ' с';
     whoText += ' · ' + new Date(entry.created).toLocaleString('ru-RU');
     who.textContent = whoText;
     const promptEl = document.createElement('div');

@@ -212,7 +212,6 @@ function bffServer(port) {
   assert.match(await p.locator('#assistantMenu').innerText(), /Автор песни/);
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#modelChip').isVisible(), true, 'model chip visible in music');
-  assert.equal(await p.locator('#durationChip').isVisible(), true, 'duration chip visible in music');
   assert.equal(await p.locator('#vocalSeg').isVisible(), true, 'track-mode segmented control visible in music');
   assert.equal(await p.locator('#tuneToggle').isVisible(), true, 'fine-tune toggle visible in music');
   assert.equal(await p.locator('#advanced').isVisible(), false, 'advanced fields hidden by default (Simple)');
@@ -291,13 +290,6 @@ function bffServer(port) {
   // 7. Музыка-джоба: лирика + стиль, длительность, инструментал по дефолту, Pro/вокал, стадии, плеер.
   await p.locator('#lyrics').fill('[Verse]\nГород спит\n[Chorus]\nА я не сплю');
   await p.locator('#musicPrompt').fill('dream pop, 90 BPM, female vocals');
-  await p.locator('#durationChip').click();
-  await p.locator('#durationMenu button', { hasText: 'Полная' }).click();
-  assert.match(await p.locator('#durationName').innerText(), /Полная/, 'duration preset selected');
-  // Дефолт-пресет «Стандарт»: переключаемся обратно и проверяем.
-  await p.locator('#durationChip').click();
-  await p.locator('#durationMenu button', { hasText: 'Стандарт' }).click();
-  assert.match(await p.locator('#durationName').innerText(), /Стандарт/);
   assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'true', 'vocal «Песня» is the default again (infra#79 fixed)');
   assert.equal(await p.locator('.seg-btn[data-vocal="1"]').getAttribute('aria-pressed'), 'false');
   await p.evaluate(() => {
@@ -327,7 +319,7 @@ function bffServer(port) {
   assert.equal(musicPost.prompt, 'dream pop, 90 BPM, female vocals');
   assert.match(musicPost.params.lyrics, /\[Chorus\]/);
   assert.equal(musicPost.params.model, 'ace-step-flash');
-  assert.equal(musicPost.params.duration, 90, 'std preset = 90 s under the bus contract key (params.duration)');
+  assert.equal(musicPost.params.duration, undefined, 'duration must NOT be sent (infra#93: length follows lyrics)');
   assert.equal(musicPost.params.duration_seconds, undefined, 'legacy key must not be sent');
   assert.equal(musicPost.params.instrumental, undefined);
   // Pro через чип модели + снова инструментал (режим «Инструментал» выбран явно).
@@ -341,7 +333,7 @@ function bffServer(port) {
   await p.waitForFunction(() => document.querySelectorAll('audio').length >= 2, {}, { timeout: 20000 });
   assert.equal(state.jobPosts.at(-1).params.model, 'ace-step-pro');
   assert.equal(state.jobPosts.at(-1).params.instrumental, true, 'instrumental mode adds the flag');
-  ok('music job: lyrics + style + duration/instrumental/pro chips, stages, audio player', {});
+  ok('music job: lyrics + style + instrumental/pro chips, stages, audio player', {});
 
   // 8. Фото-джоба: превью в ленту.
   await p.locator('.mode[data-mode="photo"]').click();
@@ -534,7 +526,6 @@ function bffServer(port) {
   await musicItem.locator('.lib-cover').waitFor({ state: 'visible', timeout: 10000 }); // обложка-миниатюра (infra#77)
   const musicWho = await musicItem.locator('.who').innerText();
   assert.match(musicWho, /ace-step/i, 'music .who carries the model');
-  assert.match(musicWho, /\d+\s*с/i, 'music .who carries the duration');
   assert.match(await musicItem.locator('a.action').first().innerText(), /M4A/, 'music download labelled M4A');
   const lyricsToggle = musicItem.locator('.lib-lyrics-toggle');
   assert.equal(await lyricsToggle.isVisible(), true, 'lyrics toggle exists');

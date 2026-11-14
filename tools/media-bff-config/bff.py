@@ -66,6 +66,7 @@ MAX_LYRICS = 8000
 # обложка (sd-cli) и mux WAV+cover -> MP3 192k с ID3v2-тегами. WAV остаётся
 # внутренним, result_url отдаёт MP3.
 FFMPEG = Path.home() / "ffmpeg" / "ffmpeg"
+FFPROBE = Path.home() / "ffmpeg" / "ffprobe"
 COVER_PROMPT_SUFFIX = "album cover art, square, atmospheric, no text"
 COVER_TIMEOUT = 300
 MUX_TIMEOUT = 120
@@ -467,8 +468,12 @@ async def create_job(request):
         vlang = params.get("language", "en")
         if vlang not in ("ru", "en"):
             return envelope(400, "params.language должен быть ru или en.", "bad_params", request)
-        vdur = params.get("duration", 30)
-        if not isinstance(vdur, int) or isinstance(vdur, bool) or not (5 <= vdur <= VOCAL_MODELS[vocal_model]["max_duration"]):
+        # infra#93 (решение владельца 14.11): duration необязателен. Если клиент
+        # не прислал — НЕ подставляем дефолт 30: длина трека определяется моделью
+        # по лирике (acestep.cpp сам ограничивает: fallback 120 с, потолок 600 с).
+        vdur = params.get("duration")
+        if vdur is not None and (not isinstance(vdur, int) or isinstance(vdur, bool)
+                                 or not (5 <= vdur <= VOCAL_MODELS[vocal_model]["max_duration"])):
             return envelope(400, f"params.duration для {vocal_model} — целое 5..{VOCAL_MODELS[vocal_model]['max_duration']} секунд.", "bad_params", request)
         if not (ACE_LM.exists() and os.access(ACE_LM, os.X_OK) and ACE_SYNTH.exists() and os.access(ACE_SYNTH, os.X_OK)):
             return envelope(503, "Бэкенд vocal недоступен.", "backend_unavailable", request)
@@ -988,7 +993,6 @@ async def vocal_worker(j):
         "caption": j["prompt"],
         "lyrics": j["params"]["lyrics"],
         "vocal_language": j["params"].get("language", "en"),
-        "duration": j["params"].get("duration", 30),
         "seed": int.from_bytes(os.urandom(4), "little"),
         "thinking": True,
         "lm_temperature": 0.85,
@@ -1000,6 +1004,11 @@ async def vocal_worker(j):
         "shift": 3.0,
         "output_format": "wav16",
     }
+    # infra#93: duration уходит в ace-lm только если клиент прислал его явно.
+    # Без ключа request.cpp ставит 0.0 -> YAML без "duration:" -> LM выбирает
+    # длину сам; fallback 120 с, жёсткий потолок 600 с (metadata-fsm.h).
+    if j["params"].get("duration") is not None:
+        req["duration"] = j["params"]["duration"]
     RESULTS.mkdir(parents=True, exist_ok=True)
     req_path = RESULTS / f"{jid}.json"
     req_path.write_text(json.dumps(req, ensure_ascii=False, indent=1))
@@ -1071,6 +1080,8 @@ async def vocal_worker(j):
             req_path.unlink(missing_ok=True)
             lm_out.unlink(missing_ok=True)
     j["stage"] = None
+    # infra#93: трим хвостовой тишины до брендинг-пакета (mux в m4a).
+    trim_tail_silence(jid)
 
 
 def _track_title(j):
@@ -1084,6 +1095,69 @@ def _track_title(j):
         if line and not line.startswith("[") and not line.startswith("("):
             return line[:80]
     return j["prompt"][:80]
+
+
+def trim_tail_silence(jid):
+    """infra#93: трим хвостовой тишины после синтеза (замеры job-7556: до 14 с).
+
+    silencedetect (noise=-40dB:d=1.5): если последний детект — тишина, уходящая
+    в конец файла, обрезаем до неё с мягким fade-out ~1.5 с. Середину трека не
+    трогаем: правится только хвостовая тишина длиной >= 2 с. После обрезки
+    fade может сделать смежный участок тише порога -40dB — поэтому проход
+    повторяется (до 3 раз), пока хвостовая тишина не станет короче ~1.5 с.
+    Без тишины в конце файл не изменяется."""
+    wav = RESULTS / f"{jid}.wav"
+    if not wav.exists():
+        return
+    for _pass in range(3):
+        try:
+            probe = subprocess.run(
+                [str(FFMPEG), "-i", str(wav), "-af", "silencedetect=noise=-40dB:d=1.5",
+                 "-f", "null", "-"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
+            events = re.findall(r"silence_(start|end):\s*([\d.]+)",
+                                (probe.stderr or b"").decode("utf-8", "replace"))
+            pdur = subprocess.run([str(FFPROBE), "-v", "error",
+                                   "-show_entries", "format=duration", "-of", "csv=p=0", str(wav)],
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=60)
+            dur = float(pdur.stdout.decode().strip())
+        except (subprocess.TimeoutExpired, OSError, ValueError) as e:
+            log(f"silence probe failed {jid}: {type(e).__name__}")
+            return
+        if not events:
+            return
+        # Хвостовая тишина: начало последнего блока тишины, который продолжается
+        # до конца файла. ffmpeg на EOF печатает silence_end ровно в dur — такой
+        # конец не прерывает хвостовую тишину (значит, она тянется от последнего
+        # silence_start). Тишину, закрытую задолго до конца файла, не трогаем.
+        tail_start = None
+        for kind, t in events:
+            if kind == "start":
+                tail_start = float(t)
+            elif dur - float(t) > 0.3:
+                tail_start = None
+        if tail_start is None or (dur - tail_start) < 2.0 or tail_start < 5.0:
+            return  # значимого хвоста тишины нет — файл не трогаем
+        cut = min(dur, tail_start + 1.0)
+        fade_start = max(0.0, cut - 1.5)
+        tmp = RESULTS / f"{jid}.trim.wav"
+        cmd = [str(FFMPEG), "-y", "-loglevel", "error", "-i", str(wav),
+               "-af", f"afade=t=out:st={fade_start:.2f}:d={cut - fade_start:.2f}",
+               "-t", f"{cut:.2f}", str(tmp)]
+        try:
+            r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
+            if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+                tmp.replace(wav)
+                log(f"tail trimmed {jid} pass{_pass + 1}: {dur:.1f}s -> {cut:.1f}s")
+            else:
+                log(f"tail trim failed {jid}: rc={r.returncode} "
+                    f"{(r.stderr or b'')[-150:].decode('utf-8', 'replace')}")
+                tmp.unlink(missing_ok=True)
+                return
+        except (subprocess.TimeoutExpired, OSError) as e:
+            log(f"tail trim error {jid}: {type(e).__name__}")
+            tmp.unlink(missing_ok=True)
+            return
 
 
 def music_package(j):

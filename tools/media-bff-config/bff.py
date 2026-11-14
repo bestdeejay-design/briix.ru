@@ -14,6 +14,7 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.parse
 import uuid
 from pathlib import Path
 
@@ -41,6 +42,34 @@ MUSIC_PY = Path.home() / "briix-media" / "musicgen-venv" / "bin" / "python"
 MUSIC_CLI = Path.home() / "briix-media" / "musicgen-cli.py"  # CLI-обёртка gen.py, живёт рядом с venv
 OLLAMA_TEXT = "http://127.0.0.1:11436"
 TEXT_MODEL = "qwen3:4b-instruct"
+# GLM primary text backend (решение владельца 14.11): бесплатная Flash-линейка
+# Z.ai (OpenAI-совместимый API) — primary; qwen3:4b-instruct на ollama :11436 —
+# автоматический фолбэк (connect/timeout/http>=400 от GLM). Примечание: аккаунт
+# Z.ai не имеет ресурс-пакета на glm-4.7-flash (429 код 1113) — рабочая
+# бесплатная модель glm-4.5-flash (одобрено владельцем 14.11). Ключ и модель
+# читаются из ENV_FILE (media-bff/.env, 600) или окружения юнита.
+ZAI_BASE = "https://api.z.ai/api/paas/v4"
+ZAI_MODEL = "glm-4.5-flash"
+TEXT_FALLBACK_MODEL = TEXT_MODEL
+GLM_TIMEOUT = 60  # ≤60с на непотоковый вызов; для SSE — sock_read=60
+
+
+def _load_zai_env(name):
+    v = os.environ.get(name, "")
+    if v:
+        return v
+    try:
+        for line in ENV_FILE.read_text().splitlines():
+            if line.startswith(name + "="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
+ZAI_API_KEY = _load_zai_env("ZAI_API_KEY")
+ZAI_BASE = _load_zai_env("ZAI_BASE") or ZAI_BASE
+ZAI_MODEL = _load_zai_env("ZAI_MODEL") or ZAI_MODEL
 # Vocal-route (решение владельца 08.11): ACE-Step в двух режимах. type=music с
 # params.model=ace-step-flash|ace-step-pro идёт в пайплайн ace-lm -> ace-synth;
 # без params.model — прежний musicgen (инструментал).
@@ -62,9 +91,9 @@ GPU_HOST = "badai@10.10.0.98"
 GPU_ACE_DIR = "~/briix-media/acestep/acestep.cpp"
 GPU_TIME = {"ace-step-flash": 120, "ace-step-pro": 300}  # GPU-реальность 24-40с + сеть
 MAX_LYRICS = 8000
-# Брендинг-пакет music-джобов (решение владельца 08.11): после генерации —
-# обложка (sd-cli) и mux WAV+cover -> MP3 192k с ID3v2-тегами. WAV остаётся
-# внутренним, result_url отдаёт MP3.
+# Брендинг-пакет music-джобов: после генерации — обложка (sd-cli). Mux M4A
+# перенесён в момент скачивания (mux-on-download, infra#105/#107). WAV остаётся
+# источником для mux и peaks.
 FFMPEG = Path.home() / "ffmpeg" / "ffmpeg"
 FFPROBE = Path.home() / "ffmpeg" / "ffprobe"
 # infra#102: параметры трима хвостовой тишины (крутилка владельца). infra#93
@@ -82,6 +111,17 @@ TRIM_FADE = 1.0              # fade-out после трима, с
 COVER_PROMPT_SUFFIX = "album cover art, square, atmospheric, no text"
 COVER_TIMEOUT = 300
 MUX_TIMEOUT = 120
+# mux-кластер infra#105/#107/#108 (решение владельца 15.11): битрейт-матрица
+# bitrate = 320k если (instrumental или model==ace-step-pro) иначе 192k;
+# mux M4A перенесён из пайплайна готовости в момент скачивания (mux-on-download
+# из живого WAV, Semaphore(1) — очередь как у image-пути); peaks.json лениво при
+# первом запросе. M4A/peaks кэш живёт в рамках retention WAV (24 ч).
+BITRATE_VOCAL_FLASH = "192k"
+BITRATE_PRO = "320k"
+BITRATE_INSTRUMENTAL = "320k"
+MUX_CONCURRENCY = 1
+PEAKS_MIN = 160   # infra#108: рекомендованная длина массива пиков
+PEAKS_MAX = 400
 BRIIX_TAGS = {
     "artist": "BRIIX",
     "album": "BRIIX Generative Music",
@@ -455,6 +495,16 @@ async def create_job(request):
         return envelope(400, f"prompt обязателен, строка 1..{MAX_PROMPT} символов.", "bad_prompt", request)
     if not isinstance(params, dict):
         return envelope(400, "params должен быть объектом.", "bad_params", request)
+    # SEED-воспроизводимость (дополнение владельца 15.11): params.seed — явный
+    # seed ace-lm (иначе urandom в vocal_worker); parent_job_id — связка вариаций.
+    seed = params.get("seed")
+    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int)
+                             or not (0 <= seed <= 2 ** 32 - 1)):
+        return envelope(400, "params.seed — целое 0..4294967295.", "bad_params", request)
+    parent = params.get("parent_job_id")
+    if parent is not None and (not isinstance(parent, str)
+                               or not (1 <= len(parent.strip()) <= 64)):
+        return envelope(400, "params.parent_job_id — строка 1..64 символов.", "bad_params", request)
 
     # Модерация (до очереди): prompt + lyrics для vocal.
     mod_text = prompt if jtype != "music" else prompt + "\n" + str(params.get("lyrics") or "")
@@ -579,6 +629,10 @@ def _job_public(j):
         out_params["duration_seconds"] = params["duration"]
     if isinstance(params.get("lyrics"), str):
         out_params["lyrics"] = params["lyrics"][:MAX_LYRICS]
+    if isinstance(params.get("seed"), int) and not isinstance(params.get("seed"), bool):
+        out_params["seed"] = params["seed"]
+    if isinstance(params.get("parent_job_id"), str):
+        out_params["parent_job_id"] = params["parent_job_id"]
     out = {
         "id": j["id"], "type": j["type"], "status": j["status"],
         "prompt": (j.get("prompt") or "")[:200],
@@ -698,28 +752,45 @@ async def cancel_job(request):
     return web.json_response({"id": j["id"], "status": "cancelled"})
 
 
-async def get_file(request):
+async def get_file(request, jid=None):
     guard = check_auth(request)
     if guard:
         return guard
-    jid = request.match_info["id"]
+    jid = jid or request.match_info["id"]
     j = JOBS.get(jid)
     if not j or j["status"] != "ready":
         return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
-    ext = {"image": ".png", "music": ".m4a", "text": ".txt"}[j["type"]]
-    path = RESULTS / f"{jid}{ext}"
-    if j["type"] == "music" and not path.exists():
-        for cand in (f"{jid}.mp3", f"{jid}.wav"):  # legacy до m4a-пакета
-            if (RESULTS / cand).exists():
-                path = RESULTS / cand
-                break
+    path = RESULTS / f"{jid}{'.png' if j['type'] == 'image' else '.txt' if j['type'] == 'text' else '.m4a'}"
+    disposition = None
+    if j["type"] == "music":
+        # infra#105/#107 mux-on-download: кэш отдаётся сразу; нет кэша или
+        # ?refetch=1 — сборка на лету из живого WAV (Semaphore(1), не в loop).
+        # WAV истёк, а M4A-кэш жив — отдаём кэш; нет ни того ни другого — 404.
+        if not path.exists() or request.query.get("refetch") in ("1", "true"):
+            if (RESULTS / f"{jid}.wav").exists():
+                await mux_music(j)
+        if path.exists():
+            disposition = content_disposition(j)
+    if not path.exists():
+        if j["type"] == "music":
+            for cand in (f"{jid}.mp3", f"{jid}.wav"):  # legacy до m4a-пакета
+                if (RESULTS / cand).exists():
+                    path = RESULTS / cand
+                    break
     if not path.exists():
         return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
     mime = {"image": "image/png",
             "music": {".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav"}.get(path.suffix, "audio/wav"),
             "text": "text/plain; charset=utf-8"}[j["type"]]
+    headers = {"Content-Disposition": disposition} if disposition else None
     return web.Response(body=path.read_bytes(), content_type=mime.split(";")[0],
-                        charset="utf-8" if j["type"] == "text" else None)
+                        charset="utf-8" if j["type"] == "text" else None,
+                        headers=headers)
+
+
+async def get_file_m4a(request):
+    """GET /files/{id}.m4a (infra#105/#107): mux-on-download + Content-Disposition."""
+    return await get_file(request, jid=request.match_info["id"])
 
 
 async def get_cover(request):
@@ -741,12 +812,22 @@ async def get_cover(request):
 # непроверенное помечено source:"estimate"/"none", а не выдуманными числами.
 MODELS_CATALOG = [
     {
+        "id": "glm-4.5-flash", "object": "model",
+        "capabilities": ["chat", "text.generate"], "status": "ready",
+        "limits": {"max_duration_seconds": GLM_TIMEOUT, "max_concurrent_jobs": 1},
+        "license_scope": "z.ai flash free tier",
+        "latency": {"source": "measured", "seconds": None, "conditions":
+                    "primary text (Z.ai cloud, OpenAI-формат); фолбэк — qwen3:4b-instruct; "
+                    "glm-4.7-flash недоступна на аккаунте (429 1113), одобрена 4.5-flash"},
+    },
+    {
         "id": "qwen3:4b-instruct", "object": "model",
         "capabilities": ["chat", "text.generate"], "status": "ready",
         "limits": {"max_duration_seconds": TEXT_TIMEOUT, "max_concurrent_jobs": 1},
         "license_scope": "demo-only",
         "latency": {"source": "measured", "seconds": None, "conditions":
-                    "CPU 8 тредов; первые токены — секунды, полный ответ зависит от длины"},
+                    "CPU 8 тредов; первые токены — секунды, полный ответ зависит от длины; "
+                    "фолбэк для glm-4.5-flash (primary)"},
     },
     {
         "id": "flux-2-klein-4b", "object": "model",
@@ -818,7 +899,12 @@ async def chat_completions(request):
     problem = validate_chat_body(body)
     if problem:
         return envelope(400, problem, "bad_schema", request)
-    blocked = await moderate_or_block("\n".join(m.get("content", "") for m in body["messages"]),
+    # Модерируется ТОЛЬКО последнее user-сообщение (решение владельца 15.11):
+    # триггер в истории диалога не должен блокировать все новые запросы;
+    # system-промпты и assistant-ответы (выходы нашей модели) не модерируются.
+    last_user = next((m.get("content", "") for m in reversed(body["messages"])
+                      if m.get("role") == "user"), "")
+    blocked = await moderate_or_block(last_user,
                                       "POST /v1/chat/completions", request, llm=False)
     if blocked:
         return blocked
@@ -834,9 +920,133 @@ async def chat_completions(request):
         return envelope(503, "Бэкенд текста недоступен.", "backend_unavailable", request)
     await CHAT_BUDGET.acquire(TEXT_BUDGET)
     try:
+        if ZAI_API_KEY:
+            glm_resp = await _chat_glm(request, body, payload, rid, err_event)
+            if glm_resp is not None:
+                return glm_resp
+            # Решение владельца 15.11: ошибка GLM-провайдера больше не маскируется
+            # молчаливым фолбэком на ollama — клиент различает коды и должен видеть
+            # upstream_error («Помощник временно недоступен, повторите»), а не 422.
+            # Фолбэк qwen остаётся только для режима без GLM-ключа (ниже).
+            return envelope(502, "Помощник временно недоступен, повторите.",
+                            "upstream_error", request)
         return await _chat_ollama(request, payload, rid, err_event)
     finally:
         CHAT_BUDGET.release(TEXT_BUDGET)
+
+
+async def _chat_glm(request, body, payload, rid, err_event):
+    """Primary GLM (Z.ai, OpenAI-совместимый /chat/completions).
+
+    Возвращает готовый ответ, либо None -> вызывающий уходит в фолбэк на
+    ollama qwen (_chat_ollama). Фолбэк: connect error, timeout, любой HTTP
+    не-200 (401/429/5xx/...) — но только пока поток не начал отдаваться
+    клиенту; ошибка посреди SSE-потока отдаётся как error-событие.
+    """
+    headers = {"Authorization": f"Bearer {ZAI_API_KEY}"}
+    url = f"{ZAI_BASE}/chat/completions"
+    glm_payload = {"model": ZAI_MODEL, "messages": body["messages"], "stream": payload["stream"]}
+
+    def chunk(content, finish_reason=None):
+        return {"id": "chatcmpl-" + rid, "object": "chat.completion.chunk",
+                "created": int(time.time()), "model": ZAI_MODEL,
+                "choices": [{"index": 0, "delta": {"content": content} if content else {},
+                             "finish_reason": finish_reason}]}
+
+    if not payload["stream"]:
+        try:
+            async with ClientSession() as s:
+                async with s.post(url, json=glm_payload, headers=headers,
+                                  timeout=ClientTimeout(total=GLM_TIMEOUT)) as r:
+                    if r.status != 200:
+                        log(f"glm {rid} http {r.status} -> fallback {TEXT_MODEL}")
+                        return None
+                    data = await r.json()
+        except asyncio.TimeoutError:
+            log(f"glm {rid} timeout -> fallback {TEXT_MODEL}")
+            return None
+        except Exception as e:
+            log(f"glm {rid} {type(e).__name__} -> fallback {TEXT_MODEL}")
+            return None
+        choices = data.get("choices") or [{}]
+        choice = choices[0]
+        msg = choice.get("message") or {}
+        usage = data.get("usage") or {}
+        return web.json_response({
+            "id": "chatcmpl-" + rid, "object": "chat.completion",
+            "created": int(time.time()), "model": ZAI_MODEL,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": msg.get("content", "")},
+                         "finish_reason": choice.get("finish_reason") or "stop"}],
+            "usage": {"prompt_tokens": usage.get("prompt_tokens"),
+                      "completion_tokens": usage.get("completion_tokens"),
+                      "total_tokens": usage.get("total_tokens"),
+                      "source": "provider"},
+        })
+
+    # SSE-стрим: upstream-статус проверяем ДО подготовки ответа клиенту,
+    # чтобы при сбое GLM cleanly уйти в qwen-фолбэк.
+    resp = None
+    emitted = False
+    try:
+        async with ClientSession() as s:
+            async with s.post(url, json=glm_payload, headers=headers,
+                              timeout=ClientTimeout(total=None, sock_read=GLM_TIMEOUT, connect=10)) as r:
+                if r.status != 200:
+                    log(f"glm {rid} stream http {r.status} -> fallback {TEXT_MODEL}")
+                    return None
+                resp = web.StreamResponse(status=200, headers={
+                    "Content-Type": "text/event-stream; charset=utf-8",
+                    "Cache-Control": "no-cache", "Connection": "keep-alive",
+                    "X-Request-Id": rid,
+                })
+                await resp.prepare(request)
+                origin = request.headers.get("Origin")
+                if origin in ALLOWED_ORIGINS:
+                    resp.headers["Access-Control-Allow-Origin"] = origin
+                finish = None
+                async for raw in r.content:
+                    line = raw.strip()
+                    if not line.startswith(b"data:"):
+                        continue
+                    data_str = line[len(b"data:"):].strip()
+                    if data_str == b"[DONE]":
+                        break
+                    try:
+                        piece = json.loads(data_str)
+                    except ValueError:
+                        continue
+                    gchoices = piece.get("choices") or []
+                    delta = (gchoices[0].get("delta") or {}) if gchoices else {}
+                    piece_content = delta.get("content", "")
+                    if piece_content:
+                        emitted = True
+                        await resp.write(f"data: {json.dumps(chunk(piece_content), ensure_ascii=False)}\n\n".encode())
+                    if gchoices and gchoices[0].get("finish_reason"):
+                        finish = gchoices[0].get("finish_reason")
+                await resp.write(f"data: {json.dumps(chunk('', finish or 'stop'), ensure_ascii=False)}\n\n".encode())
+        await resp.write(b"data: [DONE]\n\n")
+        await resp.write_eof()
+        return resp
+    except (asyncio.CancelledError, ConnectionResetError, RuntimeError):
+        # Остановка клиента: закрываем поток, если он был начат.
+        try:
+            if resp:
+                await resp.write_eof()
+        except (ConnectionResetError, RuntimeError):
+            pass
+        return resp if resp is not None else None
+    except Exception as e:
+        log(f"glm {rid} stream failed: {type(e).__name__} emitted={emitted}")
+        if resp is None:
+            # upstream упал до подготовки ответа — фолбэк на qwen.
+            return None
+        try:
+            await resp.write(f"data: {json.dumps(err_event(502, 'Ошибка бэкенда посреди потока.', 'upstream_error'), ensure_ascii=False)}\n\n".encode())
+            await resp.write(b"data: [DONE]\n\n")
+            await resp.write_eof()
+        except (ConnectionResetError, RuntimeError):
+            pass
+        return resp
 
 
 async def _chat_ollama(request, payload, rid, err_event):
@@ -1005,7 +1215,8 @@ async def vocal_worker(j):
         "caption": j["prompt"],
         "lyrics": j["params"]["lyrics"],
         "vocal_language": j["params"].get("language", "en"),
-        "seed": int.from_bytes(os.urandom(4), "little"),
+        "seed": (j["params"]["seed"] if isinstance(j["params"].get("seed"), int)
+                 else int.from_bytes(os.urandom(4), "little")),
         "thinking": True,
         "lm_temperature": 0.85,
         "lm_cfg_scale": 2.0,
@@ -1021,6 +1232,16 @@ async def vocal_worker(j):
     # длину сам; fallback 120 с, жёсткий потолок 600 с (metadata-fsm.h).
     if j["params"].get("duration") is not None:
         req["duration"] = j["params"]["duration"]
+    # SEED-воспроизводимость: снапшот генерации в provenance (transparency клиента).
+    j.setdefault("provenance", {}).update({
+        "seed": req["seed"],
+        "lm_temperature": req["lm_temperature"],
+        "lm_cfg_scale": req["lm_cfg_scale"],
+        "lm_top_p": req["lm_top_p"],
+        "inference_steps": req["inference_steps"],
+        **({"parent_job_id": j["params"]["parent_job_id"]}
+           if isinstance(j["params"].get("parent_job_id"), str) else {}),
+    })
     RESULTS.mkdir(parents=True, exist_ok=True)
     req_path = RESULTS / f"{jid}.json"
     req_path.write_text(json.dumps(req, ensure_ascii=False, indent=1))
@@ -1187,15 +1408,14 @@ def trim_tail_silence(jid):
 
 
 def music_package(j):
-    """Обложка (sd-cli, 512px) + mux WAV -> M4A (AAC 192k) с attached_pic и текстом.
+    """Обложка (sd-cli, 512px) в брендинг-пакете готовности.
 
-    Формат раздачи (решение владельца 08.11): m4a со встроенными ТЕКСТАМИ —
-    lyrics из params.lyrics (vocal-джобы; у musicgen пусто — без текста).
-    Проверено на mp4-муксере: title/artist/album/comment/lyrics пишутся,
-    attached_pic работает; ключ url mp4-муксер НЕ пишет (а с
-    -movflags use_metadata_tags url пишется, но пропадает обложка) — поэтому
-    адрес вшит в comment. Деградация мягкая: нет обложки — m4a без APIC;
-    не сработал mux — остаётся WAV (get_file отдаёт fallback).
+    infra#105/#107 (решение владельца 15.11): mux M4A перенесён ИЗ пайплайна
+    готовности в момент скачивания (mux-on-download из живого WAV — build_m4a).
+    Здесь остаётся только генерация обложки: она нужна и ready-пайплайну
+    (route /files/{id}-cover.png), и mux-у как attached_pic. Параметры
+    (title/artist/lyrics/битрейт) читаются при mux-е — так pro-джобы сразу
+    получают 320k и актуальные теги, без пересборки кэша.
     """
     jid = j["id"]
     wav = RESULTS / f"{jid}.wav"
@@ -1222,27 +1442,154 @@ def music_package(j):
         PROCS.pop(f"{jid}-cover", None)
     if j.get("status") == "cancelled":
         return
+
+
+def track_bitrate(j):
+    """infra#107, матрица владельца 15.11: vocal flash -> 192k; vocal pro и
+    инструментал (musicgen, любой model) -> 320k."""
+    params = j.get("params", {})
+    if params.get("instrumental") is True or params.get("model") not in VOCAL_MODELS:
+        return BITRATE_INSTRUMENTAL
+    if params.get("model") == "ace-step-pro":
+        return BITRATE_PRO
+    return BITRATE_VOCAL_FLASH
+
+
+def sanitize_filename(name):
+    """infra#105: буквы/цифры/пробел/дефис, unicode (кириллица) сохраняется,
+    спецсимволы вырезаются; схлопнутые пробелы, без краевых дефисов."""
+    out = "".join(ch for ch in name if ch.isalnum() or ch in (" ", "-"))
+    return re.sub(r"\s+", " ", out).strip(" -")[:100]
+
+
+def content_disposition(j):
+    """attachment; filename*=RFC5987 «{title} - {artist}.m4a», fallback job_id."""
+    artist = j["params"].get("artist")
+    if not (isinstance(artist, str) and artist.strip()):
+        artist = "BRIIX"
+    name = sanitize_filename(f"{_track_title(j)} - {artist.strip()}")
+    if not name:
+        name = j["id"]
+    ascii_fb = name.encode("ascii", "ignore").decode("ascii").strip(" -") or j["id"]
+    quoted = urllib.parse.quote(name)
+    return (f'attachment; filename="{ascii_fb}.m4a"; '
+            f"filename*=UTF-8''{quoted}.m4a")
+
+
+def build_m4a(j):
+    """infra#105/#107: mux-on-download WAV -> M4A с attached_pic, ©lyr,
+    title/artist из params (fallback прежний) и битрейтом по матрице.
+    Синхронная CPU-задача — вызывающий (mux_music) держит Semaphore(1)."""
+    jid = j["id"]
+    wav = RESULTS / f"{jid}.wav"
+    if not wav.exists() or j.get("status") == "cancelled":
+        return False
+    cover = RESULTS / f"{jid}-cover.png"
+    out = RESULTS / f"{jid}.m4a"
+    tmp = RESULTS / f"{jid}.mux.m4a"
     mux = [str(FFMPEG), "-y", "-loglevel", "error", "-i", str(wav)]
     if cover.exists() and cover.stat().st_size > 0:
         mux += ["-i", str(cover), "-map", "0:a", "-map", "1:v",
                 "-c:v", "copy", "-disposition:v", "attached_pic"]
-    mux += ["-c:a", "aac", "-b:a", "192k"]
+    mux += ["-c:a", "aac", "-b:a", track_bitrate(j)]
     for k, v in BRIIX_TAGS.items():
         if k == "url":
             continue  # mp4-муксер url не пишет — адрес в comment
         mux += ["-metadata", f"{k}={v}"]
     mux += ["-metadata", f"title={_track_title(j)}"]
+    artist = j["params"].get("artist")
+    if isinstance(artist, str) and artist.strip():
+        mux += ["-metadata", f"artist={artist.strip()[:80]}"]
     lyrics = j["params"].get("lyrics")
     if isinstance(lyrics, str) and lyrics.strip():
         mux += ["-metadata", f"lyrics={lyrics.strip()}"]
-    mux += [str(RESULTS / f"{jid}.m4a")]
+    mux += [str(tmp)]
     try:
         r = subprocess.run(mux, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                            timeout=MUX_TIMEOUT)
-        if r.returncode != 0:
-            log(f"mux failed {jid}: {(r.stderr or b'')[-200:].decode('utf-8', 'replace')}")
+        if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+            tmp.replace(out)
+            return True
+        log(f"mux failed {jid}: {(r.stderr or b'')[-200:].decode('utf-8', 'replace')}")
     except (subprocess.TimeoutExpired, OSError) as e:
         log(f"mux error {jid}: {type(e).__name__}")
+    tmp.unlink(missing_ok=True)
+    return False
+
+
+MUX_SEM = asyncio.Semaphore(MUX_CONCURRENCY)
+
+
+async def mux_music(j):
+    """Mux как image-путь: CPU-задача в отдельном треде, 1 одновременно,
+    остальные ждут в очереди семафора; event loop не блокируется."""
+    async with MUX_SEM:
+        return await asyncio.to_thread(build_m4a, j)
+
+
+def build_peaks(jid):
+    """infra#108: один проход ffmpeg по results/{id}.wav -> PCM s16le mono,
+    окна-пики, нормировка 0..1, компактный JSON рядом с WAV (~1-2 КБ)."""
+    wav = RESULTS / f"{jid}.wav"
+    out = RESULTS / f"{jid}-peaks.json"
+    try:
+        r = subprocess.run(
+            [str(FFMPEG), "-v", "error", "-i", str(wav), "-ac", "1", "-ar", "4000",
+             "-f", "s16le", "-"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=120)
+        raw = r.stdout
+        if r.returncode != 0 or len(raw) < 800:
+            log(f"peaks failed {jid}: rc={r.returncode} len={len(raw)}")
+            return False
+        n = len(raw) // 2
+        duration = n / 4000.0
+        windows = max(PEAKS_MIN, min(PEAKS_MAX, int(duration * 2)))
+        peaks = [0.0] * windows
+        step = n // windows or 1
+        ints = raw[:n * 2]
+        maxp = 1
+        for w in range(windows):
+            lo = w * step
+            hi = min(n, lo + step) if w < windows - 1 else n
+            p = 0
+            for i in range(lo, hi):
+                v = ints[i * 2] | (ints[i * 2 + 1] << 8)
+                if v >= 0x8000:
+                    v -= 0x10000
+                a = -v if v < 0 else v
+                if a > p:
+                    p = a
+            peaks[w] = p
+            if p > maxp:
+                maxp = p
+        norm = [round(p / maxp, 3) for p in peaks]
+        tmp = RESULTS / f"{jid}-peaks.tmp.json"
+        tmp.write_text(json.dumps({"id": jid, "duration": round(duration, 2),
+                                   "peaks": norm}, separators=(",", ":")))
+        tmp.replace(out)
+        return True
+    except (subprocess.TimeoutExpired, OSError, ValueError) as e:
+        log(f"peaks error {jid}: {type(e).__name__}")
+        return False
+
+
+async def get_peaks(request):
+    """GET /files/{id}-peaks.json (infra#108): ленивая генерация при первом
+    запросе, кэш на диске рядом с WAV; WAV удалён (retention) -> 404 —
+    клиент тихо деградирует на нативный плеер."""
+    guard = check_auth(request)
+    if guard:
+        return guard
+    jid = request.match_info["id"]
+    j = JOBS.get(jid)
+    if not j or j.get("deleted"):
+        return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
+    out = RESULTS / f"{jid}-peaks.json"
+    if not out.exists() and (RESULTS / f"{jid}.wav").exists():
+        await asyncio.to_thread(build_peaks, jid)
+    if not out.exists():
+        return envelope(404, "Файл не найден или срок хранения истёк.", "file_gone", request)
+    return web.Response(body=out.read_bytes(), content_type="application/json")
 
 
 async def text_worker(j):
@@ -1548,6 +1895,10 @@ def main():
     # cover-маршрут регистрируется ДО /files/{id}: {id} матчит весь сегмент
     # (включая точки) и иначе съел бы "-cover.png"-запросы.
     app.router.add_get("/files/{id}-cover.png", get_cover)
+    # peaks и .m4a регистрируются ДО /files/{id}: {id} матчит весь сегмент
+    # (включая точки), иначе съел бы суффиксы.
+    app.router.add_get("/files/{id}-peaks.json", get_peaks)
+    app.router.add_get("/files/{id}.m4a", get_file_m4a)
     app.router.add_get("/files/{id}", get_file)
     app.router.add_get("/v1/models", list_models)
     app.router.add_post("/v1/chat/completions", chat_completions)

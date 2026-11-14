@@ -11,7 +11,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
   location.replace('https://demo.briix.ru/studio/' + location.hash);
 }
 </script>
-<link rel="stylesheet" href="studio.css?v=20261114-97-p1a">
+<link rel="stylesheet" href="studio.css?v=20261114-97-p1b">
 </head>
 <body>
 
@@ -51,7 +51,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
     <section id="sessionsDialog" class="sessions-dialog" role="dialog" aria-modal="true" aria-labelledby="sessionsTitle" tabindex="-1">
       <div class="sessions-head"><h2 id="sessionsTitle">История</h2><button id="sessionsClose" class="tool icon-only" type="button" aria-label="Закрыть историю">✕</button></div>
       <button id="sessionsNew" class="session-new" type="button">＋ Новый чат</button>
-      <p class="sessions-help">Сессии хранятся в этом браузере. Аудиофайлы на сервере могут быть удалены.</p>
+      <p class="sessions-help">Сессии хранятся в этом браузере; приватная вкладка может удалить их после закрытия. Аудиофайлы на сервере могут быть удалены.</p>
       <div id="sessionsList" class="sessions-list"></div>
     </section>
   </div>
@@ -189,6 +189,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
 <script src="../wait-phrases.js?v=20261114"></script>
 <script src="../wait-ui.js?v=20261114"></script>
 <script src="session-store.js?v=20261114-97-p1"></script>
-<script src="studio.js?v=20261114-97-p1a"></script>
+<script src="waveform.js?v=20261114-97-p1b"></script>
+<script src="studio.js?v=20261114-97-p1b"></script>
 </body>
 </html>

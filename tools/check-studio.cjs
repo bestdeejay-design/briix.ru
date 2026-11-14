@@ -793,7 +793,9 @@ function bffServer(port) {
   await p.waitForSelector('#feed .session-feed[hidden] audio', { state: 'attached', timeout: 25000 });
   assert.equal(await p.locator('#feed .session-feed:not([hidden]) audio').count(), 0, 'late track does not leak into active session');
   await p.locator('.tab[data-tab="library"]').click();
-  await p.locator('.lib-item .action', { hasText: 'Открыть сессию: Идея первой сессии' }).first().click();
+  const linkedItem = p.locator('.lib-item', { hasText: 'Сессия: Идея первой сессии' }).first();
+  await linkedItem.locator('.lib-more summary').click();
+  await linkedItem.locator('.action', { hasText: 'Открыть сессию: Идея первой сессии' }).click();
   await p.waitForSelector('#feed .session-feed:not([hidden]) audio');
   assert.ok(await p.locator('#feed .session-feed:not([hidden])').innerText().then(t => t.includes('Идея первой сессии')));
   await p.reload();
@@ -817,6 +819,37 @@ function bffServer(port) {
   assert.equal(await p.locator('#feed .session-feed:not([hidden]) audio').count(), 0);
   ok('two sessions keep context and late track isolated, linked in library after reload');
 
+  // Повтор использует полный снимок и не отправляет запрос до явного подтверждения; обложка — отдельное изображение.
+  resetBff();
+  p = await page();
+  await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('.seg-btn[data-vocal="1"]').click();
+  const repeatPrompt = ('длинная музыкальная идея '.repeat(15)).trim();
+  await p.locator('#prompt').fill(repeatPrompt); await p.locator('#send').click();
+  await p.waitForSelector('#feed audio', { timeout: 25000 });
+  assert.equal(state.jobPosts.length, 1);
+  await p.getByRole('button', { name: 'Повторить с правками' }).first().click();
+  assert.equal(state.jobPosts.length, 1, 'no generation before confirmation');
+  assert.equal(await p.locator('#musicPrompt').inputValue(), repeatPrompt);
+  await p.locator('#musicPrompt').fill(repeatPrompt + ' новая версия');
+  await p.locator('#send').click();
+  await p.waitForFunction(() => document.querySelectorAll('#feed audio').length === 2, {}, { timeout: 25000 });
+  assert.equal(state.jobPosts.length, 2);
+  assert.equal(state.jobPosts[1].prompt, repeatPrompt + ' новая версия');
+  const linked = await p.evaluate(async () => {
+    const { profile } = await BriixSessionStore.open('tester');
+    return profile.sessions[0].feed.filter(x => x.kind === 'music').map(x => ({ job: x.job, parent: x.input.parentJobId }));
+  });
+  assert.equal(linked[1].parent, linked[0].job, 'repeat records source without overwriting original');
+  await p.getByRole('button', { name: 'Создать картинку обложки' }).first().click();
+  assert.match(await p.locator('.card.notice').last().innerText(), /не заменит обложку/);
+  await p.locator('#prompt').fill('Обложка в неоновом стиле'); await p.locator('#send').click();
+  await p.waitForSelector('#feed img.media-in', { timeout: 25000 });
+  assert.equal(state.jobPosts[2].type, 'image');
+  assert.equal(state.jobPosts[2].prompt, 'Обложка в неоновом стиле');
+  assert.equal(await p.locator('#feed audio').count(), 2, 'cover image did not replace the audio');
+  ok('editable text repeat and separate cover image, without pretending to remix or replace artwork');
+
   // Контролируемый 429-шторм: считаем реальные попытки и восстановленные карточки в mock.
   resetBff(); state.coverRateLimit = 4;
   state.jobPosts = Array.from({ length: 4 }, (_, i) => ({ id: 'job-storm-' + i, type: 'music', prompt: 'Шторм ' + i, params: { model: 'ace-step-flash' } }));
@@ -826,6 +859,16 @@ function bffServer(port) {
   assert.equal(await p.locator('.lib-cover img').count(), 4);
   assert.equal(state.coverRequests, 8, 'four failed attempts plus four successful cover fetches');
   ok('mock 429 storm: four failures, eight attempts, four covers recovered', { requests: state.coverRequests, recovered: 4 });
+  resetBff(); state.coverRateLimit = 4;
+  state.jobPosts = [{ id: 'job-limit', type: 'music', prompt: 'Ошибка лимита', params: { model: 'ace-step-flash' } }];
+  p = await page(); await p.locator('.tab[data-tab="library"]').click();
+  await p.waitForSelector('.lib-cover .cover-retry', { timeout: 20000 });
+  assert.match(await p.locator('.cover-retry').getAttribute('aria-label'), /429/);
+  assert.equal(state.coverRequests, 4);
+  await p.locator('.cover-retry').click();
+  await p.waitForSelector('.lib-cover img', { timeout: 10000 });
+  assert.equal(state.coverRequests, 5);
+  ok('mock persistent 429: visible retry recovers cover after limit clears', { failed: 4, recovered: 1 });
 
   // Сохранённые URL не могут заставить отправить ключ на чужой origin, даже через redirect.
   p = await page();

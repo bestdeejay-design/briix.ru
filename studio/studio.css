@@ -30,6 +30,9 @@
   --amber-soft: rgba(227, 198, 139, .08);
   --blue: #a9c6e6;
   --blue-soft: rgba(169, 198, 230, .08);
+  --placeholder: rgba(242, 242, 240, .35);
+  --amber-hover: rgba(227, 198, 139, .16);
+  --shadow: rgba(0, 0, 0, .5);
   --radius-card: 16px;
   --radius-pill: 8px;
   --font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -105,7 +108,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   font-size: 16px; line-height: 1.5; padding: 8px;
   transition: box-shadow 150ms ease;
 }
-.prompt::placeholder { color: rgba(242, 242, 240, .35); }
+.prompt::placeholder { color: var(--placeholder); }
 
 /* музыка: раскрываемые тонкие поля */
 .advanced { display: flex; flex-direction: column; gap: 12px; padding: 4px 4px 0; }
@@ -144,7 +147,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   border-radius: var(--radius-pill); background: var(--amber-soft);
   color: var(--amber); font-size: 12px; transition: background 150ms ease;
 }
-.undo:hover { background: rgba(227, 198, 139, .16); }
+.undo:hover { background: var(--amber-hover); }
 
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag {
@@ -175,7 +178,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .tool.toggle[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 .tool.toggle[aria-pressed="true"]:hover { background: var(--accent-soft-hover); color: var(--accent); }
 .tool.chip.undo-chip { background: var(--amber-soft); color: var(--amber); }
-.tool.chip.undo-chip:hover { background: rgba(227, 198, 139, .16); color: var(--amber); }
+.tool.chip.undo-chip:hover { background: var(--amber-hover); color: var(--amber); }
 
 /* явный выбор режима трека: Песня / Инструментал */
 .seg {
@@ -222,7 +225,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 20;
   min-width: 200px; max-height: min(60dvh, 360px); overflow-y: auto; padding: 4px;
   background: var(--surface-2); border: 1px solid var(--line-focus);
-  border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
+  border-radius: 12px; box-shadow: 0 12px 32px var(--shadow);
   display: flex; flex-direction: column;
 }
 .menu button {
@@ -516,3 +519,12 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .track-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
 .track-details div { white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px; background: var(--surface-2); border-radius: 8px; }
 .cover-retry { min-width: 44px; min-height: 44px; color: var(--ink); }
+.waveform { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.waveform-status { color: var(--muted); font-size: 12px; }
+.waveform-canvas { width: 100%; height: 36px; display: block; }
+.waveform-seek { width: 100%; min-height: 44px; accent-color: var(--accent); }
+.lib-more { max-width: 100%; }
+.lib-more summary { cursor: pointer; list-style: none; }
+.lib-more summary::-webkit-details-marker { display: none; }
+.lib-more .actions { width: 100%; }
+.lib-item { align-items: flex-start; }

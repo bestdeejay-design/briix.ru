@@ -223,6 +223,12 @@
   let sessionProfile = null, sessionBackend = null, activeSession = null;
   let storageBlocked = true, storageDirty = false, pendingSaves = 0, saveQueue = Promise.resolve();
   const sessionRoots = new Map();
+  const feedObjectUrls = new Set();
+  function feedObjectURL(blob) {
+    const url = URL.createObjectURL(blob);
+    feedObjectUrls.add(url);
+    return url;
+  }
 
   function warnStorage(error) {
     storageDirty = true;
@@ -262,6 +268,12 @@
     if (storageDirty || pendingSaves) { e.preventDefault(); e.returnValue = ''; }
   });
   function rootFor(session) { return sessionRoots.get(session.id); }
+  function recordSessionJob(session, job, kind, input) {
+    if (!session.jobs) session.jobs = [];
+    session.jobs.push({ job, kind, input, createdAt: Date.now() });
+    session.updatedAt = Date.now();
+    persistSessions();
+  }
   function feedPush(d, session = activeSession) {
     if (!session) return;
     session.feed.push(d);
@@ -281,13 +293,18 @@
         const slot = document.createElement('div');
         body.append(slot);
         if (d.track) addMakeTrackAction(body.closest('.card'), d.track);
-        if (d.kind === 'music' && d.input) addMusicDetails(body, d.input);
+        if (d.kind === 'music') {
+          if (d.input) addMusicDetails(body, d.input);
+          addMusicActions(body.closest('.card'), { job: d.job, prompt: d.input?.prompt || '', title: d.input?.prompt || '' }, d.input);
+        }
         fileBlob(d.file).then(blob => {
+          if (!slot.isConnected || currentUser() !== sessionProfile?.nick) return;
           if (d.kind === 'photo') {
-            const img = new Image(); img.alt = 'Результат'; img.src = URL.createObjectURL(blob); slot.append(img);
+            const img = new Image(); img.alt = 'Результат'; img.src = feedObjectURL(blob); slot.append(img);
           } else {
             const audio = document.createElement('audio'); audio.controls = true; audio.controlsList = 'nodownload';
-            audio.preload = 'none'; audio.src = URL.createObjectURL(blob); addTrackCover(slot, d.job, d.cover); slot.append(audio);
+            audio.preload = 'metadata'; audio.src = feedObjectURL(blob); addTrackCover(slot, d.job, d.cover); slot.append(audio);
+            BriixWaveform.attach(audio, blob, slot);
           }
           addDownloadAction(body.closest('.card'), blob, d.kind === 'photo' ? 'briix-photo' : 'briix-track', d.kind === 'music' ? '⬇ Скачать ' + extOf(blob).toUpperCase() : '⬇ Скачать');
         }).catch(() => { slot.textContent = 'Файл недоступен (см. Библиотеку).'; });
@@ -468,6 +485,40 @@
     card('error', 'Ошибка', error.message || 'Неизвестная ошибка.', session);
   }
 
+  let pendingMusicSource = null;
+  function repeatMusic(entry, input) {
+    if (storageBlocked) return;
+    const source = input || { prompt: entry.prompt || '', lyrics: entry.lyrics || '', model: entry.model || '', instrumental: !!entry.instrumental };
+    if (!input && !entry.inputComplete && !confirm('Данные старого трека могут быть неполными: промпт мог быть сокращён. Продолжить с тем, что сохранилось?')) return;
+    const musicDraft = mode === 'music' ? (els.prompt.value || els.musicPrompt.value || els.lyrics.value) : (drafts.music || els.musicPrompt.value || els.lyrics.value);
+    if (musicDraft.trim() && !confirm('Заменить текущий музыкальный черновик данными этого трека?')) return;
+    setView('chat'); setMode('music'); advanced = true;
+    els.musicPrompt.value = source.prompt || ''; els.lyrics.value = source.lyrics || '';
+    instrumental = !!source.instrumental;
+    quality = Object.keys(MUSIC_MODELS).find(key => MUSIC_MODELS[key] === source.model) || quality;
+    pendingMusicSource = { sessionId: activeSession.id, jobId: entry.job };
+    renderChrome(); els.musicPrompt.focus();
+    card('notice', 'Повтор с правками', 'Проверьте и измените данные перед отправкой. Это новая генерация по тексту, не аудиоремикс.');
+  }
+  function createCoverDraft(entry) {
+    if (storageBlocked) return;
+    const photoDraft = mode === 'photo' ? els.prompt.value : drafts.photo;
+    if (photoDraft.trim() && !confirm('Заменить текущий черновик изображения?')) return;
+    setView('chat'); setMode('photo');
+    els.prompt.value = 'Обложка для трека: ' + (entry.title || entry.prompt || '').slice(0, 200);
+    renderChrome(); els.prompt.focus();
+    card('notice', 'Отдельное изображение', 'Отредактируйте запрос и отправьте его. Картинка появится отдельно и не заменит обложку трека или скачиваемого файла.');
+  }
+
+  function addMusicActions(container, entry, input) {
+    const row = document.createElement('div'); row.className = 'actions';
+    const repeat = document.createElement('button'); repeat.type = 'button'; repeat.className = 'action';
+    repeat.textContent = 'Повторить с правками'; repeat.addEventListener('click', () => repeatMusic(entry, input));
+    const cover = document.createElement('button'); cover.type = 'button'; cover.className = 'action';
+    cover.textContent = 'Создать картинку обложки'; cover.addEventListener('click', () => createCoverDraft(entry));
+    row.append(repeat, cover); container.append(row);
+  }
+
   // «Сделать из этого трек»: чат → музыка с подставленным брифом.
   function addMakeTrackAction(container, brief) {    const row = document.createElement('div');
     row.className = 'actions';
@@ -507,7 +558,7 @@
     row.className = 'actions';
     const link = document.createElement('a');
     link.className = 'action';
-    link.href = URL.createObjectURL(blob);
+    link.href = feedObjectURL(blob);
     link.download = name + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + extOf(blob);
     link.textContent = label || '⬇ Скачать';
     row.append(link);
@@ -669,6 +720,7 @@
     stageBody.append(wait.row);
     try {
       const id = await submitJob({ type: 'image', prompt: text });
+      recordSessionJob(session, id, 'photo', { prompt: text });
       const result = await pollJob(id, { shouldStop: () => handle.cancelled, onStatus: d => {
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
@@ -677,7 +729,7 @@
       const item = document.createElement('img');
       item.alt = 'Результат';
       const blob = await fileBlob(result.result_url);
-      item.src = URL.createObjectURL(blob);
+      item.src = feedObjectURL(blob);
       item.className = 'media-in';
       requestAnimationFrame(() => item.classList.add('loaded'));
       const wrap = card('assistant', 'Фото готово', '', session);
@@ -720,7 +772,8 @@
   async function createMusic(description) {
     const session = activeSession;
     // Зафиксировать настройки до автолирики: пользователь может менять их во время ожидания.
-    const snapshot = { advanced, quality, instrumental };
+    const snapshot = { advanced, quality, instrumental, parentJobId: pendingMusicSource?.sessionId === session.id ? pendingMusicSource.jobId : null };
+    if (snapshot.parentJobId) pendingMusicSource = null;
     const style = snapshot.advanced ? els.musicPrompt.value.trim() : description;
     let lyrics = snapshot.advanced ? els.lyrics.value.trim() : '';
     const vocal = !snapshot.instrumental;
@@ -801,7 +854,9 @@
       const params = { model: MUSIC_MODELS[snapshot.quality] };
       if (snapshot.instrumental) params.instrumental = true;
       if (lyrics) params.lyrics = lyrics;
+      const input = { prompt: style || lyrics, lyrics, model: MUSIC_MODELS[snapshot.quality], instrumental: snapshot.instrumental, parentJobId: snapshot.parentJobId };
       const id = await submitJob({ type: 'music', prompt: style || lyrics, params });
+      recordSessionJob(session, id, 'music', input);
       const result = await pollJob(id, { shouldStop: () => handle.cancelled, onStatus: d => {
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
@@ -812,19 +867,21 @@
       audio.controls = true;
       audio.controlsList = 'nodownload'; // скачивание только через нашу кнопку: имя .m4a, обложка и текст внутри
       const blob = await fileBlob(result.result_url);
-      audio.src = URL.createObjectURL(blob);
+      audio.src = feedObjectURL(blob);
       const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', '', session);
       wrap.textContent = '';
       addTrackCover(wrap, id, result.cover_url);
+      audio.preload = 'metadata';
       wrap.append(audio);
-      const input = { prompt: style || lyrics, lyrics, model: MUSIC_MODELS[snapshot.quality], instrumental: snapshot.instrumental };
+      BriixWaveform.attach(audio, blob, wrap);
       addMusicDetails(wrap, input);
+      addMusicActions(wrap.closest('.card'), { job: id, prompt: input.prompt, title: input.prompt }, input);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать ' + extOf(blob).toUpperCase());
       feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', kind: 'music', file: result.result_url, job: id, cover: result.cover_url || '', input }, session);
       const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
       libAdd({
         job: id, sessionId: session.id, kind: 'music', prompt: style || lyrics || '',
-        lyrics: lyrics || '', instrumental: snapshot.instrumental,
+        lyrics: lyrics || '', instrumental: snapshot.instrumental, inputComplete: true, parentJobId: snapshot.parentJobId,
         title: titleSource.slice(0, 60),
         model: MUSIC_MODELS[snapshot.quality], file: result.result_url, cover: result.cover_url || '', created: Date.now(), fav: false
       });
@@ -1125,7 +1182,8 @@
     els.feed.innerHTML = ''; els.lib.innerHTML = '';
     els.prompt.value = ''; els.lyrics.value = ''; els.musicPrompt.value = '';
     Object.keys(drafts).forEach(k => { drafts[k] = ''; });
-    blobCache.forEach(url => URL.revokeObjectURL(url)); blobCache.clear(); blobTypes.clear();
+    blobCache.forEach(url => URL.revokeObjectURL(url)); blobCache.clear(); blobTypes.clear(); blobBytes.clear();
+    feedObjectUrls.forEach(url => URL.revokeObjectURL(url)); feedObjectUrls.clear();
     localStorage.removeItem(USER_KEY);
     els.studio.hidden = true; els.gate.hidden = false; els.nickInput.value = '';
     pinBuf = ''; renderDots(); gateHint('PIN — 4–6 цифр. Новый ник регистрируется при первом входе.'); els.nickInput.focus();
@@ -1134,6 +1192,7 @@
   // ---- библиотека (клиентская; переезд на GET /jobs — INFRA #77) ----------------
   const blobCache = new Map(); // job_id → objectURL
   const blobTypes = new Map();
+  const blobBytes = new Map();
   let libFilter = 'all';
 
   function libLoad() {
@@ -1324,7 +1383,7 @@
           const blob = await fileBlob(entry.file);
           if (currentUser() !== owner) return;
           url = URL.createObjectURL(blob);
-          blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type);
+          blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type); blobBytes.set(entry.job, blob);
         }
         const link = document.createElement('a');
         link.href = url;
@@ -1365,19 +1424,36 @@
       if (currentUser() !== owner) return;
       libSave(libLoad().filter(x => x.job !== entry.job));
       if (blobCache.has(entry.job)) URL.revokeObjectURL(blobCache.get(entry.job));
-      blobCache.delete(entry.job); blobTypes.delete(entry.job);
+      blobCache.delete(entry.job); blobTypes.delete(entry.job); blobBytes.delete(entry.job);
       renderLibrary();
     });
     row.append(download, fav, del);
-    const sourceSession = sessionProfile?.sessions.find(s => s.id === entry.sessionId || s.feed.some(item => item && item.job === entry.job));
+    const sourceSession = sessionProfile?.sessions.find(s => s.id === entry.sessionId || s.feed.some(item => item && item.job === entry.job) || s.jobs?.some(item => item.job === entry.job));
+    let extra = row;
+    if (entry.kind === 'music') {
+      const details = document.createElement('details'); details.className = 'lib-more';
+      const summary = document.createElement('summary'); summary.className = 'action'; summary.textContent = 'Ещё';
+      extra = document.createElement('div'); extra.className = 'actions'; details.append(summary, extra); row.append(details);
+      const input = sourceSession?.feed.find(item => item && item.job === entry.job)?.input || sourceSession?.jobs?.find(item => item.job === entry.job)?.input;
+      const repeat = document.createElement('button'); repeat.type = 'button'; repeat.className = 'action';
+      repeat.textContent = 'Повторить с правками'; repeat.addEventListener('click', () => repeatMusic(entry, input)); extra.append(repeat);
+      const cover = document.createElement('button'); cover.type = 'button'; cover.className = 'action';
+      cover.textContent = 'Создать картинку обложки'; cover.addEventListener('click', () => createCoverDraft(entry)); extra.append(cover);
+    }
     if (sourceSession) {
       const open = document.createElement('button'); open.type = 'button'; open.className = 'action';
       open.textContent = 'Открыть сессию: ' + sourceSession.title;
-      open.addEventListener('click', () => selectSession(sourceSession)); row.append(open);
+      open.addEventListener('click', () => selectSession(sourceSession)); extra.append(open);
     } else if (entry.kind === 'music') {
-      const unknown = document.createElement('span'); unknown.className = 'hint'; unknown.textContent = 'Сессия неизвестна'; row.append(unknown);
+      const unknown = document.createElement('span'); unknown.className = 'hint'; unknown.textContent = 'Сессия неизвестна'; extra.append(unknown);
     }
-    main.append(who, promptEl, media, row);
+    main.append(who, promptEl);
+    if (entry.kind === 'music') {
+      const origin = document.createElement('div'); origin.className = 'hint';
+      origin.textContent = sourceSession ? 'Сессия: ' + sourceSession.title : 'Сессия неизвестна';
+      main.append(origin);
+    }
+    main.append(media, row);
     div.append(main);
     if (entry.kind === 'music' && entry.lyrics) {
       const lyricsWrap = document.createElement('div');
@@ -1426,7 +1502,7 @@
           const blob = await fileBlob(entry.file);
           if (currentUser() !== owner || !container.isConnected) return;
           const url = URL.createObjectURL(blob);
-          blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type);
+          blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type); blobBytes.set(entry.job, blob);
           renderMedia(entry, container, url);
         } catch (error) {
           if (currentUser() !== owner || !container.isConnected) return;
@@ -1454,9 +1530,10 @@
       const audio = document.createElement('audio');
       audio.controls = true;
       audio.controlsList = 'nodownload'; // то же: имя файла даёт наша кнопка
-      audio.preload = 'none';
+      audio.preload = 'metadata';
       audio.src = url;
       container.append(audio);
+      BriixWaveform.attach(audio, blobBytes.get(entry.job), container);
     }
   }
 

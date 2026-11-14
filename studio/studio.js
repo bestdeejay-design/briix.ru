@@ -13,6 +13,11 @@
   const MODEL_LABELS = { flash: 'Flash', pro: 'Pro' };
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
   const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+  const WELCOME = {
+    chat: ['Начните с идеи', 'Обсудите задачу с помощником или выберите режим фото и музыки.'],
+    photo: ['Представьте кадр', 'Опишите сюжет, настроение и детали — арт-директор поможет доработать идею.'],
+    music: ['Создайте своё звучание', 'Опишите песню или инструментал. Продюсер поможет подготовить черновик.']
+  };
   const PLACEHOLDERS = {
     chat: 'Что создаём?',
     photo: 'Что рисуем? Опишите изображение…',
@@ -327,7 +332,16 @@
             if (!slot.isConnected || currentUser() !== owner) return;
             slot.textContent = '';
             if (d.kind === 'photo') {
-              const img = new Image(); img.alt = 'Результат'; img.src = feedObjectURL(blob); slot.append(img);
+              const img = new Image(); img.alt = 'Результат';
+              const imageUrl = feedObjectURL(blob);
+              img.onerror = () => {
+                URL.revokeObjectURL(imageUrl); feedObjectUrls.delete(imageUrl);
+                if (!slot.isConnected || currentUser() !== owner) return;
+                slot.textContent = 'Не удалось открыть изображение. ';
+                const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'action';
+                retry.textContent = 'Повторить'; retry.addEventListener('click', load); slot.append(retry);
+              };
+              img.src = imageUrl; slot.append(img);
             } else {
               const audio = document.createElement('audio'); audio.controls = true; audio.controlsList = 'nodownload';
               audio.preload = 'metadata'; audio.src = feedObjectURL(blob); slot.append(audio);
@@ -394,10 +408,11 @@
   }
 
   function meta() {
-    const bits = [location.hostname, MODE_LABELS[mode]];
+    const bits = [MODE_LABELS[mode]];
     if (mode === 'music') bits.push(MODEL_LABELS[quality]);
     else bits.push(currentAssistant().name.replace(/\s*\(.*\)\s*$/, ''));
     els.metaLeft.textContent = bits.join(' · ');
+    els.metaLeft.title = 'Студия: ' + location.hostname;
   }
 
   // ---- дропдауны ------------------------------------------------------------
@@ -479,6 +494,7 @@
     body.textContent = text || '';
     div.append(whoEl, body);
     const root = session && rootFor(session);
+    root?.querySelector('.studio-welcome')?.remove();
     (root || els.feed).append(div);
     if (session === activeSession) scrollFeed(kind === 'user');
     return body;
@@ -624,6 +640,13 @@
   function renderChrome() {
     els.modes.querySelectorAll('.mode').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const isMusic = mode === 'music';
+    els.studio.dataset.mode = mode;
+    const root = activeSession && rootFor(activeSession);
+    if (root) {
+      root.dataset.welcomeTitle = WELCOME[mode][0]; root.dataset.welcomeText = WELCOME[mode][1];
+      const welcome = root.querySelector('.studio-welcome');
+      if (welcome) { welcome.querySelector('h1').textContent = WELCOME[mode][0]; welcome.querySelector('p').textContent = WELCOME[mode][1]; }
+    }
     els.studio.classList.toggle('is-advanced', isMusic && advanced);
     document.querySelectorAll('.music-only').forEach(el => { el.hidden = !isMusic; });
     document.querySelectorAll('.chat-only').forEach(el => { el.hidden = mode !== 'chat'; });
@@ -637,6 +660,7 @@
     els.vocalSeg.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.vocal) === (instrumental ? 1 : 0))));
     els.tuneToggle.setAttribute('aria-pressed', String(advanced));
     els.prepareMusic.textContent = instrumental ? '✦ Подготовить трек' : '✦ Подготовить песню';
+    $('modelHint').hidden = !isMusic || !instrumental;
     meta();
     updateEnabled();
   }
@@ -905,7 +929,9 @@
       const input = { prompt: style || lyrics, lyrics, model: MUSIC_MODELS[snapshot.quality], instrumental: snapshot.instrumental, parentJobId: snapshot.parentJobId };
       const id = await submitJob({ type: 'music', prompt: style || lyrics, params });
       recordSessionJob(session, id, 'music', input);
+      let serverWarning = '';
       const result = await pollJob(id, { shouldStop: () => handle.cancelled, onStatus: d => {
+        if (d.warning) serverWarning = String(d.warning);
         if (d.stage) stageBody.querySelector('[data-wait]')?.setAttribute('data-wait-stage', d.stage);
       } });
       wait.stop();
@@ -916,7 +942,9 @@
       audio.controlsList = 'nodownload'; // скачивание только через нашу кнопку: имя .m4a, обложка и текст внутри
       const blob = await fileBlob(result.result_url);
       audio.src = feedObjectURL(blob);
-      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', '', session);
+      const actualModel = result.provenance?.model || (snapshot.instrumental ? '' : MODEL_LABELS[snapshot.quality]);
+      const resultLabel = 'Трек готов' + (actualModel ? ' (' + actualModel + ')' : '');
+      const wrap = card('assistant', resultLabel, '', session);
       wrap.textContent = '';
       addTrackCover(wrap, id, result.cover_url);
       audio.preload = 'metadata';
@@ -925,13 +953,17 @@
       addMusicDetails(wrap, input);
       addMusicActions(wrap.closest('.card'), { job: id, prompt: input.prompt, title: input.prompt }, input);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать ' + extOf(blob).toUpperCase());
-      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', kind: 'music', file: result.result_url, job: id, cover: result.cover_url || '', input }, session);
+      feedPush({ t: 'media', who: resultLabel, kind: 'music', file: result.result_url, job: id, cover: result.cover_url || '', input }, session);
+      if (serverWarning) {
+        card('notice', 'Информация сервера', serverWarning, session);
+        feedPush({ t: 'notice', who: 'Информация сервера', text: serverWarning }, session);
+      }
       const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
       libAdd({
         job: id, sessionId: session.id, kind: 'music', prompt: style || lyrics || '',
         lyrics: lyrics || '', instrumental: snapshot.instrumental, inputComplete: true, parentJobId: snapshot.parentJobId,
         title: titleSource.slice(0, 60),
-        model: MUSIC_MODELS[snapshot.quality], file: result.result_url, cover: result.cover_url || '', created: Date.now(), fav: false
+        model: result.provenance?.model || (snapshot.instrumental ? '' : MUSIC_MODELS[snapshot.quality]), file: result.result_url, cover: result.cover_url || '', created: Date.now(), fav: false
       });
     } catch (error) {
       wait.stop(); watchStage.disconnect();
@@ -1249,6 +1281,12 @@
     if (!session.history.length && session.feed.some(item => item.t === 'assistant' && item.track)) {
       card('notice', 'Контекст чата', 'Ранее сохранённая переписка показана выше, но её контекст не был сохранён.', session);
     }
+    if (!root.children.length) {
+      const welcome = document.createElement('section'); welcome.className = 'studio-welcome';
+      const title = document.createElement('h1'); title.textContent = WELCOME[mode][0];
+      const description = document.createElement('p'); description.textContent = WELCOME[mode][1];
+      welcome.append(title, description); root.append(welcome);
+    }
   }
   let sessionTransition = false;
   async function activateSession(session) {
@@ -1447,18 +1485,20 @@
   // Серверная библиотека (infra#77): GET /jobs как первоисточник, клиентские записи — дополнение.
   let libSeq = 0;
   const jobsInFlight = new Map();
-  function serverJobs() {
+  function serverJobs(offset = 0) {
     const origin = server(), credential = token(), owner = currentUser();
-    const key = JSON.stringify([origin, credential, owner]);
+    const key = JSON.stringify([origin, credential, owner, offset]);
     if (jobsInFlight.has(key)) return jobsInFlight.get(key);
     const work = (async () => {
-      const response = await fetch(origin + '/jobs?limit=100', { headers: { Authorization: 'Bearer ' + credential, 'Content-Type': 'application/json' } });
+      const response = await fetch(origin + '/jobs?limit=100' + (offset ? '&offset=' + offset : ''), { headers: { Authorization: 'Bearer ' + credential, 'Content-Type': 'application/json' } });
       if (!response.ok) {
         if (response.status === 401) throw new BusError('unauthorized', 'Ключ не принят (401).', 401);
         throw new BusError('http', 'Библиотека недоступна (' + response.status + ').', response.status);
       }
       const payload = await response.json();
-      return Array.isArray(payload?.items) ? payload.items : [];
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      items.total = Number.isFinite(payload?.total) ? payload.total : items.length;
+      return items;
     })();
     jobsInFlight.set(key, work);
     const clear = () => { if (jobsInFlight.get(key) === work) jobsInFlight.delete(key); };
@@ -1481,7 +1521,10 @@
     els.lib.append(filterRow);
     const results = document.createElement('div');
     results.className = 'lib-results';
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'action lib-load-more';
+    more.textContent = 'Показать ещё'; more.hidden = true;
     const cards = new Map();
+    const libraryJobs = serverJobs();
     const render = (list, note) => {
       if (list.length && note) note.hidden = true;
       if (!list.length) {
@@ -1498,7 +1541,7 @@
           entry.fav, entry.file, entry.cover, entry.sessionId]);
         let item = cards.get(entry.job);
         if (!item || item.signature !== signature) {
-          const node = libCard(entry);
+          const node = libCard(entry, libraryJobs);
           if (item) item.node.replaceWith(node);
           item = { node, signature, entry }; cards.set(entry.job, item);
         } else {
@@ -1515,12 +1558,14 @@
     const note = document.createElement('div');
     note.className = 'card notice';
     note.textContent = 'Загружаем библиотеку…';
-    els.lib.append(note, results);
-    render(local, note);
+    els.lib.append(note, results, more);
+    if (local.length) render(local, note);
     // затем серверный список поверх (объединение по job id)
     const seq = ++libSeq;
-    serverJobs().then(items => {
-      if (seq !== libSeq) return; // устаревший прогон рендера
+    let serverItems = [], total = 0, nextOffset = 0;
+    const showItems = () => {
+      if (seq !== libSeq) return;
+      const items = serverItems;
       const byId = new Map();
       for (const e of libLoad()) byId.set(e.job, e);
       const merged = [];
@@ -1547,12 +1592,34 @@
       for (const e of byId.values()) merged.push(e);
       merged.sort((a, b) => (b.created || 0) - (a.created || 0));
       render(merged.filter(e => libFilter === 'all' ? true : libFilter === 'fav' ? e.fav : e.kind === libFilter), note);
+      more.hidden = nextOffset >= total;
+      if (!more.hidden && !results.children.length && libFilter !== 'all') note.textContent = 'В загруженных записях этого фильтра пусто. Проверьте остальные записи.';
+    };
+    more.addEventListener('click', async () => {
+      more.disabled = true; more.textContent = 'Загружаем…';
+      try {
+        const next = await serverJobs(nextOffset);
+        if (seq !== libSeq) return;
+        const known = new Set(serverItems.map(item => item.id));
+        const fresh = next.filter(item => !known.has(item.id));
+        if (!fresh.length) { more.textContent = 'Не удалось получить остальные записи'; return; }
+        serverItems.push(...fresh); nextOffset += next.length; total = next.total; showItems(); more.textContent = 'Показать ещё';
+      } catch (error) {
+        if (seq !== libSeq) return;
+        more.textContent = 'Не удалось загрузить — повторить';
+      } finally { more.disabled = false; }
+    });
+    libraryJobs.then(items => {
+      if (seq !== libSeq) return;
+      serverItems = [...items]; nextOffset = items.length; total = items.total; showItems();
     }).catch((error) => {
       if (seq !== libSeq) return;
       note.hidden = false;
       note.textContent = error instanceof BusError && error.status === 401
-        ? 'Серверная библиотека недоступна: проверьте ключ (профиль → «Ключ стенда…»).'
-        : 'Серверная библиотека недоступна — показаны локальные записи.';
+        ? 'Серверная библиотека недоступна: проверьте ключ (профиль → «Ключ стенда…»). '
+        : 'Серверная библиотека недоступна — показаны локальные записи. ';
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'action';
+      retry.textContent = 'Повторить'; retry.addEventListener('click', renderLibrary); note.append(retry);
     });
   }
 
@@ -1563,38 +1630,55 @@
   }
 
   // Обложки и медиа используют общую ограниченную очередь; ошибку 429 повторяет fileBlob.
-  function addTrackCover(container, job, cover, miniature = false) {
+  function addTrackCover(container, job, cover, miniature = false, initialJobs = null) {
     const frame = document.createElement('div');
     const owner = currentUser();
     frame.className = miniature ? 'lib-cover' : 'track-cover';
-    frame.textContent = '♫';
-    frame.setAttribute('aria-label', 'Обложка недоступна');
     container.append(frame);
-    // В библиотеке cover_url приходит вместе с серверным списком; не делаем GET /jobs для каждой карточки.
-    if ((!job && !cover) || (miniature && !cover)) return;
-    const enqueue = () => {
+    const fallback = (message, canRetry = false) => {
+      frame.textContent = '';
+      const mark = document.createElement(canRetry ? 'button' : 'span'); mark.className = 'cover-placeholder';
+      if (canRetry) {
+        mark.type = 'button'; mark.setAttribute('aria-label', message + '. Проверить ещё раз.');
+        mark.addEventListener('click', () => enqueue(true));
+      } else mark.setAttribute('aria-hidden', 'true');
+      mark.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>';
+      if (canRetry) { const label = document.createElement('span'); label.className = 'cover-label'; label.textContent = message.startsWith('У трека') ? 'нет обложки' : 'проверить'; mark.append(label); }
+      frame.append(mark); frame.setAttribute('aria-label', message); frame.title = message;
+    };
+    const failed = message => {
+      if (!frame.isConnected || currentUser() !== owner) return;
+      frame.textContent = '';
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'cover-retry';
+      retry.textContent = '↻'; retry.setAttribute('aria-label', message + ' Повторить загрузку обложки.');
+      retry.title = message + ' Повторить загрузку обложки.';
+      retry.addEventListener('click', () => enqueue(true)); frame.append(retry);
+      frame.setAttribute('aria-label', message);
+    };
+    fallback('Обложка отсутствует');
+    if (!job && !cover) return;
+    const enqueue = (retry = false) => {
+      frame.classList.add('is-loading'); frame.setAttribute('aria-label', 'Загрузка обложки');
       libQueue.push(async () => {
         if (!frame.isConnected || currentUser() !== owner) return;
         try {
-          const path = cover || (await serverJobs()).find(item => item.id === job)?.cover_url;
-          if (!path || !frame.isConnected || currentUser() !== owner) return;
+          const jobs = !cover && job ? await (!retry && initialJobs ? initialJobs : serverJobs()) : null;
+          const match = jobs?.find(item => item.id === job);
+          const path = cover || match?.cover_url;
+          if (!frame.isConnected || currentUser() !== owner) return;
+          if (!path) {
+            frame.classList.remove('is-loading');
+            fallback(match ? 'У трека пока нет обложки' : 'Обложка не найдена в загруженных записях', true); return;
+          }
           const blob = await fileBlob(path, 2);
           if (!frame.isConnected || currentUser() !== owner) return;
           const image = new Image(); image.alt = 'Обложка трека';
           const url = URL.createObjectURL(blob);
-          image.onload = () => URL.revokeObjectURL(url);
-          image.onerror = () => {
-            URL.revokeObjectURL(url);
-            if (frame.contains(image)) { frame.textContent = '♫'; frame.setAttribute('aria-label', 'Обложка недоступна'); }
-          };
-          image.src = url; frame.textContent = ''; frame.removeAttribute('aria-label'); frame.append(image);
+          image.onload = () => { URL.revokeObjectURL(url); frame.classList.remove('is-loading'); frame.removeAttribute('aria-label'); frame.removeAttribute('title'); };
+          image.onerror = () => { URL.revokeObjectURL(url); frame.classList.remove('is-loading'); failed('Не удалось открыть изображение.'); };
+          image.src = url; frame.textContent = ''; frame.append(image);
         } catch (error) {
-          if (!frame.isConnected || currentUser() !== owner) return;
-          const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'cover-retry';
-          retry.textContent = '↻'; retry.setAttribute('aria-label', (error.message || 'Обложка недоступна') + ' Повторить загрузку.');
-          retry.title = (error.message || 'Обложка недоступна') + ' Повторить';
-          retry.addEventListener('click', () => { frame.textContent = '…'; enqueue(); });
-          frame.textContent = ''; frame.append(retry);
+          frame.classList.remove('is-loading'); failed(error.message || 'Обложка недоступна.');
         }
       });
       libPump();
@@ -1606,7 +1690,7 @@
     observer.observe(frame);
   }
 
-  function libCard(entry) {
+  function libCard(entry, libraryJobs) {
     const div = document.createElement('div');
     const owner = currentUser();
     div.className = 'card lib-item' + (entry.fav ? ' fav' : '');
@@ -1615,7 +1699,7 @@
     main.className = 'lib-main';
     const who = document.createElement('div');
     who.className = 'who';
-    if (entry.kind === 'music') addTrackCover(div, entry.job, entry.cover, true);
+    if (entry.kind === 'music') addTrackCover(div, entry.job, entry.cover, true, libraryJobs);
     let whoText = KIND_LABELS[entry.kind] || entry.kind;
     if (entry.kind === 'music' && entry.model) whoText += ' · ' + entry.model;
     whoText += ' · ' + new Date(entry.created).toLocaleString('ru-RU');
@@ -1630,7 +1714,8 @@
     row.className = 'actions';
     const download = document.createElement('a');
     download.className = 'action';
-    download.textContent = entry.kind === 'music' ? '⬇ Скачать аудио' : '⬇ Скачать';
+    download.textContent = '↓ Скачать';
+    download.setAttribute('aria-label', entry.kind === 'music' ? 'Скачать аудио' : 'Скачать изображение');
     download.href = '#';
     download.addEventListener('click', async e => {
       e.preventDefault();
@@ -1714,7 +1799,8 @@
       origin.textContent = sourceSession ? 'Сессия: ' + sourceSession.title : 'Сессия неизвестна';
       main.append(origin);
     }
-    main.append(media, row);
+    if (entry.kind === 'music') { row.prepend(media); main.append(row); }
+    else main.append(media, row);
     div.append(main);
     if (entry.kind === 'music' && entry.lyrics) {
       const lyricsWrap = document.createElement('div');
@@ -1751,8 +1837,14 @@
   }
   function libMedia(entry, container) {
     const owner = currentUser();
-    const cached = blobCache.get(entry.job);
-    if (cached) return renderMedia(entry, container, cached);
+    const failImage = () => {
+      if (currentUser() !== owner || !container.isConnected) return;
+      if (blobCache.has(entry.job)) URL.revokeObjectURL(blobCache.get(entry.job));
+      blobCache.delete(entry.job); blobTypes.delete(entry.job); blobBytes.delete(entry.job);
+      container.textContent = 'Не удалось открыть изображение. ';
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'action';
+      retry.textContent = 'Повторить'; retry.addEventListener('click', load); container.append(retry);
+    };
     const load = async () => {
       container.textContent = 'Загружаем…';
       try {
@@ -1763,7 +1855,7 @@
           url = URL.createObjectURL(blob);
           blobCache.set(entry.job, url); blobTypes.set(entry.job, blob.type); blobBytes.set(entry.job, blob);
         }
-        const audio = renderMedia(entry, container, url);
+        const audio = renderMedia(entry, container, url, failImage);
         if (audio) tryPlay(audio, container);
       } catch (error) {
         if (currentUser() !== owner || !container.isConnected) return;
@@ -1772,6 +1864,8 @@
         retry.textContent = 'Повторить'; retry.addEventListener('click', load); container.append(retry);
       }
     };
+    const cached = blobCache.get(entry.job);
+    if (cached) return renderMedia(entry, container, cached, failImage);
     if (entry.kind === 'music') {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'action media-load';
       button.textContent = '▶ Слушать'; button.addEventListener('click', load); container.append(button);
@@ -1795,11 +1889,13 @@
       container.append(hint);
     });
   }
-  function renderMedia(entry, container, url) {
+  function renderMedia(entry, container, url, onImageError) {
     container.textContent = '';
+    container.classList.toggle('has-audio', entry.kind === 'music');
     if (entry.kind === 'photo') {
       const img = new Image();
       img.alt = 'Результат';
+      img.onerror = onImageError || null;
       img.src = url;
       container.append(img);
     } else {
@@ -1876,7 +1972,13 @@
   els.musicPrompt.addEventListener('input', updateEnabled);
 
   els.keySave.addEventListener('click', () => {
+    const previousToken = token();
     setToken(els.keyInput.value);
+    if (token() !== previousToken) {
+      libSeq++; jobsInFlight.clear();
+      blobCache.forEach(url => URL.revokeObjectURL(url)); blobCache.clear(); blobTypes.clear(); blobBytes.clear();
+      if (!els.lib.hidden) renderLibrary();
+    }
     els.keyInput.value = '';
     els.keyCard.hidden = true;
     renderKeyChip();

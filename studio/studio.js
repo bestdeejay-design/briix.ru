@@ -800,10 +800,18 @@
   }
 
   async function fileBlob(pathOrUrl) {
-    const url = pathOrUrl.startsWith('http') ? pathOrUrl : server() + pathOrUrl;
+    let url, trusted;
+    try {
+      trusted = new URL(server());
+      url = new URL(pathOrUrl.startsWith('http') ? pathOrUrl : server() + pathOrUrl);
+    } catch { throw new BusError('unsafe_url', 'Некорректный адрес файла.'); }
+    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== trusted.origin || url.username || url.password) {
+      throw new BusError('unsafe_url', 'Недоверенный адрес файла.');
+    }
     const pauses = [1000, 2000, 4000]; // ретрай 429: 1с, 2с, 4с — бросаем только после последней попытки
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
+      // Never follow redirects with the bearer: the destination may be another origin.
+      const response = await fetch(url.href, { headers: { Authorization: 'Bearer ' + token() }, redirect: 'error' });
       if (response.ok) return response.blob();
       if (response.status !== 429 || attempt >= pauses.length) {
         if (response.status === 429) throw new BusError('rate_limited', 'Сервер просит не спешить — повторите через минуту.', 429);

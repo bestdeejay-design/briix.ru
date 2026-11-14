@@ -737,6 +737,26 @@ function bffServer(port) {
   assert.deepEqual(small.smallButtons, [], 'visible mobile buttons meet both 44px dimensions');
   ok('mobile 320x568 advanced controls remain accessible');
 
+  // Сохранённые URL не могут заставить отправить ключ на чужой origin, даже через redirect.
+  p = await page();
+  let foreignRequests = 0, redirectRequests = 0;
+  p.on('request', request => {
+    if (request.url().startsWith('http://127.0.0.1:19877/')) foreignRequests++;
+    if (request.url().endsWith('/files/redirect-test')) redirectRequests++;
+  });
+  await p.route(`http://127.0.0.1:${BFF_PORT}/files/redirect-test`, route => route.fulfill({
+    status: 302, headers: { Location: 'http://127.0.0.1:19877/steal', 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` }
+  }));
+  await p.evaluate(() => localStorage.setItem('briix-studio-feed-tester', JSON.stringify([
+    { t: 'media', who: 'Чужой адрес', kind: 'photo', file: 'http://127.0.0.1:19877/steal' },
+    { t: 'media', who: 'Переадресация', kind: 'photo', file: '/files/redirect-test' }
+  ])));
+  await p.reload();
+  await p.waitForFunction(() => [...document.querySelectorAll('#feed .card .body')].filter(x => x.textContent.includes('Файл недоступен')).length === 2);
+  assert.equal(redirectRequests, 1, 'trusted URL was requested');
+  assert.equal(foreignRequests, 0, 'neither foreign URL nor redirect target was requested');
+  ok('file fetch blocks foreign origins and redirects');
+
   assert.deepEqual(errors, [], 'no page errors anywhere');
   await browser.close();
   staticSrv.close();

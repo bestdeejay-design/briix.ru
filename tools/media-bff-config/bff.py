@@ -450,7 +450,14 @@ async def create_job(request):
         return blocked
 
     # Vocal-route: type=music + params.model из VOCAL_MODELS (иначе musicgen-инструментал).
-    vocal_model = params.get("model") if jtype == "music" else None
+    # infra#97: instrumental=true при ЛЮБОМ params.model — MusicGen-инструментал;
+    # модель игнорируется с warning в джобе (клиент студии всегда шлёт model).
+    instrumental = jtype == "music" and params.get("instrumental") is True
+    job_warning = None
+    if instrumental and params.get("model") in VOCAL_MODELS:
+        job_warning = (f"params.model={params.get('model')} проигнорирован:"
+                       " instrumental=true маршрутизируется в MusicGen.")
+    vocal_model = params.get("model") if jtype == "music" and not instrumental else None
     if vocal_model is not None:
         if vocal_model not in VOCAL_MODELS:
             return envelope(400, "params.model должен быть ace-step-flash или ace-step-pro.", "bad_params", request)
@@ -506,6 +513,7 @@ async def create_job(request):
                            # ACE-Step vocal-джобы помечаются capability song.vocal.
                            **({"capability": capability} if capability else {})},
             "created_at": now, "started_at": None, "finished_at": None,
+            **({"warning": job_warning} if job_warning else {}),
         }
         JOBS[job_id] = job
         if idem:
@@ -537,6 +545,8 @@ async def get_job(request):
         out["ttl_seconds"] = max(0, int(RETENTION_SECONDS - (time.time() - (j.get("finished_at") or time.time()))))
     if j.get("error"):
         out["error"] = j["error"]
+    if j.get("warning"):
+        out["warning"] = j["warning"]  # infra#97: model игнорируется при instrumental
     return web.json_response(out)
 
 
@@ -1157,7 +1167,10 @@ async def executor():
     loop = asyncio.get_running_loop()
     async def run_one(j, jid):
         is_text = j["type"] == "text"
-        is_vocal = j["type"] == "music" and j.get("params", {}).get("model") in VOCAL_MODELS
+        # infra#97: instrumental=true при любом model — MusicGen-инструментал.
+        is_vocal = (j["type"] == "music"
+                    and not j.get("params", {}).get("instrumental")
+                    and j.get("params", {}).get("model") in VOCAL_MODELS)
         tokens = TEXT_BUDGET if is_text else THREAD_BUDGET
         try:
             # S3 strict-режим: text стартует только когда ни один heavy не идёт.

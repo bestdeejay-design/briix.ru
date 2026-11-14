@@ -787,9 +787,16 @@
 
   async function fileBlob(pathOrUrl) {
     const url = pathOrUrl.startsWith('http') ? pathOrUrl : server() + pathOrUrl;
-    const response = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
-    if (!response.ok) throw new BusError('http', 'Файл не получен (' + response.status + ').', response.status);
-    return response.blob();
+    const pauses = [1000, 2000, 4000]; // ретрай 429: 1с, 2с, 4с — бросаем только после последней попытки
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
+      if (response.ok) return response.blob();
+      if (response.status !== 429 || attempt >= pauses.length) {
+        if (response.status === 429) throw new BusError('rate_limited', 'Сервер просит не спешить — повторите через минуту.', 429);
+        throw new BusError('http', 'Файл не получен (' + response.status + ').', response.status);
+      }
+      await new Promise(r => setTimeout(r, pauses[attempt]));
+    }
   }
 
   async function improve(field) {
@@ -1070,7 +1077,15 @@
       cov.className = 'lib-cover';
       cov.alt = 'Обложка';
       div.append(cov);
-      fileBlob(entry.cover).then(b => { cov.src = URL.createObjectURL(b); }).catch(() => cov.remove());
+      // через общую очередь с 2 воркерами: 12 карточек не бадят сервер параллельными запросами (429)
+      libQueue.push(async () => {
+        if (!cov.isConnected) return; // карточку перерисовали — запрос не нужен
+        try {
+          const b = await fileBlob(entry.cover);
+          cov.src = URL.createObjectURL(b);
+        } catch { cov.remove(); }
+      });
+      libPump();
     }
     let whoText = KIND_LABELS[entry.kind] || entry.kind;
     if (entry.kind === 'music' && entry.model) whoText += ' · ' + entry.model;

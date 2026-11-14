@@ -11,13 +11,6 @@
   const TOKEN_KEY = 'briix-media-live-token';
   const MUSIC_MODELS = { flash: 'ace-step-flash', pro: 'ace-step-pro' };
   const MODEL_LABELS = { flash: 'Flash', pro: 'Pro' };
-  // Длительность — пресеты (владелец: не жёсткие секунды, дефолт не 5 минут).
-  const DUR_PRESETS = [
-    { key: 'short', label: 'Короткая', sub: '~30 с', sec: 30 },
-    { key: 'std', label: 'Стандарт', sub: '~1,5 мин', sec: 90 },
-    { key: 'full', label: 'Полная', sub: '~3–5 мин', sec: 300 },
-  ];
-  const durationSec = () => (DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1]).sec;
   const MODE_LABELS = { chat: 'Чат', photo: 'Фото', music: 'Музыка' };
   const SEND_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const PLACEHOLDERS = {
@@ -207,7 +200,6 @@
     tags: $('tags'), addBtn: $('addBtn'),
     assistantChip: $('assistantChip'), assistantName: $('assistantName'), assistantMenu: $('assistantMenu'),
     modelChip: $('modelChip'), modelName: $('modelName'), modelMenu: $('modelMenu'),
-    durationChip: $('durationChip'), durationName: $('durationName'), durationMenu: $('durationMenu'),
     vocalSeg: $('vocalSeg'), tuneToggle: $('tuneToggle'),
     send: $('send'), feed: $('feed'), status: $('status'), metaLeft: $('metaLeft'),
     composer: $('composer'), keyCard: $('keyCard'), keyInput: $('keyInput'), keySave: $('keySave'),
@@ -221,9 +213,6 @@
 
   let mode = 'chat';
   let quality = 'flash';
-  let durKey = 'std'; // «Стандарт» по умолчанию: типичная песня заметно короче 5 минут
-  try { const savedKey = localStorage.getItem('briix-studio-duration-key'); if (DUR_PRESETS.some(p => p.key === savedKey)) durKey = savedKey; } catch {}
-  let duration = durationSec();
   let instrumental = false; // вокальный контур починен (infra#79) — дефолт снова «Песня»; выбор хранится в браузере
   try { const savedInstr = localStorage.getItem('briix-studio-instrumental'); if (savedInstr !== null) instrumental = savedInstr === '1'; } catch {}
   let advanced = false;
@@ -315,7 +304,7 @@
 
   function meta() {
     const bits = [location.hostname, MODE_LABELS[mode]];
-    if (mode === 'music') { const pr = DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1]; bits.push(MODEL_LABELS[quality] + ' · ' + pr.label + ' · ' + pr.sub); }
+    if (mode === 'music') bits.push(MODEL_LABELS[quality]);
     else bits.push(currentAssistant().name.replace(/\s*\(.*\)\s*$/, ''));
     els.metaLeft.textContent = bits.join(' · ');
   }
@@ -378,10 +367,6 @@
   attachMenu(els.modelChip, els.modelMenu, () => Object.keys(MUSIC_MODELS).map(q => ({
     label: MODEL_LABELS[q], sub: MUSIC_MODELS[q], selected: q === quality,
     onPick: () => { quality = q; renderChrome(); }
-  })));
-  attachMenu(els.durationChip, els.durationMenu, () => DUR_PRESETS.map(p => ({
-    label: p.label, sub: p.sub, selected: p.key === durKey,
-    onPick: () => { durKey = p.key; duration = p.sec; try { localStorage.setItem('briix-studio-duration-key', p.key); } catch {} renderChrome(); }
   })));
 
   // ---- карточки ленты ---------------------------------------------------------
@@ -515,8 +500,6 @@
     els.prompt.placeholder = PLACEHOLDERS[mode];
     els.assistantName.textContent = currentAssistant().name.replace(/\s*\(.*\)\s*$/, '');
     els.modelName.textContent = MODEL_LABELS[quality];
-    const preset = DUR_PRESETS.find(p => p.key === durKey) || DUR_PRESETS[1];
-    els.durationName.textContent = preset.label + ' · ' + preset.sub;
     els.vocalSeg.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.vocal) === (instrumental ? 1 : 0))));
     els.tuneToggle.setAttribute('aria-pressed', String(advanced));
     meta();
@@ -698,7 +681,7 @@
 
   async function createMusic(description) {
     // Зафиксировать настройки до автолирики: пользователь может менять их во время ожидания.
-    const snapshot = { advanced, quality, duration, instrumental };
+    const snapshot = { advanced, quality, instrumental };
     const style = snapshot.advanced ? els.musicPrompt.value.trim() : description;
     let lyrics = snapshot.advanced ? els.lyrics.value.trim() : '';
     const vocal = !snapshot.instrumental;
@@ -775,7 +758,7 @@
           return;
         }
       }
-      const params = { model: MUSIC_MODELS[snapshot.quality], duration: snapshot.duration };
+      const params = { model: MUSIC_MODELS[snapshot.quality] };
       if (snapshot.instrumental) params.instrumental = true;
       if (lyrics) params.lyrics = lyrics;
       const id = await submitJob({ type: 'music', prompt: style || lyrics, params });
@@ -790,18 +773,18 @@
       audio.controlsList = 'nodownload'; // скачивание только через нашу кнопку: имя .m4a, обложка и текст внутри
       const blob = await fileBlob(result.result_url);
       audio.src = URL.createObjectURL(blob);
-      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ' · ' + snapshot.duration + ' с)', '');
+      const wrap = card('assistant', 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', '');
       wrap.textContent = '';
       addTrackCover(wrap, id, result.cover_url);
       wrap.append(audio);
       addDownloadAction(wrap.closest('.card'), blob, 'briix-track', '⬇ Скачать ' + extOf(blob).toUpperCase());
-      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ' · ' + snapshot.duration + ' с)', kind: 'music', file: result.result_url, job: id, cover: result.cover_url || '' });
+      feedPush({ t: 'media', who: 'Трек готов (' + MODEL_LABELS[snapshot.quality] + ')', kind: 'music', file: result.result_url, job: id, cover: result.cover_url || '' });
       const titleSource = (lyrics || style || '').split('\n').map(s => s.trim()).find(s => s.length > 2) || '';
       libAdd({
         job: id, kind: 'music', prompt: (style || lyrics || '').slice(0, 200),
         lyrics: (lyrics || '').slice(0, 8000),
         title: titleSource.slice(0, 60),
-        model: MUSIC_MODELS[snapshot.quality], duration: snapshot.duration, file: result.result_url, cover: result.cover_url || '', created: Date.now(), fav: false
+        model: MUSIC_MODELS[snapshot.quality], file: result.result_url, cover: result.cover_url || '', created: Date.now(), fav: false
       });
     } catch (error) {
       wait.stop(); watchStage.disconnect();
@@ -818,9 +801,16 @@
 
   async function fileBlob(pathOrUrl) {
     const url = pathOrUrl.startsWith('http') ? pathOrUrl : server() + pathOrUrl;
-    const response = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
-    if (!response.ok) throw new BusError('http', 'Файл не получен (' + response.status + ').', response.status);
-    return response.blob();
+    const pauses = [1000, 2000, 4000]; // ретрай 429: 1с, 2с, 4с — бросаем только после последней попытки
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
+      if (response.ok) return response.blob();
+      if (response.status !== 429 || attempt >= pauses.length) {
+        if (response.status === 429) throw new BusError('rate_limited', 'Сервер просит не спешить — повторите через минуту.', 429);
+        throw new BusError('http', 'Файл не получен (' + response.status + ').', response.status);
+      }
+      await new Promise(r => setTimeout(r, pauses[attempt]));
+    }
   }
 
   async function improve(field) {
@@ -1098,7 +1088,7 @@
             job: j.id, kind, prompt: j.prompt || '',
             file: j.result_url, cover: j.cover_url || '',
             created: (j.created_at || 0) * 1000, fav: !!j.favorite, server: true,
-            lyrics: j.params?.lyrics || '', model: j.params?.model || '', duration: j.params?.duration_seconds || ''
+            lyrics: j.params?.lyrics || '', model: j.params?.model || ''
           });
         }
       }
@@ -1120,34 +1110,56 @@
     note.textContent = message;
   }
 
-  // Обложка приходит отдельно от аудио; при отсутствии API остаётся честный placeholder.
-  function addTrackCover(container, job, cover) {
+  // Обложки и медиа используют общую ограниченную очередь; ошибку 429 повторяет fileBlob.
+  function addTrackCover(container, job, cover, miniature = false) {
     const frame = document.createElement('div');
-    frame.className = 'track-cover';
+    const owner = currentUser();
+    frame.className = miniature ? 'lib-cover' : 'track-cover';
     frame.textContent = '♫';
     frame.setAttribute('aria-label', 'Обложка недоступна');
     container.append(frame);
-    if (!job && !cover) return;
-    const lookup = cover ? Promise.resolve(cover) : serverJobs().then(items => items.find(item => item.id === job)?.cover_url);
-    lookup.then(path => path && fileBlob(path)).then(blob => {
-      if (!blob || !frame.isConnected) return;
-      const image = new Image(); image.alt = 'Обложка трека';
-      const url = URL.createObjectURL(blob);
-      image.onload = () => URL.revokeObjectURL(url);
-      image.onerror = () => URL.revokeObjectURL(url);
-      image.src = url; frame.textContent = ''; frame.removeAttribute('aria-label'); frame.append(image);
-    }).catch(() => {});
+    // В библиотеке cover_url приходит вместе с серверным списком; не делаем GET /jobs для каждой карточки.
+    if ((!job && !cover) || (miniature && !cover)) return;
+    const enqueue = () => {
+      libQueue.push(async () => {
+        if (!frame.isConnected || currentUser() !== owner) return;
+        try {
+          const path = cover || (await serverJobs()).find(item => item.id === job)?.cover_url;
+          if (!path || !frame.isConnected || currentUser() !== owner) return;
+          const blob = await fileBlob(path);
+          if (!frame.isConnected || currentUser() !== owner) return;
+          const image = new Image(); image.alt = 'Обложка трека';
+          const url = URL.createObjectURL(blob);
+          image.onload = () => URL.revokeObjectURL(url);
+          image.onerror = () => {
+            URL.revokeObjectURL(url);
+            if (frame.contains(image)) { frame.textContent = '♫'; frame.setAttribute('aria-label', 'Обложка недоступна'); }
+          };
+          image.src = url; frame.textContent = ''; frame.removeAttribute('aria-label'); frame.append(image);
+        } catch { /* Оставляем заглушку, если файл недоступен. */ }
+      });
+      libPump();
+    };
+    if (!miniature) { enqueue(); return; }
+    const observer = new IntersectionObserver((records, obs) => {
+      if (!frame.isConnected) { obs.disconnect(); return; }
+      if (records.some(record => record.isIntersecting)) { obs.disconnect(); enqueue(); }
+    }, { rootMargin: '150px' });
+    observer.observe(frame);
   }
 
   function libCard(entry) {
     const div = document.createElement('div');
     const owner = currentUser();
     div.className = 'card lib-item' + (entry.fav ? ' fav' : '');
+    // строка-карточка (эталон владельца): обложка-миниатюра слева, контент справа
+    const main = document.createElement('div');
+    main.className = 'lib-main';
     const who = document.createElement('div');
     who.className = 'who';
+    if (entry.kind === 'music') addTrackCover(div, entry.job, entry.cover, true);
     let whoText = KIND_LABELS[entry.kind] || entry.kind;
     if (entry.kind === 'music' && entry.model) whoText += ' · ' + entry.model;
-    if (entry.kind === 'music' && entry.duration) whoText += ' · ' + entry.duration + ' с';
     whoText += ' · ' + new Date(entry.created).toLocaleString('ru-RU');
     who.textContent = whoText;
     const promptEl = document.createElement('div');
@@ -1215,7 +1227,8 @@
       renderLibrary();
     });
     row.append(download, fav, del);
-    div.append(who, promptEl, media, row);
+    main.append(who, promptEl, media, row);
+    div.append(main);
     if (entry.kind === 'music' && entry.lyrics) {
       const lyricsWrap = document.createElement('div');
       lyricsWrap.className = 'lib-lyrics';
@@ -1233,7 +1246,7 @@
       body.hidden = true;
       body.textContent = entry.lyrics;
       lyricsWrap.append(toggle, body);
-      div.append(lyricsWrap);
+      main.append(lyricsWrap);
     }
     return div;
   }
@@ -1287,7 +1300,6 @@
       audio.controlsList = 'nodownload'; // то же: имя файла даёт наша кнопка
       audio.preload = 'none';
       audio.src = url;
-      addTrackCover(container, entry.job, entry.cover);
       container.append(audio);
     }
   }

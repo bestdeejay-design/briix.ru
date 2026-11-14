@@ -21,7 +21,7 @@ const POLICY_MESSAGE = 'Запрос нарушает политику конт�
 let state;
 function resetBff() {
   state = {
-    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false, improveDelay: 0, favoriteFail: false,
+    chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false, improveDelay: 0, favoriteFail: false, coverRateLimit: 0, coverRequests: 0, fileDelay: 0, activeFiles: 0, maxActiveFiles: 0,
     jobPosts: [], jobBlock: false, polls: 0, deleted: {}, favs: {}, jobSeq: 1, pollsOf: {}
   };
 }
@@ -142,8 +142,19 @@ function bffServer(port) {
         return;
       }
 
-      if (req.url.startsWith('/files/') && req.url.includes('.m4a')) { res.writeHead(200, { 'Content-Type': 'audio/mp4', ...cors }); res.end(M4A); return; }
-      if (req.url.startsWith('/files/') && req.url.includes('.png')) { res.writeHead(200, { 'Content-Type': 'image/png', ...cors }); res.end(PNG); return; }
+      if (req.url.startsWith('/files/') && (req.url.includes('.m4a') || req.url.includes('.png'))) {
+        if (req.url.includes('-cover.png')) {
+          state.coverRequests++;
+          if (state.coverRateLimit > 0) { state.coverRateLimit--; send(429, { error: { code: 'rate_limited' } }); return; }
+        }
+        const music = req.url.includes('.m4a');
+        const current = state;
+        current.activeFiles++;
+        current.maxActiveFiles = Math.max(current.maxActiveFiles, current.activeFiles);
+        const finish = () => { current.activeFiles--; res.writeHead(200, { 'Content-Type': music ? 'audio/mp4' : 'image/png', ...cors }); res.end(music ? M4A : PNG); };
+        if (current.fileDelay) setTimeout(finish, current.fileDelay); else finish();
+        return;
+      }
       send(404, { error: { code: 'not_found', message: 'nf' } });
     });
     s.listen(port, '127.0.0.1', () => resolve(s));
@@ -221,7 +232,6 @@ function bffServer(port) {
   assert.match(await p.locator('#assistantMenu').innerText(), /Автор песни/);
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#modelChip').isVisible(), true, 'model chip visible in music');
-  assert.equal(await p.locator('#durationChip').isVisible(), true, 'duration chip visible in music');
   assert.equal(await p.locator('#vocalSeg').isVisible(), true, 'track-mode segmented control visible in music');
   assert.equal(await p.locator('#tuneToggle').isVisible(), true, 'fine-tune toggle visible in music');
   assert.equal(await p.locator('#advanced').isVisible(), false, 'advanced fields hidden by default (Simple)');
@@ -300,13 +310,6 @@ function bffServer(port) {
   // 7. Музыка-джоба: лирика + стиль, длительность, инструментал по дефолту, Pro/вокал, стадии, плеер.
   await p.locator('#lyrics').fill('[Verse]\nГород спит\n[Chorus]\nА я не сплю');
   await p.locator('#musicPrompt').fill('dream pop, 90 BPM, female vocals');
-  await p.locator('#durationChip').click();
-  await p.locator('#durationMenu button', { hasText: 'Полная' }).click();
-  assert.match(await p.locator('#durationName').innerText(), /Полная/, 'duration preset selected');
-  // Дефолт-пресет «Стандарт»: переключаемся обратно и проверяем.
-  await p.locator('#durationChip').click();
-  await p.locator('#durationMenu button', { hasText: 'Стандарт' }).click();
-  assert.match(await p.locator('#durationName').innerText(), /Стандарт/);
   assert.equal(await p.locator('.seg-btn[data-vocal="0"]').getAttribute('aria-pressed'), 'true', 'vocal «Песня» is the default again (infra#79 fixed)');
   assert.equal(await p.locator('.seg-btn[data-vocal="1"]').getAttribute('aria-pressed'), 'false');
   await p.evaluate(() => {
@@ -336,7 +339,7 @@ function bffServer(port) {
   assert.equal(musicPost.prompt, 'dream pop, 90 BPM, female vocals');
   assert.match(musicPost.params.lyrics, /\[Chorus\]/);
   assert.equal(musicPost.params.model, 'ace-step-flash');
-  assert.equal(musicPost.params.duration, 90, 'std preset = 90 s under the bus contract key (params.duration)');
+  assert.equal(musicPost.params.duration, undefined, 'duration must NOT be sent (infra#93: length follows lyrics)');
   assert.equal(musicPost.params.duration_seconds, undefined, 'legacy key must not be sent');
   assert.equal(musicPost.params.instrumental, undefined);
   // Pro через чип модели + снова инструментал (режим «Инструментал» выбран явно).
@@ -350,7 +353,7 @@ function bffServer(port) {
   await p.waitForFunction(() => document.querySelectorAll('audio').length >= 2, {}, { timeout: 20000 });
   assert.equal(state.jobPosts.at(-1).params.model, 'ace-step-pro');
   assert.equal(state.jobPosts.at(-1).params.instrumental, true, 'instrumental mode adds the flag');
-  ok('music job: lyrics + style + duration/instrumental/pro chips, stages, audio player', {});
+  ok('music job: lyrics + style + instrumental/pro chips, stages, audio player', {});
 
   // 8. Фото-джоба: превью в ленту.
   await p.locator('.mode[data-mode="photo"]').click();
@@ -541,10 +544,9 @@ function bffServer(port) {
   assert.match(await p.locator('.lib-item .lib-prompt', { hasText: 'lighthouse' }).innerText(), /lighthouse/);
   // Музыкальная запись: модель в .who, подпись M4A, сворачиваемый текст песни.
   const musicItem = p.locator('.lib-item', { hasText: /Музыка/i }).first();
-  await musicItem.locator('.track-cover img').waitFor({ state: 'visible', timeout: 10000 }); // обложка-миниатюра (infra#77)
+  await musicItem.locator('.lib-cover img').waitFor({ state: 'visible', timeout: 10000 }); // обложка-миниатюра (infra#77)
   const musicWho = await musicItem.locator('.who').innerText();
   assert.match(musicWho, /ace-step/i, 'music .who carries the model');
-  assert.match(musicWho, /\d+\s*с/i, 'music .who carries the duration');
   assert.match(await musicItem.locator('a.action').first().innerText(), /Скачать аудио/, 'music download labelled generically');
   const lyricsToggle = musicItem.locator('.lib-lyrics-toggle');
   assert.equal(await lyricsToggle.isVisible(), true, 'lyrics toggle exists');
@@ -622,6 +624,7 @@ function bffServer(port) {
   // Настройки фиксируются до автолирики, даже если пользователь меняет их во время ожидания.
   resetBff();
   state.chatSlow = true;
+  state.coverRateLimit = 1;
   p = await page();
   await p.locator('.mode[data-mode="music"]').click();
   await p.locator('#prompt').fill('Песня о море');
@@ -629,23 +632,24 @@ function bffServer(port) {
   await p.waitForSelector('.card.stage .stage-stop');
   await p.locator('#modelChip').click();
   await p.locator('#modelMenu button', { hasText: 'Pro' }).click();
-  await p.locator('#durationChip').click();
-  await p.locator('#durationMenu button', { hasText: 'Короткая' }).click();
   await p.locator('.seg-btn[data-vocal="1"]').click();
   await p.waitForSelector('.card.assistant audio', { timeout: 30000 });
   const frozen = state.jobPosts.at(-1);
   assert.equal(frozen.params.model, 'ace-step-flash');
-  assert.equal(frozen.params.duration, 90);
+  assert.equal(frozen.params.duration, undefined, 'duration is not sent');
   assert.equal(frozen.params.instrumental, undefined);
-  assert.match(await p.locator('.card.assistant .who').last().innerText(), /Flash.*90/i);
+  assert.match(await p.locator('.card.assistant .who').last().innerText(), /Flash/i);
   await p.waitForSelector('.card.assistant .track-cover img', { timeout: 10000 });
+  assert.ok(state.coverRequests >= 2, 'cover recovered from HTTP 429');
   state.chatSlow = false;
   ok('music snapshot and server artwork survive settings changes');
 
   // Серверная + локальная запись не дублируется, реальное скачивание не вызывает рекурсию.
   await p.locator('.tab[data-tab="library"]').click();
-  await p.waitForSelector('.lib-item .track-cover img', { timeout: 10000 });
+  await p.waitForSelector('.lib-item .lib-cover img', { timeout: 10000 });
   assert.equal(await p.locator('.lib-item').count(), 1, 'one merged record per job');
+  assert.equal(await p.locator('.lib-item .lib-cover').count(), 1, 'one thumbnail per track');
+  assert.equal(await p.locator('.lib-item .track-cover').count(), 0, 'no duplicate full-size cover in library');
   const downloadPromise = p.waitForEvent('download');
   await p.locator('.lib-item a.action').first().click();
   const downloaded = await downloadPromise;
@@ -692,6 +696,29 @@ function bffServer(port) {
   assert.equal(await p.locator('#gate').isVisible(), true);
   state.chatSlow = false;
   ok('active session cannot leak into another profile');
+
+
+  // Библиотека: миниатюры и аудио делят очередь, а не грузят все файлы одновременно.
+  resetBff(); state.fileDelay = 150;
+  state.jobPosts = Array.from({ length: 8 }, (_, i) => ({ id: 'job-seeded-' + i, type: 'music', prompt: 'Трек ' + i, params: { model: 'ace-step-flash' } }));
+  p = await page({ viewport: { width: 320, height: 568 } });
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.waitForSelector('.lib-item .lib-cover img', { timeout: 10000 });
+  assert.equal(await p.locator('.lib-item').count(), 8);
+  const libraryLayout = await p.evaluate(() => {
+    const item = document.querySelector('.lib-item');
+    const cover = item.querySelector('.lib-cover').getBoundingClientRect();
+    const content = item.querySelector('.lib-main').getBoundingClientRect();
+    return { documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      cardOverflow: item.scrollWidth - item.clientWidth, coverRight: cover.right, contentLeft: content.left };
+  });
+  assert.ok(libraryLayout.documentOverflow <= 0 && libraryLayout.cardOverflow <= 0, 'library fits narrow viewport');
+  assert.ok(libraryLayout.coverRight <= libraryLayout.contentLeft, 'thumbnail is to the left of content');
+  await p.screenshot({ path: path.join(require('node:os').tmpdir(), 'studio-library-320.png') });
+  await p.locator('.lib-item').last().scrollIntoViewIfNeeded();
+  await p.waitForSelector('.lib-item:last-child .lib-cover img', { timeout: 10000 });
+  assert.ok(state.maxActiveFiles <= 2, 'media queue max concurrency is 2, got ' + state.maxActiveFiles);
+  ok('narrow library layout and bounded media queue', { maxActiveFiles: state.maxActiveFiles });
 
   // Узкий и низкий экран: оба измерения видимых кнопок и отсутствие горизонтального переполнения.
   p = await page({ viewport: { width: 320, height: 568 } });

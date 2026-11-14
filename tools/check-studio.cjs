@@ -1000,6 +1000,123 @@ function bffServer(port) {
   assert.equal(traversalRequests, 0, 'relative traversal outside /files was not requested');
   ok('file fetch blocks foreign origins, traversal and redirects without URL credentials');
 
+  // Opt-in producer: review, preservation, no implicit music job, and restoration.
+  resetBff();
+  state.chatImproveText = JSON.stringify({ title: 'Огни', prompt: 'dream pop, 72 BPM, no guitar', lyrics: '[Verse]\nГород засыпает' });
+  p = await page({ viewport: { width: 390, height: 844 } });
+  await p.locator('.mode[data-mode="music"]').click();
+  const idea = 'Песня о собаке на французском, 72 BPM, без гитары';
+  await p.locator('#prompt').fill(idea);
+  await p.locator('#prepareMusic').click();
+  await p.locator('.producer-draft').first().waitFor();
+  assert.equal(state.jobPosts.length, 0, 'preparing does not start audio generation');
+  assert.equal(await p.locator('#prompt').inputValue(), idea, 'original input is not overwritten');
+  assert.match(state.chatPosts[0].messages[1].content, /собаке/);
+  assert.equal(await p.locator('.producer-warning').first().isVisible(), true);
+  const review = p.locator('.producer-draft').first();
+  await review.locator('[data-producer-field="title"]').fill('Новые огни');
+  await review.locator('[data-producer-field="lyrics"]').fill('[Verse]\nMa propre chanson');
+  await review.getByRole('button', { name: 'Принять в поля студии' }).click();
+  await p.waitForFunction(() => document.querySelector('#musicPrompt').value === 'dream pop, 72 BPM, no guitar');
+  assert.equal(await p.locator('#lyrics').inputValue(), '[Verse]\nMa propre chanson');
+  assert.equal(state.jobPosts.length, 0, 'accepting does not start audio generation');
+  await p.reload();
+  await p.locator('.producer-draft').first().waitFor();
+  assert.equal(await p.locator('[data-producer-field="title"]').first().inputValue(), 'Новые огни');
+  assert.equal(await p.locator('#musicPrompt').inputValue(), 'dream pop, 72 BPM, no guitar');
+  p.once('dialog', dialog => dialog.accept());
+  await p.getByRole('button', { name: 'Вернуть поля до принятия' }).first().click();
+  await p.waitForFunction(() => !document.querySelector('#prompt').hidden);
+  assert.equal(await p.locator('#prompt').inputValue(), idea);
+  assert.equal(state.jobPosts.length, 0);
+  ok('producer mobile: review/edit/apply/restore and reload, no implicit audio job');
+
+  // Existing authored lyrics are sent as context but never replaced by the LLM.
+  resetBff(); state.chatImproveText = JSON.stringify({ title: 'Моё', prompt: 'jazz piano', lyrics: 'другая лирика' });
+  p = await page(); await p.locator('.mode[data-mode="music"]').click(); await p.locator('#tuneToggle').click();
+  await p.locator('#musicPrompt').fill('джаз по моей лирике');
+  await p.locator('#lyrics').fill('Моя собственная строка');
+  await p.locator('#prepareMusic').click(); await p.locator('.producer-draft').waitFor();
+  assert.equal(await p.locator('[data-producer-field="lyrics"]').inputValue(), 'Моя собственная строка');
+  assert.match(state.chatPosts[0].messages[1].content, /Моя собственная строка/);
+  await p.locator('#lyrics').fill('Новая правка в ожидании');
+  p.once('dialog', dialog => dialog.dismiss());
+  await p.getByRole('button', { name: 'Принять в поля студии' }).click();
+  assert.equal(await p.locator('#lyrics').inputValue(), 'Новая правка в ожидании');
+  p.once('dialog', dialog => dialog.accept());
+  await p.getByRole('button', { name: 'Принять в поля студии' }).click();
+  await p.waitForFunction(() => document.querySelector('#lyrics').value === 'Моя собственная строка');
+  await p.locator('.producer-idea summary').click();
+  assert.match(await p.locator('.producer-idea').innerText(), /Новая правка в ожидании/);
+  ok('producer keeps authored lyrics and guards newer edits with recoverable backup');
+
+  // Instrumental, incorrect JSON and moderation leave the source untouched.
+  resetBff(); state.chatImproveText = JSON.stringify({ title: 'Рассвет', prompt: 'ambient synth', lyrics: '' });
+  p = await page(); await p.locator('.mode[data-mode="music"]').click(); await p.locator('.seg-btn[data-vocal="1"]').click();
+  await p.locator('#prompt').fill('инструментал без вокала'); await p.locator('#prepareMusic').click();
+  await p.locator('.producer-draft').waitFor();
+  assert.equal(await p.locator('[data-producer-field="lyrics"]').count(), 0);
+  await p.getByRole('button', { name: 'Принять в поля студии' }).click();
+  await p.waitForFunction(() => document.querySelector('#musicPrompt').value === 'ambient synth');
+  await p.locator('#send').click(); await p.waitForSelector('#feed audio', { timeout: 25000 });
+  assert.equal(state.jobPosts[0].params.instrumental, true);
+  assert.equal(state.jobPosts[0].params.duration, undefined);
+  ok('instrumental review and explicit generation, no duration parameter');
+  resetBff(); state.chatImproveText = '{broken';
+  p = await page(); await p.locator('.mode[data-mode="music"]').click(); await p.locator('#prompt').fill('Сохранить идею');
+  await p.locator('#prepareMusic').click(); await p.getByText('Ответ для ручного восстановления').waitFor();
+  assert.equal(await p.locator('#prompt').inputValue(), 'Сохранить идею');
+  assert.equal(await p.locator('.producer-draft').count(), 0);
+  state.chatBlocked = true; await p.locator('#prepareMusic').click();
+  await p.locator('.card.error', { hasText: 'Модерация' }).waitFor();
+  assert.equal(await p.locator('#prompt').inputValue(), 'Сохранить идею');
+  ok('malformed response and moderation preserve original');
+
+  // Cancellation and a parallel chat must not modify the originating music input.
+  resetBff(); state.improveDelay = 1200;
+  state.chatImproveText = JSON.stringify({ title: 'Песня', prompt: 'jazz', lyrics: 'слова' });
+  p = await page(); await p.locator('.mode[data-mode="music"]').click(); await p.locator('#prompt').fill('Отменяемая идея');
+  await p.locator('#prepareMusic').click();
+  await p.getByRole('button', { name: 'Отменить подготовку песни' }).click();
+  await p.getByText('Подготовка отменена').waitFor();
+  assert.equal(await p.locator('#prompt').inputValue(), 'Отменяемая идея');
+  await p.waitForTimeout(1400); assert.equal(await p.locator('.producer-draft').count(), 0);
+  await p.locator('#prepareMusic').click();
+  await p.locator('.mode[data-mode="chat"]').click(); await p.locator('#prompt').fill('Параллельный вопрос'); await p.locator('#send').click();
+  await p.locator('.card.assistant', { hasText: 'Стрим пришёл' }).waitFor();
+  await p.locator('.producer-draft').waitFor();
+  assert.equal(state.jobPosts.length, 0);
+  await p.locator('.mode[data-mode="music"]').click(); assert.equal(await p.locator('#prompt').inputValue(), 'Отменяемая идея');
+  ok('producer cancellation and parallel chat preserve the music draft');
+
+  // A late response stays in its original session even while a new one is active.
+  resetBff(); state.improveDelay = 3000;
+  state.chatImproveText = JSON.stringify({ title: 'Первый', prompt: 'jazz trio', lyrics: 'исходные слова' });
+  p = await page(); await p.locator('#prompt').fill('Первая сессия продюсера'); await p.locator('#send').click();
+  await p.locator('.card.assistant', { hasText: 'Стрим пришёл' }).waitFor();
+  await p.locator('.mode[data-mode="music"]').click(); await p.locator('#prompt').fill('Идея первой сессии');
+  await p.locator('#prepareMusic').click(); await p.locator('.mode[data-mode="chat"]').click(); await p.locator('#newChat').click();
+  await p.waitForFunction(() => document.querySelector('.mode[data-mode="chat"]').getAttribute('aria-pressed') === 'true');
+  await p.waitForTimeout(3400);
+  assert.equal(await p.locator('.session-feed:not([hidden]) .producer-draft').count(), 0);
+  await p.locator('#sessionsOpen').click();
+  await p.locator('#sessionsList .session-item').filter({ hasText: 'Первая сессия продюсера' }).click();
+  await p.locator('.session-feed:not([hidden]) .producer-draft').waitFor();
+  await p.locator('.mode[data-mode="music"]').click();
+  assert.equal(await p.locator('#prompt').inputValue(), 'Идея первой сессии');
+  ok('late producer result is isolated to the originating session');
+
+  resetBff(); p = await page();
+  await p.route(`http://127.0.0.1:${BFF_PORT}/v1/chat/completions`, route => route.fulfill({
+    status: 429, headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` },
+    contentType: 'application/json', body: JSON.stringify({ error: { code: 'queue_full', message: 'Очередь заполнена' } })
+  }));
+  await p.locator('.mode[data-mode="music"]').click(); await p.locator('#prompt').fill('Идея при лимите');
+  await p.locator('#prepareMusic').click(); await p.locator('.card.error').waitFor();
+  assert.equal(await p.locator('#prompt').inputValue(), 'Идея при лимите');
+  assert.equal(state.jobPosts.length, 0);
+  ok('producer 429 preserves the input and never starts a job');
+
   assert.deepEqual(errors, [], 'no page errors anywhere');
   await browser.close();
   staticSrv.close();

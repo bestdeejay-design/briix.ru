@@ -122,7 +122,7 @@ jobs:
           NODE_PATH: /home/badai/briix-ci-deps/node_modules
         run: |
           set -euo pipefail
-          for suite in studio studio-storage session-store waveform; do
+          for suite in producer studio studio-storage session-store waveform; do
             echo "=== check-$suite ==="
             node "tools/check-$suite.cjs"
           done

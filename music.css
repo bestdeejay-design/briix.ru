@@ -65,6 +65,12 @@
 .music-empty h2 { margin: 0; font-size: 15px; }
 .music-empty p { margin: 0; max-width: 420px; color: var(--muted); font-size: 11px; line-height: 1.8; }
 .music-empty-status { font-variant-numeric: tabular-nums; }
+
+/* Панель вывода на телефоне стоит над формой (order: -1): когда строка статуса
+   или фраза ожидания переносится на вторую строку, панель растёт на ~20px и
+   вся форма прыгает под пальцем печатающего. Держим высоту двух строк всегда. */
+.music-page .music-empty .music-empty-status,
+.music-page .music-empty .wait-line { min-height: 40px; }
 .music-player-card { padding: 22px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .music-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
 .music-preview-head h2 { margin: 6px 0 5px; font-size: 17px; }

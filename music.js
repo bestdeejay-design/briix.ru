@@ -499,12 +499,14 @@
         return `<button type="button" class="music-vocal-mode ${form.vocalMode === m.id ? 'active' : ''} ${ready ? '' : 'unavailable'}" data-music-action="vocal-mode" data-id="${m.id}" aria-pressed="${form.vocalMode === m.id}"><strong>${m.title}</strong><span>${esc(m.sub)}</span><small>до ${m.max} с · ≈${Math.round(seconds / 60 * 10) / 10} мин${ready ? '' : ' · недоступен'}</small></button>`;
       }).join('')}</div><p class="music-mode-timing">${icon('clock')}Тайминги — замер стенда из каталога шины, не обещание: очередь и холодный старт добавляют время.</p></div>` : ''}
       <label class="music-field" for="music-prompt">Опишите задумку</label><textarea id="music-prompt" class="music-prompt" rows="4" maxlength="${MAX_PROMPT}" aria-describedby="music-prompt-hint music-form-error" placeholder="Какое настроение, для чего звук, что должно происходить в треке?">${esc(form.prompt)}</textarea><div class="music-field-hint" id="music-prompt-hint"><span>Бриф для будущей модели и вариант заглушки</span><span id="music-prompt-count">${form.prompt.length} / ${MAX_PROMPT}</span></div>
-      ${hasBase() ? `<div class="music-base-row"><button type="button" class="btn small music-base-btn" data-music-action="base-prompt">${icon('sparkles')}<span>Улучшить промпт</span></button><button type="button" class="btn small music-base-undo" data-music-action="base-prompt-undo" ${basePromptUndo === null ? 'hidden' : ''}>${icon('refresh')}<span>Вернуть мой текст</span></button></div><p class="music-base-source" id="music-prompt-source" ${basePromptSource ? '' : 'hidden'}>${esc(basePromptSource)}</p>` : ''}
+      ${hasBrain() ? `<div class="music-base-row"><button type="button" class="btn small music-base-btn" data-music-action="brain-prompt">${icon('settings')}<span>Теги по правилам мозга</span></button><button type="button" class="btn small music-base-undo" data-music-action="brain-prompt-undo" ${brainPromptUndo === null ? 'hidden' : ''}>${icon('refresh')}<span>Вернуть задумку</span></button></div>` : ''}
+      ${hasBase() ? `<div class="music-base-row"><button type="button" class="btn small music-base-btn" data-music-action="base-prompt">${icon('sparkles')}<span>Улучшить промпт</span></button><button type="button" class="btn small music-base-undo" data-music-action="base-prompt-undo" ${basePromptUndo === null ? 'hidden' : ''}>${icon('refresh')}<span>Вернуть мой текст</span></button></div>` : ''}
+      ${(hasBase() || hasBrain()) ? `<p class="music-base-source" id="music-prompt-source" ${(basePromptSource || brainPromptSource) ? '' : 'hidden'}>${esc(brainPromptSource || basePromptSource)}</p>` : ''}
       ${isVocalForm() ? `<label class="music-field" for="music-lyrics">Лирика <span class="muted">· обязательна для вокала</span><textarea id="music-lyrics" class="music-lyrics" rows="6" maxlength="${MAX_LYRICS}" placeholder="[verse]\nТёплый вечер за окном\n[chorus]\nМы ещё успеем домой">${esc(form.lyrics)}</textarea></label>
-      <div class="music-lyric-tools"><span class="muted">Вставить тег:</span>${LYRIC_TAGS.map(t => `<button type="button" class="music-tag-btn" data-music-action="lyric-tag" data-id="${t}">[${t}]</button>`).join('')}<span class="music-lyrics-count" id="music-lyrics-count">${form.lyrics.length} / ${MAX_LYRICS}</span></div>
+      <div class="music-lyric-tools"><span class="muted">Вставить тег:</span>${LYRIC_TAGS.map(t => `<button type="button" class="music-tag-btn" data-music-action="lyric-tag" data-id="${t}">[${t}]</button>`).join('')}${hasBrain() ? `<button type="button" class="music-tag-btn" data-music-action="brain-lyrics" title="Каркас секций по правилам мозга DJ1">каркас секций</button>` : ''}<span class="music-lyrics-count" id="music-lyrics-count">${form.lyrics.length} / ${MAX_LYRICS}</span></div>
       ${hasBase() ? `<label class="music-check music-auto-lyrics"><input type="checkbox" id="music-auto-lyrics" ${form.autoLyrics ? 'checked' : ''}><span><strong>Автолирика</strong> — подобрать текст из моей базы, если поле пустое</span></label>
-      <div class="music-base-row"><button type="button" class="btn small music-base-btn" data-music-action="base-lyrics">${icon('sparkles')}<span>Улучшить лирику</span></button><button type="button" class="btn small" data-music-action="base-lyrics-again">${icon('route')}<span>Другой вариант</span></button><button type="button" class="btn small music-base-undo" data-music-action="base-lyrics-undo" ${baseLyricsUndo === null ? 'hidden' : ''}>${icon('refresh')}<span>Вернуть мой текст</span></button></div>
-      <p class="music-base-source" id="music-lyrics-source" ${baseLyricsSource ? '' : 'hidden'}>${esc(baseLyricsSource)}</p>` : ''}
+      <div class="music-base-row"><button type="button" class="btn small music-base-btn" data-music-action="base-lyrics">${icon('sparkles')}<span>Улучшить лирику</span></button><button type="button" class="btn small" data-music-action="base-lyrics-again">${icon('route')}<span>Другой вариант</span></button><button type="button" class="btn small music-base-undo" data-music-action="base-lyrics-undo" ${baseLyricsUndo === null ? 'hidden' : ''}>${icon('refresh')}<span>Вернуть мой текст</span></button></div>` : ''}
+      <p class="music-base-source" id="music-lyrics-source" ${baseLyricsSource ? '' : 'hidden'}>${esc(baseLyricsSource)}</p>
       <label class="music-field">Язык вокала<select id="music-language"><option value="ru" ${form.language === 'ru' ? 'selected' : ''}>Русский</option><option value="en" ${form.language === 'en' ? 'selected' : ''}>English</option></select></label>` : ''}
       ${hasBase() ? `<details class="music-base-browser" id="music-base-browser" ${baseBrowserOpen ? 'open' : ''}><summary>${icon('star')}<span>Моя база промптов и лирики</span><small>DJ1</small></summary><div class="music-base-body">
         <p class="music-base-note">${icon('info')}<span>Подбор по словам из вашей галереи DJ1 — 8202 трека, 6133 текста. Это ваша база, а не генерация: ничего не выдумывается и никуда не отправляется.</span></p>
@@ -843,10 +845,15 @@
   let baseStatus = 'idle';
   let basePromptUndo = null, baseLyricsUndo = null;
   let basePromptSource = '', baseLyricsSource = '';
+  let brainPromptUndo = null, brainPromptSource = '';
   let basePromptSkip = 0, baseLyricsSkip = 0;
   let baseQuery = '', baseBrowserOpen = false;
   const base = () => window.BRIIX_MUSIC_BASE;
   const hasBase = () => !!window.BRIIX_MUSIC_BASE;
+  // Мозг DJ1 — правила из dj1/brain (music-brain.js). Работает без сети:
+  // детерминированная переложка задумки в теги ACE-Step.
+  const brain = () => window.BRIIX_MUSIC_BRAIN;
+  const hasBrain = () => !!window.BRIIX_MUSIC_BRAIN;
 
   function setPromptValue(text) {
     form.prompt = String(text).slice(0, MAX_PROMPT);
@@ -865,9 +872,11 @@
     if (!root) return;
     const show = (selector, on) => { const el = $(selector, root); if (el) el.hidden = !on; };
     show('.music-base-undo[data-music-action="base-prompt-undo"]', basePromptUndo !== null);
+    show('.music-base-undo[data-music-action="brain-prompt-undo"]', brainPromptUndo !== null);
     show('.music-base-undo[data-music-action="base-lyrics-undo"]', baseLyricsUndo !== null);
     const promptSource = $('#music-prompt-source', root);
-    if (promptSource) { promptSource.textContent = basePromptSource; promptSource.hidden = !basePromptSource; }
+    const promptLabel = brainPromptSource || basePromptSource;
+    if (promptSource) { promptSource.textContent = promptLabel; promptSource.hidden = !promptLabel; }
     const lyricsSource = $('#music-lyrics-source', root);
     if (lyricsSource) { lyricsSource.textContent = baseLyricsSource; lyricsSource.hidden = !baseLyricsSource; }
     const status = $('#music-base-status', root);
@@ -947,6 +956,33 @@
     paintBaseControls(); host?.toast('Лирика взята из базы DJ1.');
   }
 
+  // Мозг: переложить задумку в теги ACE-Step по правилам dj1/brain.
+  // Задумка целиком сохраняется для отката, теги — строчные, позитивные,
+  // в порядке таксономии (жанр → инструменты → вокал → BPM → настроение).
+  function brainPrompt() {
+    syncForm();
+    const brief = form.prompt.trim();
+    if (brief.length < MIN_PROMPT) { host?.toast(`Опишите задумку хотя бы ${MIN_PROMPT} символами — мозгу нужно из чего собирать теги.`, 'error'); return; }
+    const built = brain().buildTags(brief, { kind: form.kind, genre: form.genre, mood: form.mood, bpm: form.bpm, language: form.language });
+    if (brainPromptUndo === null) brainPromptUndo = form.prompt;
+    setPromptValue(built.tags);
+    brainPromptSource = 'Теги собраны мозгом DJ1: ' + built.notes.length + ' тегов по таксономии корпуса. Задумку можно вернуть.';
+    paintBaseControls();
+    host?.toast('Теги ACE-Step собраны по правилам мозга DJ1.');
+  }
+  // Мозг: каркас структуры песни (song-structure). Только для пустого поля —
+  // свой текст мозг никогда не перезаписывает.
+  function brainLyrics() {
+    syncForm();
+    if (form.lyrics.trim()) { host?.toast('Лирика уже заполнена — мозг не перезаписывает ваш текст. Каркас доступен только для пустого поля.', 'error'); return; }
+    const skeleton = brain().buildLyricsSkeleton(form.prompt, { kind: form.kind, mood: form.mood, language: form.language });
+    if (baseLyricsUndo === null) baseLyricsUndo = form.lyrics;
+    setLyricsValue(skeleton);
+    baseLyricsSource = 'Каркас секций — song-structure из мозга DJ1. Впишите свой текст в секции.';
+    paintBaseControls();
+    host?.toast('Каркас секций готов — впишите свой текст.');
+  }
+
   const actions = {
     tab: el => { syncForm(); if (el.dataset.id !== 'showcase') stopShowcase(); tab = el.dataset.id; renderPanel(); },
     kind: el => { syncForm(); form.kind = el.dataset.id; form.duration = isVocalForm() ? vocalMode(form.vocalMode).durations[0] : kind(form.kind).defaultDuration; renderPanel(); },
@@ -962,6 +998,9 @@
     },
     'base-prompt': () => { improvePrompt(); },
     'base-prompt-undo': () => { if (basePromptUndo === null) return; setPromptValue(basePromptUndo); basePromptUndo = null; basePromptSource = ''; paintBaseControls(); },
+    'brain-prompt': () => { brainPrompt(); },
+    'brain-prompt-undo': () => { if (brainPromptUndo === null) return; setPromptValue(brainPromptUndo); brainPromptUndo = null; brainPromptSource = ''; paintBaseControls(); },
+    'brain-lyrics': () => { brainLyrics(); },
     'base-lyrics': () => { improveLyrics(); },
     'base-lyrics-again': () => { improveLyrics({ advance: true }); },
     'base-lyrics-undo': () => { if (baseLyricsUndo === null) return; setLyricsValue(baseLyricsUndo); baseLyricsUndo = null; baseLyricsSource = ''; paintBaseControls(); },

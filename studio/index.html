@@ -11,7 +11,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
   location.replace('https://demo.briix.ru/studio/' + location.hash);
 }
 </script>
-<link rel="stylesheet" href="studio.css?v=20261113-3">
+<link rel="stylesheet" href="studio.css?v=20261114-mobile-perf">
 </head>
 <body>
 
@@ -44,8 +44,17 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
 <main class="studio" id="studio" hidden>
   <header class="studio-header">
     <div><span class="brand-mark">B</span><strong>BRIIX</strong><span class="header-divider"></span><span>Студия</span></div>
-    <span class="header-note">Пространство для идей</span>
+    <button id="sessionsOpen" class="tool chip" type="button" aria-haspopup="dialog" aria-controls="sessionsDialog">☰ История</button>
   </header>
+  <div id="storageWarning" class="storage-warning" role="alert" hidden></div>
+  <div id="sessionsOverlay" class="sessions-overlay" hidden>
+    <section id="sessionsDialog" class="sessions-dialog" role="dialog" aria-modal="true" aria-labelledby="sessionsTitle" tabindex="-1">
+      <div class="sessions-head"><h2 id="sessionsTitle">История</h2><button id="sessionsClose" class="tool icon-only" type="button" aria-label="Закрыть историю">✕</button></div>
+      <button id="sessionsNew" class="session-new" type="button">＋ Новый чат</button>
+      <p class="sessions-help">Сессии хранятся в этом браузере; приватная вкладка может удалить их после закрытия. Аудиофайлы на сервере могут быть удалены.</p>
+      <div id="sessionsList" class="sessions-list"></div>
+    </section>
+  </div>
 
   <!-- Лента: чат-стрим, фото, треки — скроллится над композером -->
   <section id="feed" class="feed" aria-live="polite"></section>
@@ -114,7 +123,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
         <button id="addBtn" class="tool icon-only" aria-label="Добавить вложение" title="Вложения — скоро">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
-        <button id="newChat" class="tool chip chat-only" hidden title="Очистить ленту и начать заново">Новый чат</button>
+        <button id="newChat" class="tool chip chat-only" hidden title="Начать новую сессию, сохранив текущую">Новый чат</button>
         <button id="improvePhoto" class="tool chip photo-only" hidden disabled title="Арт-директор улучшит промпт">✨ Улучшить</button>
         <button id="undoPhoto" class="tool chip photo-only undo-chip" hidden>↩ Вернуть как было</button>
         <div class="menu-anchor">
@@ -179,6 +188,8 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
 </main>
 <script src="../wait-phrases.js?v=20261114"></script>
 <script src="../wait-ui.js?v=20261114"></script>
-<script src="studio.js?v=20261113-3"></script>
+<script src="session-store.js?v=20261114-97-p1"></script>
+<script src="waveform.js?v=20261114-97-p1b"></script>
+<script src="studio.js?v=20261114-mobile-perf"></script>
 </body>
 </html>

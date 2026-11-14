@@ -204,6 +204,11 @@ jobs:
           # Полное дерево репо (включая вложенные: site/, assets/), кроме служебного.
           tar --exclude=./tools --exclude=./audits --exclude=./.git --exclude=./.github --exclude=./studio \
               -cf - . | (cd "$STAGE" && tar xf -)
+          # studio/ живёт в репозитории briix-studio (briix.ru#107) — переносим его из текущего
+          # прода в staging нетронутым, чтобы подмена дерева не стирала студию на каждом деплое.
+          if [ -d /home/badai/briix-demo/studio ]; then
+            cp -a /home/badai/briix-demo/studio "$STAGE"/studio
+          fi
           if [ -d /home/badai/briix-demo ]; then
             mv /home/badai/briix-demo "$OLD"
           fi

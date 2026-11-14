@@ -22,7 +22,7 @@ let state;
 function resetBff() {
   state = {
     chatPosts: [], chatBlocked: false, chatImproveText: 'УЛУЧШЕННЫЙ ТЕКСТ', chatSlow: false, improveDelay: 0, favoriteFail: false, coverRateLimit: 0, coverRequests: 0, audioRequests: 0, photoRequests: 0, fileOrder: [], fileDelay: 0, activeFiles: 0, maxActiveFiles: 0,
-    jobPosts: [], jobBlock: false, pollFailures: [], pollAttempts: 0, polls: 0, deleted: {}, favs: {}, jobSeq: 1, pollsOf: {}
+    jobPosts: [], jobBlock: false, serverWarning: '', serverModel: '', pollFailures: [], pollAttempts: 0, polls: 0, deleted: {}, favs: {}, jobSeq: 1, pollsOf: {}
   };
 }
 resetBff();
@@ -112,7 +112,9 @@ function bffServer(port) {
             favorite: !!state.favs[id],
             created_at: 1794000000 + i
           }));
-        send(200, { total: items.length, limit: 100, offset: 0, items });
+        const params = new URL(req.url, 'http://mock').searchParams;
+        const limit = Number(params.get('limit') || 100), offset = Number(params.get('offset') || 0);
+        send(200, { total: items.length, limit, offset, items: items.slice(offset, offset + limit) });
         return;
       }
       const favM = req.url.match(/^\/jobs\/([^/]+)\/favorite$/);
@@ -144,7 +146,7 @@ function bffServer(port) {
           send(200, { id: post.id, type: post.type, status: 'running', stage });
           return;
         }
-        send(200, { id: post.id, type: post.type, status: 'ready', result_url: post.type === 'music' ? '/files/' + post.id + '.m4a' : '/files/' + post.id + '.png' });
+        send(200, { id: post.id, type: post.type, status: 'ready', result_url: post.type === 'music' ? '/files/' + post.id + '.m4a' : '/files/' + post.id + '.png', ...(state.serverWarning ? { warning: state.serverWarning } : {}), ...(state.serverModel ? { provenance: { model: state.serverModel } } : {}) });
         return;
       }
 
@@ -557,7 +559,7 @@ function bffServer(port) {
   await musicItem.locator('.lib-cover img').waitFor({ state: 'visible', timeout: 10000 }); // обложка-миниатюра (infra#77)
   const musicWho = await musicItem.locator('.who').innerText();
   assert.match(musicWho, /ace-step/i, 'music .who carries the model');
-  assert.match(await musicItem.locator('a.action').first().innerText(), /Скачать аудио/, 'music download labelled generically');
+  assert.equal(await musicItem.locator('a.action').first().getAttribute('aria-label'), 'Скачать аудио', 'music download labelled generically');
   const lyricsToggle = musicItem.locator('.lib-lyrics-toggle');
   assert.equal(await lyricsToggle.isVisible(), true, 'lyrics toggle exists');
   await lyricsToggle.click();
@@ -1116,6 +1118,138 @@ function bffServer(port) {
   assert.equal(await p.locator('#prompt').inputValue(), 'Идея при лимите');
   assert.equal(state.jobPosts.length, 0);
   ok('producer 429 preserves the input and never starts a job');
+
+  // The studio communicates mode and remains usable on narrow screens.
+  resetBff();
+  for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+    p = await page({ viewport });
+    for (const mode of ['chat', 'photo', 'music']) {
+      await p.locator(`.mode[data-mode="${mode}"]`).click();
+      assert.equal(await p.locator(`.mode[data-mode="${mode}"]`).getAttribute('aria-pressed'), 'true');
+      assert.equal(await p.locator('.session-feed:not([hidden]) .studio-welcome h1').innerText(),
+        { chat: 'Начните с идеи', photo: 'Представьте кадр', music: 'Создайте своё звучание' }[mode]);
+      assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+      assert.equal(await p.locator('#send').isVisible(), true);
+    }
+    assert.equal(await p.locator('#vocalSeg svg').count(), 2, 'track types use inline vector icons');
+    await p.locator('.seg-btn[data-vocal="1"]').click();
+    assert.equal(await p.locator('#modelHint').isVisible(), true);
+  }
+  ok('refreshed chat, photo and music modes fit mobile and desktop; vector mode icons');
+
+  // No false empty message during a slow request, then an actionable retry on failure.
+  resetBff(); p = await page();
+  let listAttempts = 0;
+  await p.route(`http://127.0.0.1:${BFF_PORT}/jobs?*`, async route => {
+    listAttempts++;
+    if (listAttempts === 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return route.fulfill({ status: 503, headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` } });
+    }
+    return route.continue();
+  });
+  await p.locator('.tab[data-tab="library"]').click();
+  assert.match(await p.locator('#lib .card.notice').innerText(), /Загружаем библиотеку/);
+  await p.locator('#lib .card.notice', { hasText: 'недоступна' }).waitFor();
+  await p.locator('#lib .card.notice').getByRole('button', { name: 'Повторить' }).click();
+  await p.locator('#lib .card.notice', { hasText: 'Пока пусто' }).waitFor();
+  assert.equal(listAttempts, 2);
+  ok('library loading, failure and retry have distinct states');
+
+  // Local entries may have no cover URL; use the shared server list, not a fabricated URL.
+  resetBff(); state.jobPosts = [{ id: 'cover-legacy', type: 'music', prompt: 'Старая композиция', params: {} }];
+  p = await page();
+  await p.evaluate(() => localStorage.setItem('briix-studio-library-tester', JSON.stringify([
+    { job: 'cover-legacy', kind: 'music', prompt: 'Старая композиция', file: '/files/cover-legacy.m4a', created: Date.now() }
+  ])));
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.waitForFunction(() => !!document.querySelector('.lib-cover img')?.complete && document.querySelector('.lib-cover img')?.naturalWidth > 0);
+  assert.equal(await p.locator('.lib-cover img').count(), 1);
+  ok('legacy local track picks up the actual server cover');
+
+  // Server pages beyond the first hundred are available without preloading audio.
+  resetBff(); state.jobPosts = Array.from({ length: 130 }, (_, i) => ({ id: 'page-' + i, type: 'music', prompt: 'Трек ' + i, params: {} }));
+  p = await page(); await p.locator('.tab[data-tab="library"]').click();
+  await p.locator('.lib-load-more').waitFor();
+  assert.equal(await p.locator('.lib-item').count(), 100);
+  assert.equal(state.audioRequests, 0);
+  await p.locator('.lib-load-more').click();
+  await p.waitForFunction(() => document.querySelectorAll('.lib-item').length === 130);
+  assert.equal(await p.locator('.lib-load-more').isVisible(), false);
+  assert.equal(state.audioRequests, 0);
+  ok('library can load entries beyond the first page without downloading audio');
+
+  // Never imply a requested model was used when the server reports a different backend.
+  resetBff(); state.serverWarning = 'Выбранная модель проигнорирована'; state.serverModel = 'musicgen-small';
+  p = await page(); await p.locator('.mode[data-mode="music"]').click();
+  await p.locator('.seg-btn[data-vocal="1"]').click();
+  await p.locator('#prompt').fill('Инструментальная идея'); await p.locator('#send').click();
+  await p.locator('.card.notice', { hasText: 'Выбранная модель проигнорирована' }).waitFor({ timeout: 25000 });
+  assert.match(await p.locator('.card.assistant .who').last().innerText(), /musicgen-small/i);
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.locator('.lib-item').waitFor();
+  assert.match(await p.locator('.lib-item .who').first().innerText(), /musicgen-small/i);
+  ok('server warning and actual instrumental backend are visible');
+
+  // A missing cover is honest and can be checked again when the server adds one.
+  resetBff(); p = await page(); let listForCover = 0;
+  await p.route(`http://127.0.0.1:${BFF_PORT}/jobs?*`, route => {
+    listForCover++;
+    const entry = { id: 'cover-later', type: 'music', status: 'ready', prompt: 'Трек без картинки', result_url: '/files/cover-later.m4a', params: {}, created_at: 1794000000 };
+    if (listForCover > 1) entry.cover_url = '/files/cover-later-cover.png';
+    return route.fulfill({ json: { total: 1, items: [entry] }, headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` } });
+  });
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.getByRole('button', { name: /У трека пока нет обложки.*Проверить/ }).click();
+  await p.waitForFunction(() => document.querySelector('.lib-cover img')?.naturalWidth > 0);
+  assert.equal(listForCover, 2);
+  ok('missing cover is labelled and can be rechecked');
+
+  // Changing the server key invalidates a late list from the previous identity.
+  resetBff(); p = await page();
+  await p.route(`http://127.0.0.1:${BFF_PORT}/jobs?*`, async route => {
+    const oldKey = route.request().headers().authorization === 'Bearer ' + TOKEN;
+    if (oldKey) await new Promise(resolve => setTimeout(resolve, 800));
+    const entry = { id: oldKey ? 'old-key' : 'new-key', type: 'music', prompt: oldKey ? 'Старая библиотека' : 'Новая библиотека', result_url: '/files/new-key.m4a', params: {}, created_at: 1794000000 };
+    return route.fulfill({ json: { total: 1, items: [entry] }, headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` } });
+  });
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.locator('#profileBtn').click(); await p.locator('#profileKeyBtn').click();
+  await p.locator('#keyInput').fill('new-token'); await p.locator('#keySave').click();
+  await p.getByText('Новая библиотека').waitFor(); await p.waitForTimeout(900);
+  assert.equal(await p.getByText('Старая библиотека').count(), 0);
+  ok('changing the key rejects a late library response from the previous key');
+
+  // A successful HTTP response containing invalid image data gets a visible retry.
+  resetBff(); state.jobPosts = [{ id: 'cover-broken', type: 'music', prompt: 'Повреждённая обложка', params: {} }];
+  p = await page(); let coverAttempts = 0;
+  await p.route(`http://127.0.0.1:${BFF_PORT}/files/cover-broken-cover.png`, route => {
+    coverAttempts++;
+    return coverAttempts === 1
+      ? route.fulfill({ status: 200, contentType: 'image/png', body: 'broken', headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` } })
+      : route.continue();
+  });
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.locator('.lib-cover .cover-retry').waitFor();
+  assert.match(await p.locator('.cover-retry').getAttribute('aria-label'), /Повторить загрузку обложки/);
+  await p.locator('.cover-retry').click();
+  await p.waitForFunction(() => document.querySelector('.lib-cover img')?.naturalWidth > 0);
+  assert.equal(coverAttempts, 2);
+  ok('corrupted cover decode offers a working retry');
+
+  resetBff(); state.jobPosts = [{ id: 'photo-broken', type: 'image', prompt: 'Картинка', params: {} }];
+  p = await page(); let photoAttempts = 0;
+  await p.route(`http://127.0.0.1:${BFF_PORT}/files/photo-broken.png`, route => {
+    photoAttempts++;
+    return photoAttempts === 1
+      ? route.fulfill({ status: 200, contentType: 'image/png', body: 'broken', headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${STATIC_PORT}` } })
+      : route.continue();
+  });
+  await p.locator('.tab[data-tab="library"]').click();
+  await p.locator('.lib-media', { hasText: 'Не удалось открыть изображение' }).getByRole('button', { name: 'Повторить' }).click();
+  await p.waitForFunction(() => document.querySelector('.lib-media img')?.naturalWidth > 0);
+  assert.equal(photoAttempts, 2);
+  ok('corrupted photo decode offers a working retry');
 
   assert.deepEqual(errors, [], 'no page errors anywhere');
   await browser.close();

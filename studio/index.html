@@ -11,7 +11,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
   location.replace('https://demo.briix.ru/studio/' + location.hash);
 }
 </script>
-<link rel="stylesheet" href="studio.css?v=20261114-producer-1">
+<link rel="stylesheet" href="studio.css?v=20261113-studio-refresh-2386fdb3">
 </head>
 <body>
 
@@ -44,7 +44,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
 <main class="studio" id="studio" hidden>
   <header class="studio-header">
     <div><span class="brand-mark">B</span><strong>BRIIX</strong><span class="header-divider"></span><span>Студия</span></div>
-    <button id="sessionsOpen" class="tool chip" type="button" aria-haspopup="dialog" aria-controls="sessionsDialog">☰ История</button>
+    <button id="sessionsOpen" class="tool chip" type="button" aria-haspopup="dialog" aria-controls="sessionsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg> История</button>
   </header>
   <div id="storageWarning" class="storage-warning" role="alert" hidden></div>
   <div id="sessionsOverlay" class="sessions-overlay" hidden>
@@ -116,6 +116,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
         </div>
       </div>
 
+      <p id="modelHint" class="composer-hint music-only" hidden>Модель для инструментала определяет сервер.</p>
       <p id="chatPending" class="composer-hint" role="status" hidden>Дождитесь ответа или остановите его, чтобы отправить следующий вопрос.</p>
       <div class="producer-entry music-only" hidden>
         <button id="prepareMusic" class="tool chip producer-button" type="button" disabled>✦ Подготовить песню</button>
@@ -128,7 +129,7 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
         <button id="newChat" class="tool chip chat-only" hidden title="Начать новую сессию, сохранив текущую">Новый чат</button>
-        <button id="improvePhoto" class="tool chip photo-only" hidden disabled title="Арт-директор улучшит промпт">✨ Улучшить</button>
+        <button id="improvePhoto" class="tool chip photo-only" hidden disabled title="Арт-директор улучшит промпт"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4L12 3z"/></svg> Улучшить</button>
         <button id="undoPhoto" class="tool chip photo-only undo-chip" hidden>↩ Вернуть как было</button>
         <div class="menu-anchor">
           <button id="assistantChip" class="tool chip" aria-haspopup="menu" aria-expanded="false">
@@ -145,8 +146,8 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
           <div id="modelMenu" class="menu" role="menu" aria-labelledby="modelChip" hidden></div>
         </div>
         <div id="vocalSeg" class="seg music-only" hidden role="group" aria-label="Режим трека">
-          <button class="seg-btn" data-vocal="0" aria-pressed="true">🎤 Песня</button>
-          <button class="seg-btn" data-vocal="1" aria-pressed="false">🎼 Инструментал</button>
+          <button class="seg-btn" data-vocal="0" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-3 0h6"/></svg> Песня</button>
+          <button class="seg-btn" data-vocal="1" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg> Инструментал</button>
         </div>
         <span class="spacer"></span>
         <button id="tuneToggle" class="tool chip toggle music-only" hidden aria-pressed="false">Тонко настроить</button>
@@ -195,6 +196,6 @@ if (location.hostname === 'briix.ru' || location.hostname === 'www.briix.ru') {
 <script src="session-store.js?v=20261114-97-p1"></script>
 <script src="waveform.js?v=20261114-97-p1b"></script>
 <script src="producer-brain.js?v=dj1-74926e0-1"></script>
-<script src="studio.js?v=20261114-producer-1"></script>
+<script src="studio.js?v=20261113-studio-refresh-2386fdb3"></script>
 </body>
 </html>
